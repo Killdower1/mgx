@@ -1,5 +1,5 @@
 {
-  "timeline_index": 83,
+  "timeline_index": 97,
   "planner": {
     "Team Leader": {
       "1": {
@@ -15,7 +15,7 @@
         "start_at": 1761458338.701154,
         "end_at": 1761462511.8709085
       },
-      "current_task_id": "9",
+      "current_task_id": "13",
       "2": {
         "task_id": "2",
         "dependent_task_ids": [
@@ -120,7 +120,58 @@
         "is_finished": true,
         "assignee": "Alex",
         "start_at": 1761543227.8251736,
-        "end_at": 1761543416.7055454
+        "end_at": 1761558600.664696
+      },
+      "10": {
+        "task_id": "10",
+        "dependent_task_ids": [],
+        "instruction": "Update CSS dan tambahkan halaman login ke aplikasi dashboard:\n\n1. **Update CSS** - Update CSS yang ada di app.py dengan styling yang sudah disesuaikan user\n\n2. **Implementasi Login System**:\n   - Buat halaman login sebelum masuk ke dashboard utama\n   - Gunakan session state untuk manage login status\n   - Kredensial login:\n     - Email: octadimas@gmail.com\n     - Password: dowerdower1\n   - Tampilkan form login yang user-friendly\n   - Redirect ke dashboard setelah login berhasil\n   - Tambahkan logout functionality\n\n3. **Login Page Design**:\n   - Simple dan clean login form\n   - Email dan password input fields\n   - Login button\n   - Error message untuk kredensial salah\n   - Responsive design\n\n4. **Security Features**:\n   - Session management dengan st.session_state\n   - Password validation\n   - Login state persistence\n\nFile yang perlu diupdate: /workspace/streamlit_template/app.py - tambahkan login system dan update CSS sesuai permintaan user.",
+        "task_type": "general",
+        "code": "",
+        "result": "",
+        "is_success": false,
+        "is_finished": true,
+        "assignee": "Alex",
+        "start_at": 1761558600.6647015,
+        "end_at": 1761559979.0811813
+      },
+      "11": {
+        "task_id": "11",
+        "dependent_task_ids": [],
+        "instruction": "Fix sorting issue pada tabel outlet yang disebabkan oleh comma separator:\n\n1. **Fix Sorting Functionality** - Perbaiki masalah sorting yang tidak berfungsi karena comma separator\n2. **Maintain Number Separators** - Tetap gunakan separator untuk readability (bisa comma atau dot)\n3. **Solution Options**:\n   - Option A: Use NumberColumn dengan format yang tepat untuk sorting\n   - Option B: Implement custom sorting dengan underlying numeric data\n   - Option C: Use dot separator (25.000.000) instead of comma for better compatibility\n\n4. **Test All Columns** - Pastikan sorting berfungsi untuk:\n   - Omset column (revenue numbers)\n   - Foto column (photo quantities) \n   - Unlock column (unlock quantities)\n   - Conversion column (percentage values)\n\n5. **Maintain User Experience** - Angka tetap mudah dibaca dengan separator yang jelas\n\nFile yang perlu diupdate: /workspace/streamlit_template/app.py - fokus pada fungsi create_outlet_table() untuk memperbaiki sorting issue sambil mempertahankan number formatting.",
+        "task_type": "general",
+        "code": "",
+        "result": "",
+        "is_success": false,
+        "is_finished": true,
+        "assignee": "Alex",
+        "start_at": 1761559979.081186,
+        "end_at": 1761562205.4521515
+      },
+      "12": {
+        "task_id": "12",
+        "dependent_task_ids": [],
+        "instruction": "REVISI CRITICAL: Fix tabel outlet dengan 2 requirement HARGA MATI:\n\n1. **SEMUA NUMBER HARUS ADA SEPARATOR** - Format: 25.000.000 atau 25,000,000\n2. **SORTING HARUS BERFUNGSI DENGAN BAIK** - Klik header untuk sort numerik yang benar\n\n**SOLUSI OPTIONS TO EXPLORE:**\n- Option A: Ganti ke AgGrid component (more advanced table with custom formatting)\n- Option B: Custom implementation dengan dual data (numeric for sort, formatted for display)\n- Option C: Use plotly table atau alternative table component\n- Option D: Custom CSS styling dengan JavaScript sorting\n\n**TECHNICAL REQUIREMENTS:**\n- Semua kolom numerik (Omset, Foto, Unlock, Conversion) HARUS ada separator\n- Sorting HARUS numerik yang benar (bukan alphabetical)\n- User experience tetap smooth dan intuitive\n- Maintain semua existing functionality (filters, comparisons, status colors)\n\n**TEST CASES:**\n- Test sorting Omset: 25.000.000 → 15.000.000 → 5.000.000 (descending)\n- Test sorting Foto: 1.500 → 800 → 200 (descending) \n- Test sorting dengan separator tetap readable\n- Test semua kolom bisa di-sort dengan benar\n\nFile: /workspace/streamlit_template/app.py - fokus pada fungsi create_outlet_table()\n\nGOAL: Kedua requirement ini HARUS tercapai - separator DAN sorting yang berfungsi!",
+        "task_type": "general",
+        "code": "",
+        "result": "",
+        "is_success": false,
+        "is_finished": true,
+        "assignee": "Alex",
+        "start_at": 1761562205.4521582,
+        "end_at": 1761563351.8243067
+      },
+      "13": {
+        "task_id": "13",
+        "dependent_task_ids": [],
+        "instruction": "GANTI TABLE COMPONENT - Sort by tidak jalan, perlu solusi baru:\n\n**CRITICAL REQUIREMENTS (HARGA MATI):**\n1. **SEMUA NUMBER HARUS ADA SEPARATOR** - Format: 25.000.000 \n2. **SORTING HARUS BERFUNGSI** - Klik header atau control untuk sort\n\n**SOLUTION: GANTI TABLE COMPONENT**\n- Option A: **AgGrid** (streamlit-aggrid) - Advanced table dengan built-in sorting & formatting\n- Option B: **Plotly Table** - Interactive table dengan custom sorting\n- Option C: **Custom HTML Table** dengan JavaScript sorting\n- Option D: **Alternative Streamlit components** yang support sorting\n\n**IMPLEMENTATION PRIORITY:**\n1. **AgGrid** (recommended) - Install streamlit-aggrid dan implement\n2. **Plotly Table** - Jika AgGrid tidak available\n3. **Custom HTML + JS** - Last resort dengan manual implementation\n\n**TECHNICAL SPECS:**\n- Semua kolom numerik (Omset, Foto, Unlock, Conversion) dengan separator\n- Click header untuk sort ascending/descending\n- Maintain filters, comparisons, status colors\n- Responsive design dan user-friendly interface\n\n**TEST REQUIREMENTS:**\n- Test klik header Omset → sort 25.000.000 → 15.000.000 → 5.000.000\n- Test klik header Foto → sort 1.500 → 800 → 200\n- Test semua separator tetap readable\n- Test semua existing functionality masih berfungsi\n\nFile: /workspace/streamlit_template/app.py - fokus pada create_outlet_table()\n\nGOAL: Ganti table component yang BENAR-BENAR bisa sort dengan separator!",
+        "task_type": "general",
+        "code": "",
+        "result": "",
+        "is_success": false,
+        "is_finished": false,
+        "assignee": "Alex",
+        "start_at": 1761563351.8243105
       }
     },
     "Data Analyst": {
@@ -255,7 +306,21 @@
     "80": 1,
     "81": 1,
     "82": 1,
-    "83": 1
+    "83": 1,
+    "84": 1,
+    "85": 1,
+    "86": 1,
+    "87": 1,
+    "88": 1,
+    "89": 1,
+    "90": 1,
+    "91": 1,
+    "92": 1,
+    "93": 1,
+    "94": 1,
+    "95": 1,
+    "96": 1,
+    "97": 1
   },
   "preview_servers": {},
   "preview_server": {

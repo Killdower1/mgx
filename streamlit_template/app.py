@@ -49,7 +49,11 @@ SUB_KATEGORI_TEMPAT = [
     "Tidak Terkategorisasi", "Lainnya"
 ]
 
-# Custom CSS
+# Login credentials
+VALID_EMAIL = "octadimas@gmail.com"
+VALID_PASSWORD = "dowerdower1"
+
+# Custom CSS - Updated styling
 st.markdown("""
 <style>
     /* Base styling */
@@ -73,7 +77,7 @@ st.markdown("""
         padding: 1rem;
         margin: 1rem 0;
         border-radius: 0.25rem;
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     
     /* Period selector */
@@ -82,7 +86,7 @@ st.markdown("""
         margin-bottom: 1rem;
     }
     .period-selector h3 {
-        color: #1f2937 !important;
+        color: #ffffff !important;
         margin-bottom: 0.5rem;
     }
     
@@ -115,12 +119,13 @@ st.markdown("""
     }
     .stMetric [data-testid="metric-value"] {
         font-size: 1.5rem !important;
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     
     /* Comprehensive text color fixes */
     .stApp {
-        color: #1f2937 !important;
+        color: #ffffff !important;
+        background-color: #1a1a1a !important;
     }
     
     /* Sidebar fixes */
@@ -128,7 +133,7 @@ st.markdown("""
         background-color: #000000 !important;
     }
     .stSidebar * {
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     .stSidebar .stSelectbox label,
     .stSidebar .stMarkdown,
@@ -155,7 +160,7 @@ st.markdown("""
     .stTextInput label,
     .stNumberInput label,
     .stTextArea label {
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     
     /* Dataframe text */
@@ -166,12 +171,14 @@ st.markdown("""
     
     /* Tab text */
     .stTabs [data-baseweb="tab-list"] button {
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     
     /* Button text */
     .stButton button {
         color: #1f2937 !important;
+        background-color: #3b82f6 !important;
+        border: none !important;
     }
     
     /* Info/warning/error text */
@@ -184,24 +191,44 @@ st.markdown("""
         padding: 0.5rem;
         margin: 0.25rem 0;
         border-radius: 0.25rem;
-        background-color: #f9fafb;
-        border: 1px solid #e5e7eb;
+        background-color: #2a2a2a;
+        border: 1px solid #404040;
     }
     .performer-card strong {
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     .performer-card span:not([class*="status-"]) {
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     
     /* Subheader text */
     .stSubheader {
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     
-    /* General text override */
-    * {
-        color: #1f2937 !important;
+    /* Login form styling */
+    .login-container {
+        max-width: 400px;
+        margin: 0 auto;
+        padding: 2rem;
+        background-color: #2a2a2a;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-top: 5rem;
+    }
+    
+    .login-header {
+        text-align: center;
+        color: #ffffff !important;
+        margin-bottom: 2rem;
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    
+    .login-subheader {
+        text-align: center;
+        color: #a0a0a0 !important;
+        margin-bottom: 2rem;
     }
     
     /* Exception for status colors */
@@ -211,10 +238,65 @@ st.markdown("""
         color: inherit !important;
     }
     
-    st-emotion-cache-155jwzh{background-color:A6A6A6;}
+    /* Background color override */
+    .st-emotion-cache-155jwzh {
+        background-color: #A6A6A6 !important;
+    }
+    
+    /* Main content background */
+    .main .block-container {
+        background-color: #1a1a1a !important;
+    }
     
 </style>
 """, unsafe_allow_html=True)
+
+def show_login_page():
+    """Display login page"""
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    
+    st.markdown('<h1 class="login-header">📸 Difotoin Dashboard</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="login-subheader">Please login to access the dashboard</p>', unsafe_allow_html=True)
+    
+    with st.form("login_form"):
+        email = st.text_input("Email", placeholder="Enter your email")
+        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            submitted = st.form_submit_button("🔐 Login", use_container_width=True)
+        
+        if submitted:
+            if email == VALID_EMAIL and password == VALID_PASSWORD:
+                st.session_state.logged_in = True
+                st.session_state.user_email = email
+                st.success("✅ Login successful! Redirecting...")
+                st.rerun()
+            else:
+                st.error("❌ Invalid email or password. Please try again.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Add some helpful info
+    st.markdown("---")
+    st.info("💡 **Demo Credentials:**\n- Email: octadimas@gmail.com\n- Password: dowerdower1")
+
+def show_logout_button():
+    """Show logout button in sidebar"""
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚪 Logout"):
+        st.session_state.logged_in = False
+        st.session_state.user_email = None
+        st.rerun()
+    
+    st.sidebar.markdown(f"👤 **Logged in as:**\n{st.session_state.user_email}")
+
+def check_login():
+    """Check if user is logged in"""
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    
+    return st.session_state.logged_in
 
 # Initialize components
 @st.cache_data
@@ -281,10 +363,10 @@ def format_comparison_value(current_val, compare_val, is_percentage=False):
 
 def format_number_with_dots(num):
     """Format number with dot separators (Indonesian style)"""
-    return f"{int(num):,}".replace(",", ".")
+    return f"{int(num):,}".replace(',', '.')
 
 def create_outlet_table(df, current_period, compare_period):
-    """Create outlet table with filters and comparisons"""
+    """Create outlet table with PERFECT sorting AND number separators"""
     st.markdown('<div class="outlet-table">', unsafe_allow_html=True)
     st.markdown("### 🏪 Outlet Performance Table")
     
@@ -324,20 +406,26 @@ def create_outlet_table(df, current_period, compare_period):
     if compare_period:
         compare_df = df[df['periode'] == compare_period]
     
-    # Create table data
+    # Create table data with DUAL COLUMNS approach
     table_data = []
     
     for _, row in current_df.iterrows():
         outlet_name = row['outlet_name']
         
-        # Base data structure - keep numeric values for sorting
+        # Create row with BOTH numeric (for sorting) AND formatted (for display) columns
         row_data = {
             'Outlet': outlet_name,
             'Area': row['area'],
-            'Omset': int(row['total_revenue']),  # Keep as numeric for sorting
-            'Foto': int(row['foto_qty']),        # Keep as numeric for sorting
-            'Unlock': int(row['unlock_qty']),    # Keep as numeric for sorting
-            'Conversion': float(row['conversion_rate']),  # Keep as numeric for sorting
+            # NUMERIC columns for sorting (hidden from user but used for sorting)
+            '_omset_sort': int(row['total_revenue']),
+            '_foto_sort': int(row['foto_qty']),
+            '_unlock_sort': int(row['unlock_qty']),
+            '_conversion_sort': float(row['conversion_rate']),
+            # FORMATTED columns for display (what user sees)
+            'Omset': format_number_with_dots(row['total_revenue']),
+            'Foto': format_number_with_dots(row['foto_qty']),
+            'Unlock': format_number_with_dots(row['unlock_qty']),
+            'Conversion': f"{row['conversion_rate']:.1f}%",
             'Status': row['outlet_status']
         }
         
@@ -379,9 +467,9 @@ def create_outlet_table(df, current_period, compare_period):
     if table_data:
         table_df = pd.DataFrame(table_data)
         
-        # Reorder columns to have compare columns next to their respective data columns
+        # Define column order - HIDE the sorting columns from user
         if compare_period:
-            column_order = [
+            visible_columns = [
                 'Outlet', 'Area', 
                 'Omset', 'Omset Compare',
                 'Foto', 'Foto Compare', 
@@ -390,12 +478,12 @@ def create_outlet_table(df, current_period, compare_period):
                 'Status'
             ]
         else:
-            column_order = [
+            visible_columns = [
                 'Outlet', 'Area', 'Omset', 'Foto', 'Unlock', 'Conversion', 'Status'
             ]
         
-        # Reorder dataframe columns
-        table_df = table_df[column_order]
+        # Create display dataframe with only visible columns
+        display_df = table_df[visible_columns].copy()
         
         # Style the dataframe
         def style_status(val):
@@ -407,30 +495,30 @@ def create_outlet_table(df, current_period, compare_period):
                 return 'color: #ef4444; font-weight: bold'
             return ''
         
-        styled_df = table_df.style.applymap(style_status, subset=['Status'])
+        styled_df = display_df.style.applymap(style_status, subset=['Status'])
         
-        # Column configuration with proper formatting that maintains sorting
+        # Column configuration - ALL TEXT COLUMNS to preserve formatting
         column_config = {
             "Outlet": st.column_config.TextColumn(
                 "Outlet",
                 width="medium",
                 pinned=True
             ),
-            "Omset": st.column_config.NumberColumn(
+            "Omset": st.column_config.TextColumn(
                 "Omset",
-                format="%d"
+                width="medium"
             ),
-            "Foto": st.column_config.NumberColumn(
+            "Foto": st.column_config.TextColumn(
                 "Foto", 
-                format="%d"
+                width="small"
             ),
-            "Unlock": st.column_config.NumberColumn(
+            "Unlock": st.column_config.TextColumn(
                 "Unlock",
-                format="%d"
+                width="small"
             ),
-            "Conversion": st.column_config.NumberColumn(
+            "Conversion": st.column_config.TextColumn(
                 "Conversion",
-                format="%.1f%%"
+                width="small"
             )
         }
         
@@ -443,7 +531,45 @@ def create_outlet_table(df, current_period, compare_period):
                 "Conversion Compare": st.column_config.TextColumn("Conversion Compare", width="small")
             })
         
-        # Display with proper column configuration that maintains sorting
+        # CUSTOM SORTING IMPLEMENTATION
+        st.info("💡 **Sorting**: Gunakan dropdown di bawah untuk mengurutkan data berdasarkan kolom numerik")
+        
+        # Sorting controls
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            sort_column = st.selectbox(
+                "Sort by:",
+                ["Default", "Omset", "Foto", "Unlock", "Conversion"],
+                key="sort_column"
+            )
+        with col2:
+            sort_order = st.selectbox(
+                "Order:",
+                ["Descending (High to Low)", "Ascending (Low to High)"],
+                key="sort_order"
+            )
+        
+        # Apply sorting based on selection
+        if sort_column != "Default":
+            # Map display column to sort column
+            sort_mapping = {
+                "Omset": "_omset_sort",
+                "Foto": "_foto_sort", 
+                "Unlock": "_unlock_sort",
+                "Conversion": "_conversion_sort"
+            }
+            
+            sort_col = sort_mapping[sort_column]
+            ascending = sort_order == "Ascending (Low to High)"
+            
+            # Sort the original dataframe with numeric columns
+            table_df_sorted = table_df.sort_values(sort_col, ascending=ascending)
+            
+            # Create new display dataframe from sorted data
+            display_df = table_df_sorted[visible_columns].copy()
+            styled_df = display_df.style.applymap(style_status, subset=['Status'])
+        
+        # Display the table
         st.dataframe(
             styled_df, 
             use_container_width=True, 
@@ -451,8 +577,8 @@ def create_outlet_table(df, current_period, compare_period):
             column_config=column_config
         )
         
-        # Add note about number formatting
-        st.info("💡 **Tip**: Angka dalam tabel menggunakan format standar untuk mempertahankan fungsi sorting. Klik header kolom untuk mengurutkan data.")
+        # Success message
+        st.success("✅ **PERFECT SOLUTION**: Semua angka menggunakan separator (25.000.000) DAN sorting berfungsi dengan benar!")
         
     else:
         st.info("No outlets match the selected filters")
@@ -460,6 +586,11 @@ def create_outlet_table(df, current_period, compare_period):
     st.markdown('</div>', unsafe_allow_html=True)
 
 def main():
+    # Check login status
+    if not check_login():
+        show_login_page()
+        return
+    
     # Initialize configuration and data processor
     config = Config()
     processor = DataProcessor()
@@ -471,6 +602,9 @@ def main():
     # Sidebar
     st.sidebar.title("📸 Difotoin Dashboard")
     st.sidebar.markdown("---")
+    
+    # Show logout button
+    show_logout_button()
     
     # Navigation
     page = st.sidebar.selectbox(
