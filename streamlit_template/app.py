@@ -56,7 +56,7 @@ st.markdown("""
     .main-header {
         font-size: 2.5rem;
         font-weight: bold;
-        color: #1f2937 !important;
+        color: #ffffff !important;
         text-align: center;
         margin-bottom: 2rem;
     }
@@ -68,7 +68,7 @@ st.markdown("""
     
     /* Insight box */
     .insight-box {
-        background-color: #f8fafc;
+        background-color: #000000;
         border-left: 4px solid #3b82f6;
         padding: 1rem;
         margin: 1rem 0;
@@ -125,7 +125,7 @@ st.markdown("""
     
     /* Sidebar fixes */
     .stSidebar {
-        background-color: #f8fafc !important;
+        background-color: #000000 !important;
     }
     .stSidebar * {
         color: #1f2937 !important;
@@ -137,7 +137,7 @@ st.markdown("""
     .stSidebar h3,
     .stSidebar p,
     .stSidebar div {
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     
     /* Main content text fixes */
@@ -147,7 +147,7 @@ st.markdown("""
     .stText *,
     h1, h2, h3, h4, h5, h6,
     p, span, div, label {
-        color: #1f2937 !important;
+        color: #ffffff !important;
     }
     
     /* Form elements */
@@ -210,6 +210,9 @@ st.markdown("""
     .status-relocate {
         color: inherit !important;
     }
+    
+    st-emotion-cache-155jwzh{background-color:A6A6A6;}
+    
 </style>
 """, unsafe_allow_html=True)
 
