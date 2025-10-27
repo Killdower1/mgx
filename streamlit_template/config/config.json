@@ -1,0 +1,11 @@
+{
+  "thresholds": {
+    "keeper_minimum": 15000000,
+    "optimasi_minimum": 8000000
+  },
+  "app_settings": {
+    "currency": "IDR",
+    "date_format": "%Y-%m-%d",
+    "default_period": "2024-03"
+  }
+}

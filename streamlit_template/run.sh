@@ -1,0 +1,11 @@
+#!/bin/bash
+
+echo "Starting Difotoin Dashboard..."
+echo ""
+
+echo "Installing dependencies..."
+pip install -r requirements.txt
+
+echo ""
+echo "Starting Streamlit server..."
+streamlit run app.py

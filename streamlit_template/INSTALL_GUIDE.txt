@@ -1,0 +1,60 @@
+===============================================
+DIFOTOIN DASHBOARD - PANDUAN INSTALASI CEPAT
+===============================================
+
+LANGKAH INSTALASI:
+
+1. EXTRACT FILE
+   - Extract file zip ke folder yang diinginkan
+   - Contoh: C:\difotoin-dashboard\
+
+2. INSTALL PYTHON (jika belum ada)
+   - Download Python 3.8+ dari python.org
+   - Centang "Add Python to PATH" saat install
+   - Restart komputer setelah install
+
+3. BUKA COMMAND PROMPT/TERMINAL
+   - Windows: Tekan Win+R, ketik "cmd", Enter
+   - Mac/Linux: Buka Terminal
+
+4. MASUK KE FOLDER APLIKASI
+   cd C:\difotoin-dashboard\
+   (sesuaikan dengan lokasi folder Anda)
+
+5. INSTALL DEPENDENCIES
+   pip install -r requirements.txt
+
+6. JALANKAN APLIKASI
+   streamlit run app.py
+
+7. BUKA BROWSER
+   - Otomatis terbuka di http://localhost:8501
+   - Jika tidak, buka manual di browser
+
+===============================================
+
+CARA CEPAT (WINDOWS):
+- Double-click file "run.bat"
+
+CARA CEPAT (MAC/LINUX):
+- Double-click file "run.sh" atau
+- Terminal: ./run.sh
+
+===============================================
+
+TROUBLESHOOTING:
+
+Error "python not found":
+- Install Python dari python.org
+- Restart komputer
+
+Error "pip not found":
+- pip install --upgrade pip
+
+Error "port already in use":
+- streamlit run app.py --server.port 8502
+
+===============================================
+
+SUPPORT:
+Baca file README.md untuk dokumentasi lengkap

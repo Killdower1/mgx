@@ -1,0 +1,266 @@
+{
+  "sample_outlets": [
+    {
+      "outlet_name": "Aeon Deltamas - Entrance",
+      "area": "Lainnya",
+      "kategori_tempat": "Lainnya",
+      "sub_kategori_tempat": "Tidak Terkategorisasi",
+      "tipe_tempat": "Indoor",
+      "periode": "2025-09",
+      "foto_qty": 1118,
+      "unlock_qty": 154,
+      "print_qty": 158,
+      "total_revenue": 3885000.0,
+      "conversion_rate": 14.13,
+      "unlock_to_print_rate": 102.6,
+      "avg_revenue_per_transaction": 2717.0,
+      "avg_revenue_per_print": 24589.0,
+      "outlet_status": "Relocate",
+      "revenue_rank": 29
+    },
+    {
+      "outlet_name": "Aloha - PIK 2",
+      "area": "Jakarta",
+      "kategori_tempat": "Lainnya",
+      "sub_kategori_tempat": "Tidak Terkategorisasi",
+      "tipe_tempat": "Indoor",
+      "periode": "2025-09",
+      "foto_qty": 2447,
+      "unlock_qty": 703,
+      "print_qty": 755,
+      "total_revenue": 31692500.0,
+      "conversion_rate": 30.85,
+      "unlock_to_print_rate": 107.4,
+      "avg_revenue_per_transaction": 8116.0,
+      "avg_revenue_per_print": 41977.0,
+      "outlet_status": "Keeper",
+      "revenue_rank": 2
+    },
+    {
+      "outlet_name": "Ancol LB",
+      "area": "Jakarta",
+      "kategori_tempat": "Wisata",
+      "sub_kategori_tempat": "Taman/Wisata Alam",
+      "tipe_tempat": "Outdoor",
+      "periode": "2025-09",
+      "foto_qty": 2266,
+      "unlock_qty": 354,
+      "print_qty": 367,
+      "total_revenue": 12375000.0,
+      "conversion_rate": 16.2,
+      "unlock_to_print_rate": 103.67,
+      "avg_revenue_per_transaction": 4143.0,
+      "avg_revenue_per_print": 33719.0,
+      "outlet_status": "Optimasi",
+      "revenue_rank": 15
+    },
+    {
+      "outlet_name": "Ancol LB 2",
+      "area": "Jakarta",
+      "kategori_tempat": "Wisata",
+      "sub_kategori_tempat": "Taman/Wisata Alam",
+      "tipe_tempat": "Outdoor",
+      "periode": "2025-09",
+      "foto_qty": 1995,
+      "unlock_qty": 284,
+      "print_qty": 308,
+      "total_revenue": 9985000.0,
+      "conversion_rate": 15.44,
+      "unlock_to_print_rate": 108.45,
+      "avg_revenue_per_transaction": 3860.0,
+      "avg_revenue_per_print": 32419.0,
+      "outlet_status": "Relocate",
+      "revenue_rank": 19
+    },
+    {
+      "outlet_name": "Batavia PIK",
+      "area": "Jakarta",
+      "kategori_tempat": "Lainnya",
+      "sub_kategori_tempat": "Tidak Terkategorisasi",
+      "tipe_tempat": "Indoor",
+      "periode": "2025-09",
+      "foto_qty": 1592,
+      "unlock_qty": 232,
+      "print_qty": 239,
+      "total_revenue": 10187500.0,
+      "conversion_rate": 15.01,
+      "unlock_to_print_rate": 103.02,
+      "avg_revenue_per_transaction": 4938.0,
+      "avg_revenue_per_print": 42626.0,
+      "outlet_status": "Optimasi",
+      "revenue_rank": 18
+    },
+    {
+      "outlet_name": "Beachwalk Mall Kuta - Gate",
+      "area": "Bali",
+      "kategori_tempat": "Mall",
+      "sub_kategori_tempat": "Shopping Center",
+      "tipe_tempat": "Indoor",
+      "periode": "2025-09",
+      "foto_qty": 1878,
+      "unlock_qty": 355,
+      "print_qty": 387,
+      "total_revenue": 15560000.0,
+      "conversion_rate": 20.61,
+      "unlock_to_print_rate": 109.01,
+      "avg_revenue_per_transaction": 5939.0,
+      "avg_revenue_per_print": 40207.0,
+      "outlet_status": "Optimasi",
+      "revenue_rank": 8
+    },
+    {
+      "outlet_name": "Buy Local Creative Zone by JXB",
+      "area": "Lainnya",
+      "kategori_tempat": "Komunitas",
+      "sub_kategori_tempat": "Creative Space",
+      "tipe_tempat": "Indoor",
+      "periode": "2025-09",
+      "foto_qty": 820,
+      "unlock_qty": 96,
+      "print_qty": 95,
+      "total_revenue": 3245000.0,
+      "conversion_rate": 11.59,
+      "unlock_to_print_rate": 98.96,
+      "avg_revenue_per_transaction": 3210.0,
+      "avg_revenue_per_print": 34158.0,
+      "outlet_status": "Relocate",
+      "revenue_rank": 32
+    },
+    {
+      "outlet_name": "Discovery Mall Icon",
+      "area": "Lainnya",
+      "kategori_tempat": "Mall",
+      "sub_kategori_tempat": "Shopping Center",
+      "tipe_tempat": "Indoor",
+      "periode": "2025-09",
+      "foto_qty": 1172,
+      "unlock_qty": 243,
+      "print_qty": 241,
+      "total_revenue": 7905000.0,
+      "conversion_rate": 20.56,
+      "unlock_to_print_rate": 99.18,
+      "avg_revenue_per_transaction": 4774.0,
+      "avg_revenue_per_print": 32801.0,
+      "outlet_status": "Relocate",
+      "revenue_rank": 22
+    },
+    {
+      "outlet_name": "Flavor Bliss & Broadway Alam Sutera",
+      "area": "Lainnya",
+      "kategori_tempat": "Wisata",
+      "sub_kategori_tempat": "Taman/Wisata Alam",
+      "tipe_tempat": "Outdoor",
+      "periode": "2025-09",
+      "foto_qty": 987,
+      "unlock_qty": 189,
+      "print_qty": 213,
+      "total_revenue": 6770000.0,
+      "conversion_rate": 21.58,
+      "unlock_to_print_rate": 112.7,
+      "avg_revenue_per_transaction": 4874.0,
+      "avg_revenue_per_print": 31784.0,
+      "outlet_status": "Relocate",
+      "revenue_rank": 25
+    },
+    {
+      "outlet_name": "Florawisata D'Castello",
+      "area": "Lainnya",
+      "kategori_tempat": "Lainnya",
+      "sub_kategori_tempat": "Tidak Terkategorisasi",
+      "tipe_tempat": "Indoor",
+      "periode": "2025-09",
+      "foto_qty": 470,
+      "unlock_qty": 68,
+      "print_qty": 71,
+      "total_revenue": 2085000.0,
+      "conversion_rate": 15.11,
+      "unlock_to_print_rate": 104.41,
+      "avg_revenue_per_transaction": 3424.0,
+      "avg_revenue_per_print": 29366.0,
+      "outlet_status": "Relocate",
+      "revenue_rank": 33
+    }
+  ],
+  "sample_trend": [
+    {
+      "Periode": "2025-06",
+      "total_revenue": 278025260.0,
+      "foto_qty": 35664,
+      "unlock_qty": 7627,
+      "print_qty": 8090,
+      "conversion_rate": 22.68
+    },
+    {
+      "Periode": "2025-07",
+      "total_revenue": 317547622.0,
+      "foto_qty": 40770,
+      "unlock_qty": 8730,
+      "print_qty": 9248,
+      "conversion_rate": 22.68
+    },
+    {
+      "Periode": "2025-08",
+      "total_revenue": 372340957.0,
+      "foto_qty": 47137,
+      "unlock_qty": 10256,
+      "print_qty": 10875,
+      "conversion_rate": 23.07
+    },
+    {
+      "Periode": "2025-09",
+      "total_revenue": 399600000.0,
+      "foto_qty": 51394,
+      "unlock_qty": 10995,
+      "print_qty": 11649,
+      "conversion_rate": 22.67
+    }
+  ],
+  "sample_breakdown": {
+    "areas": [
+      {
+        "Area": "Bali",
+        "total_revenue": 77230000.0,
+        "foto_qty": 9949,
+        "unlock_qty": 2144,
+        "print_qty": 2310
+      },
+      {
+        "Area": "Jakarta",
+        "total_revenue": 104380000.0,
+        "foto_qty": 16579,
+        "unlock_qty": 2732,
+        "print_qty": 2876
+      },
+      {
+        "Area": "Lainnya",
+        "total_revenue": 163805000.0,
+        "foto_qty": 20057,
+        "unlock_qty": 4622,
+        "print_qty": 4872
+      }
+    ],
+    "categories": [
+      {
+        "Kategori": "Hotel",
+        "total_revenue": 10805000.0,
+        "foto_qty": 1607,
+        "unlock_qty": 318,
+        "print_qty": 344
+      },
+      {
+        "Kategori": "Komunitas",
+        "total_revenue": 38990000.0,
+        "foto_qty": 4572,
+        "unlock_qty": 1066,
+        "print_qty": 1110
+      },
+      {
+        "Kategori": "Lainnya",
+        "total_revenue": 138700000.0,
+        "foto_qty": 17210,
+        "unlock_qty": 3735,
+        "print_qty": 3982
+      }
+    ]
+  }
+}

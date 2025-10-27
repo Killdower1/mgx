@@ -1,0 +1,58 @@
+{
+  "thresholds": {
+    "keeper_minimum": 20000000,
+    "optimasi_minimum": 10000000,
+    "currency": "IDR",
+    "currency_symbol": "Rp"
+  },
+  "filters": {
+    "areas": [
+      "Bali",
+      "Jakarta",
+      "Lainnya",
+      "Samarinda",
+      "Yogyakarta"
+    ],
+    "categories": [
+      "Hotel",
+      "Komunitas",
+      "Lainnya",
+      "Mall",
+      "Restoran",
+      "Wisata"
+    ],
+    "types": [
+      "Indoor",
+      "Outdoor",
+      "Semi-Outdoor"
+    ],
+    "periods": [
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-09"
+    ]
+  },
+  "chart_colors": {
+    "revenue": "#0ea5e9",
+    "foto": "#34d399",
+    "unlock": "#f59e0b",
+    "print": "#f472b6",
+    "keeper": "#10b981",
+    "optimasi": "#f59e0b",
+    "relocate": "#ef4444"
+  },
+  "table_settings": {
+    "items_per_page": 20,
+    "sortable_columns": [
+      "outlet_name",
+      "total_revenue",
+      "conversion_rate",
+      "outlet_status"
+    ],
+    "default_sort": {
+      "column": "total_revenue",
+      "direction": "desc"
+    }
+  }
+}
