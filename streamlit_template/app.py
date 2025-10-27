@@ -539,7 +539,7 @@ def create_outlet_table(df, current_period, compare_period):
         with col1:
             sort_column = st.selectbox(
                 "Sort by:",
-                ["Default", "Omset", "Foto", "Unlock", "Conversion"],
+                ["Omset", "Foto", "Unlock", "Conversion"],
                 key="sort_column"
             )
         with col2:
