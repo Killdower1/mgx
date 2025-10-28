@@ -1,4 +1,7 @@
-# app.py — Difotoin Dashboard (sheet selection + dedup + audit fix 10x sum)
+# app.py — Difotoin Dashboard (FIX: derive foto/unlock/print dari 'type' walau kolom ada tapi total 0)
+# - Upload: TIDAK lagi membuat kolom foto/unlock/print = 0
+# - Agregasi: jika kolom ada tapi total 0 dan 'type' tersedia → paksa derive dari 'type'
+# - Normalizer 'type' (regex synonim) + audit hitungan match
 
 import io
 import os
@@ -15,7 +18,7 @@ from visualizations import Visualizations
 from utils import *
 from config import Config
 
-# ================ PAGE CONFIG ================
+# ================= CONFIG =================
 st.set_page_config(
     page_title="Difotoin Sales Dashboard",
     page_icon="📸",
@@ -23,7 +26,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ================ CONSTANTS ================
 INDONESIA_AREAS = [
     "Jakarta Pusat","Jakarta Utara","Jakarta Barat","Jakarta Selatan","Jakarta Timur","Jakarta",
     "Surabaya","Bandung","Medan","Bekasi","Tangerang","Depok","Semarang","Palembang","Makassar",
@@ -55,10 +57,10 @@ VALID_EMAIL = "octadimas@gmail.com"
 VALID_PASSWORD = "dowerdower1"
 DATA_CSV_PATH = "data/difotoin_dashboard_data.csv"
 
-# ================ STYLES ================
+# ================= STYLES =================
 st.markdown("""
 <style>
-    .main-header{font-size:2.5rem;font-weight:bold;color:#fff!important;text-align:center;margin-bottom:2rem;}
+    .main-header{font-size:2.2rem;font-weight:700;color:#fff!important;text-align:center;margin-bottom:1.5rem;}
     .status-keeper{color:#10b981!important;font-weight:bold;}
     .status-optimasi{color:#f59e0b!important;font-weight:bold;}
     .status-relocate{color:#ef4444!important;font-weight:bold;}
@@ -68,7 +70,7 @@ st.markdown("""
     .filter-buttons .stCheckbox>label{background:#f8fafc!important;padding:.5rem 1rem;border-radius:.5rem;border:1px solid #e5e7eb;color:#1f2937!important;font-weight:500;}
     .filter-buttons .stCheckbox>label:hover{background:#f1f5f9!important;}
     .stMetric>label{font-size:.8rem!important;color:#6b7280!important;}
-    .stMetric [data-testid="metric-value"]{font-size:1.5rem!important;color:#fff!important;}
+    .stMetric [data-testid="metric-value"]{font-size:1.4rem!important;color:#fff!important;}
     .stApp{color:#fff!important;background:#1a1a1a!important;}
     .stSidebar{background:#000000!important;}
     .stSidebar *{color:#fff!important;}
@@ -81,7 +83,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ================ AUTH ================
+# ================= AUTH =================
 def show_login_page():
     st.markdown('<h1 class="main-header">📸 Difotoin Dashboard</h1>', unsafe_allow_html=True)
     with st.form("login_form"):
@@ -112,13 +114,13 @@ def check_login():
         st.session_state.logged_in = False
     return st.session_state.logged_in
 
-# ================ LOAD DATA ================
+# ================= LOAD =================
 @st.cache_data
 def load_app_data():
     processor = DataProcessor()
     return processor.load_data()
 
-# ================ PERIOD SELECTOR (SIDEBAR) ================
+# ================= PERIOD (SIDEBAR) =================
 def create_sidebar_period_selector(df):
     if df.empty or "periode" not in df.columns:
         return None, None
@@ -129,23 +131,12 @@ def create_sidebar_period_selector(df):
     compare = st.sidebar.selectbox("Compare with", compare_opts, key="period_compare_sidebar")
     return current, (None if compare == "None" else compare)
 
-# ================ HELPERS ================
+# ================= HELPERS =================
 def format_number_with_dots(num):
     try:
         return f"{int(round(float(num))):,}".replace(",", ".")
     except Exception:
         return str(num)
-
-def format_comparison_value(current_val, compare_val, is_percentage=False):
-    if compare_val == 0:
-        return "0.0%" if not is_percentage else "0.0pp"
-    if is_percentage:
-        change = float(current_val) - float(compare_val)
-        sign = "+" if change > 0 else ""
-        return f"{sign}{change:.1f}pp" if change != 0 else "0.0pp"
-    change_pct = ((float(current_val) - float(compare_val)) / float(compare_val)) * 100
-    sign = "+" if change_pct > 0 else ""
-    return f"{sign}{change_pct:.1f}%" if change_pct != 0 else "0.0%"
 
 def _norm_name(s: str) -> str:
     return str(s).strip().lower()
@@ -156,19 +147,12 @@ def safe_unique_str(df: pd.DataFrame, col: str) -> list[str]:
     vals = df[col].dropna().astype(str).unique().tolist()
     return sorted(vals)
 
-# --- Upload mapping helpers ---
 EXCEL_TO_APP_COLMAP = {
-    "outlet":"outlet_name","nama outlet":"outlet_name","toko":"outlet_name",
-    "harga":"harga","amount":"harga","price":"harga","nominal":"harga",
-    "tanggal":"tanggal","date":"tanggal","waktu":"tanggal",
-    "area":"area","kota":"area",
-    "type":"type","tipe":"type",
-    "kategori":"kategori_tempat","kategori tempat":"kategori_tempat",
-    "sub kategori":"sub_kategori_tempat","sub_kategori":"sub_kategori_tempat",
-    "tipe tempat":"tipe_tempat",
-    # opsi agregat
-    "foto":"foto","unlock":"unlock","print":"print",
-    "omset":"total_revenue","revenue":"total_revenue","conversion":"conversion_rate",
+    "outlet":"outlet_name","nama outlet":"outlet_name","outlet name":"outlet_name","toko":"outlet_name",
+    "harga":"harga","amount":"harga","price":"harga","nominal":"harga","omset":"harga",
+    "tanggal":"tanggal","date":"tanggal","waktu":"tanggal","created at":"tanggal",
+    "area":"area","kota":"area","city":"area",
+    "type":"type","tipe":"type","jenis":"type","event":"type",
 }
 
 def normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
@@ -176,16 +160,14 @@ def normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [" ".join(str(c).strip().split()) for c in df.columns]
     return df
 
-def apply_column_mapping(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+def apply_column_mapping_auto(df: pd.DataFrame) -> dict:
     lower_map = {k.lower(): v for k, v in EXCEL_TO_APP_COLMAP.items()}
-    used, ren = {}, {}
+    used = {}
     for col in df.columns:
         k = col.lower()
-        if k in lower_map:
-            ren[col] = lower_map[k]
-            used[col] = lower_map[k]
-    df = df.rename(columns=ren)
-    return df, used
+        if k in lower_map and lower_map[k] not in used:
+            used[lower_map[k]] = col
+    return used
 
 def to_numeric_clean(series: pd.Series) -> pd.Series:
     s = series.astype(str).str.strip()
@@ -195,24 +177,23 @@ def to_numeric_clean(series: pd.Series) -> pd.Series:
     s = s.str.replace(",", ".", regex=False)
     return pd.to_numeric(s, errors="coerce").fillna(0.0)
 
-def sanitize_mapped_df(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    if "harga" in df.columns:
-        df["harga"] = to_numeric_clean(df["harga"])
-        df.loc[df["harga"] < 0, "harga"] = 0
-    else:
-        df["harga"] = 0.0
-    for col in ["foto","unlock","print"]:
-        if col in df.columns:
-            df[col] = to_numeric_clean(df[col]).fillna(0).astype(int)
-        else:
-            df[col] = 0
-    df["type"] = df["type"].astype(str).fillna("") if "type" in df.columns else pd.Series([""]*len(df), index=df.index)
-    df["tanggal"] = pd.to_datetime(df["tanggal"], errors="coerce") if "tanggal" in df.columns else pd.NaT
-    for c in ["outlet_name","area"]:
-        if c in df.columns: df[c] = df[c].astype(str).str.strip()
-        else: df[c] = "" if c=="area" else df.get(c, "")
-    return df
+# ======== NEW: Derive foto/unlock/print from 'type' with synonyms ========
+FOTO_RE = re.compile(r"\b(foto|photo|photos|capture|shoot)\b", re.I)
+UNLOCK_RE = re.compile(r"\b(unlock|qr|scan)\b", re.I)
+PRINT_RE = re.compile(r"\b(print|printed|cetak|printout|print-out)\b", re.I)
+
+def derive_counts_from_type(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    d = df.copy()
+    t = d["type"].astype(str).str.strip().str.lower().fillna("") if "type" in d.columns else pd.Series([""]*len(d), index=d.index)
+    d["_foto_qty"]   = t.str.contains(FOTO_RE).astype(int)
+    d["_unlock_qty"] = t.str.contains(UNLOCK_RE).astype(int)
+    d["_print_qty"]  = t.str.contains(PRINT_RE).astype(int)
+    audit = {
+        "match_foto": int(d["_foto_qty"].sum()),
+        "match_unlock": int(d["_unlock_qty"].sum()),
+        "match_print": int(d["_print_qty"].sum())
+    }
+    return d, audit
 
 def compute_status(total_revenue: float, config: Config) -> str:
     keep = config.get_threshold('keeper_minimum'); opt = config.get_threshold('optimasi_minimum')
@@ -220,28 +201,38 @@ def compute_status(total_revenue: float, config: Config) -> str:
     if total_revenue >= opt:  return "Optimasi"
     return "Relocate"
 
-def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: str | None = None) -> pd.DataFrame:
+# ======== FIXED: Agregasi memilih derive_from_type bila kolom ada tapi total 0 ========
+def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: str | None = None) -> tuple[pd.DataFrame, dict]:
     df = mapped_df.copy()
+
+    # Periode
     if "tanggal" in df.columns and df["tanggal"].notna().any():
-        df["periode"] = df["tanggal"].dt.strftime("%Y-%m")
+        df["periode"] = pd.to_datetime(df["tanggal"], errors="coerce").dt.strftime("%Y-%m")
     else:
         df["periode"] = fallback_period or datetime.now().strftime("%Y-%m")
 
-    if all(col in df.columns for col in ["foto","unlock","print"]):
-        df["_foto_qty"]   = df["foto"].fillna(0).astype(int)
-        df["_unlock_qty"] = df["unlock"].fillna(0).astype(int)
-        df["_print_qty"]  = df["print"].fillna(0).astype(int)
-    else:
-        t = df["type"].astype(str).str.lower() if "type" in df.columns else pd.Series([""]*len(df), index=df.index)
-        df["_foto_qty"]   = t.str.contains("foto").astype(int)
-        df["_unlock_qty"] = t.str.contains("unlock").astype(int)
-        df["_print_qty"]  = t.str.contains("print").astype(int)
+    # Siapkan qty
+    have_cols = all(c in df.columns for c in ["foto","unlock","print"])
+    totals_zero = False
+    if have_cols:
+        df["_foto_qty"]   = pd.to_numeric(df["foto"], errors="coerce").fillna(0).astype(int)
+        df["_unlock_qty"] = pd.to_numeric(df["unlock"], errors="coerce").fillna(0).astype(int)
+        df["_print_qty"]  = pd.to_numeric(df["print"], errors="coerce").fillna(0).astype(int)
+        totals_zero = (df["_foto_qty"].sum() == 0) and (df["_unlock_qty"].sum() == 0) and (df["_print_qty"].sum() == 0)
+
+    audit_derive = {"match_foto":0,"match_unlock":0,"match_print":0}
+
+    # PAKSA derive jika (kolom tidak lengkap) ATAU (semua total 0) dan ada 'type'
+    if (not have_cols or totals_zero) and ("type" in df.columns):
+        df, audit_derive = derive_counts_from_type(df)
 
     if "outlet_name" not in df.columns:
-        raise ValueError("Kolom 'Outlet' tidak ditemukan (harap ada kolom Outlet di Excel).")
+        raise ValueError("Kolom 'Outlet' tidak ditemukan (harap set mapping kolom Outlet di UI).")
 
     group_keys = ["periode","outlet_name"]
     if "area" in df.columns: group_keys.append("area")
+
+    df["harga"] = pd.to_numeric(df["harga"], errors="coerce").fillna(0.0)
 
     agg = df.groupby(group_keys, dropna=False).agg(
         total_revenue=("harga","sum"),
@@ -251,18 +242,18 @@ def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: 
     ).reset_index()
 
     agg["conversion_rate"] = np.where(agg["foto_qty"]>0, agg["print_qty"]/agg["foto_qty"]*100, 0.0)
-    cfg = Config()
-    agg["outlet_status"] = agg["total_revenue"].apply(lambda x: compute_status(float(x), cfg))
+    agg["outlet_status"] = agg["total_revenue"].apply(lambda x: compute_status(float(x), config))
 
     for col in ["kategori_tempat","sub_kategori_tempat","tipe_tempat"]:
         if col not in agg.columns: agg[col] = "Tidak Terkategorisasi"
-
     agg["area"] = agg.get("area","").astype(str).replace({"nan": ""})
+
     cols = ["periode","outlet_name","area","kategori_tempat","sub_kategori_tempat","tipe_tempat",
             "total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate","outlet_status"]
     for c in cols:
         if c not in agg.columns: agg[c] = np.nan
-    return agg[cols]
+
+    return agg[cols], audit_derive
 
 def append_and_dedup(new_df: pd.DataFrame, path: str) -> pd.DataFrame:
     if os.path.exists(path):
@@ -278,47 +269,18 @@ def append_and_dedup(new_df: pd.DataFrame, path: str) -> pd.DataFrame:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         new_df.to_csv(path, index=False); return new_df
 
-# === NEW: Sheet selection + Dedup ===
-def suggest_default_sheets(sheet_names: list[str]) -> list[str]:
-    picks = []
-    for s in sheet_names:
-        sl = s.lower()
-        if any(k in sl for k in ["data","transaksi","raw","detail"]):
-            picks.append(s)
-    return picks or sheet_names[:1]
+# ================= TABLE =================
+def format_comparison_value(current_val, compare_val, is_percentage=False):
+    if compare_val == 0:
+        return "0.0%" if not is_percentage else "0.0pp"
+    if is_percentage:
+        change = float(current_val) - float(compare_val)
+        sign = "+" if change > 0 else ""
+        return f"{sign}{change:.1f}pp" if change != 0 else "0.0pp"
+    change_pct = ((float(current_val) - float(compare_val)) / float(compare_val)) * 100
+    sign = "+" if change_pct > 0 else ""
+    return f"{sign}{change_pct:.1f}%" if change_pct != 0 else "0.0%"
 
-def read_selected_sheets(uploaded_file, selected_sheets: list[str]) -> pd.DataFrame:
-    xls = pd.ExcelFile(uploaded_file)
-    frames = []
-    for name in selected_sheets:
-        df = pd.read_excel(xls, sheet_name=name)
-        if df is None or df.empty: continue
-        frames.append(normalize_headers(df))
-    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-
-def deduplicate_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    """Drop duplicates on best-available subset to prevent multi-sheet double counting."""
-    df = df.copy()
-    subset = [c for c in ["outlet_name","tanggal","harga","type"] if c in df.columns]
-    if not subset:
-        subset = [c for c in ["outlet_name","harga"] if c in df.columns]
-    before_rows = len(df)
-    before_sum  = df["harga"].sum() if "harga" in df.columns else 0.0
-    df = df.drop_duplicates(subset=subset, keep="first")
-    after_rows  = len(df)
-    after_sum   = df["harga"].sum() if "harga" in df.columns else 0.0
-    audit = {
-        "subset": subset,
-        "rows_before": before_rows,
-        "rows_after": after_rows,
-        "dup_removed": before_rows - after_rows,
-        "sum_before": float(before_sum),
-        "sum_after": float(after_sum),
-        "sum_diff": float(after_sum - before_sum),
-    }
-    return df, audit
-
-# ================ OUTLET TABLE ================
 def create_outlet_table(df, current_period, compare_period, full_df=None):
     st.markdown('<div class="outlet-table">', unsafe_allow_html=True)
     st.markdown("### 🏪 Outlet Performance Table")
@@ -428,7 +390,7 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
     st.dataframe(styled, use_container_width=True, hide_index=True, column_config=column_config)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ================ PAGES ================
+# ================= PAGES =================
 def main():
     if not check_login():
         show_login_page()
@@ -458,7 +420,6 @@ def main():
         st.sidebar.markdown("---")
 
     st.sidebar.markdown("### 🔍 Filter Data")
-
     if not df.empty:
         areas = ["Semua"] + safe_unique_str(df, "area")
         selected_area = st.sidebar.selectbox("Area", areas)
@@ -466,7 +427,6 @@ def main():
         selected_kategori = st.sidebar.selectbox("Kategori Tempat", kategoris)
         tipes = ["Semua"] + safe_unique_str(df, "tipe_tempat")
         selected_tipe = st.sidebar.selectbox("Tipe Tempat", tipes)
-
         filtered_df = processor.filter_data(df, selected_area, selected_kategori, selected_tipe, current_period) \
                        if hasattr(processor, "filter_data") else df
     else:
@@ -496,7 +456,7 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
         return
 
     m_df = df.copy()
-    for col in ["total_revenue","foto_qty","print_qty","conversion_rate"]:
+    for col in ["total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate"]:
         if col in m_df.columns:
             m_df[col] = pd.to_numeric(m_df[col], errors="coerce").fillna(0)
 
@@ -514,15 +474,15 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
     with c4: st.metric("📸 Photos", format_number(metrics['total_photos']))
     st.markdown("---")
 
-    create_outlet_table(df, current_period, compare_period, full_df=full_df)
+    create_outlet_table(m_df, current_period, compare_period, full_df=full_df)
 
     col1, col2 = st.columns([1, 1])
     with col1:
         st.subheader("📊 Distribusi Status Outlet")
-        st.plotly_chart(viz.create_status_distribution(df), use_container_width=True)
+        st.plotly_chart(viz.create_status_distribution(m_df), use_container_width=True)
     with col2:
         st.subheader("🏆 Top 5 Performers")
-        top = processor.get_top_performers(df, 5) if hasattr(processor, "get_top_performers") else df.sort_values("total_revenue", ascending=False).head(5)
+        top = processor.get_top_performers(m_df, 5) if hasattr(processor, "get_top_performers") else m_df.sort_values("total_revenue", ascending=False).head(5)
         for _, row in top.iterrows():
             status_class = f"status-{str(row['outlet_status']).lower()}"
             st.markdown(f"""
@@ -538,14 +498,14 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
     a, b = st.columns([2, 1])
     with a:
         st.subheader("💹 Revenue by Outlet")
-        st.plotly_chart(viz.create_revenue_chart(df), use_container_width=True)
+        st.plotly_chart(viz.create_revenue_chart(m_df), use_container_width=True)
     with b:
         st.subheader("🔄 Conversion Funnel")
-        st.plotly_chart(viz.create_conversion_funnel(df), use_container_width=True)
+        st.plotly_chart(viz.create_conversion_funnel(m_df), use_container_width=True)
 
     st.markdown("---")
     st.subheader("💡 Key Insights")
-    for insight in generate_insights(df, config):
+    for insight in generate_insights(m_df, config):
         st.markdown(f'<div class="insight-box">{insight}</div>', unsafe_allow_html=True)
 
 def show_outlet_crud(df, config, processor):
@@ -734,17 +694,46 @@ def show_period_comparison(df, config, processor, viz, current_period, compare_p
     else:
         st.info("Pilih kedua periode di sidebar untuk membandingkan.")
 
-# ================ UPLOAD (SHEET PICK + DEDUP + AUDIT) ================
+# ================= UPLOAD =================
+def suggest_default_sheets(sheet_names: list[str]) -> list[str]:
+    picks = []
+    for s in sheet_names:
+        sl = s.lower()
+        if any(k in sl for k in ["data","transaksi","raw","detail"]):
+            picks.append(s)
+    return picks or sheet_names[:1]
+
+def read_selected_sheets(uploaded_file, selected_sheets: list[str]) -> pd.DataFrame:
+    xls = pd.ExcelFile(uploaded_file)
+    frames = []
+    for name in selected_sheets:
+        df = pd.read_excel(xls, sheet_name=name)
+        if df is None or df.empty: continue
+        frames.append(normalize_headers(df))
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+def deduplicate_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    df = df.copy()
+    subset = [c for c in ["outlet_name","tanggal","harga","type"] if c in df.columns] or [c for c in ["outlet_name","harga"] if c in df.columns]
+    before_rows = len(df)
+    before_sum  = df["harga"].sum() if "harga" in df.columns else 0.0
+    df = df.drop_duplicates(subset=subset, keep="first")
+    after_rows  = len(df)
+    after_sum   = df["harga"].sum() if "harga" in df.columns else 0.0
+    audit = {"subset": subset,"rows_before": before_rows,"rows_after": after_rows,
+             "dup_removed": before_rows - after_rows,"sum_before": float(before_sum),
+             "sum_after": float(after_sum),"sum_diff": float(after_sum - before_sum)}
+    return df, audit
+
 def show_upload_data(config: Config):
     st.title("📤 Upload Data Bulanan")
-    st.info("📋 Pilih sheet yang berisi transaksi RAW saja. Sistem akan **hapus duplikat** antar-sheet.")
+    st.info("📋 Pilih sheet transaksi → mapping kolom → atur scale Harga bila perlu → dedup → audit → simpan. **Foto/Unlock/Print** otomatis dideteksi dari kolom **Type**.")
 
     uploaded_file = st.file_uploader("Choose Excel file", type=['xlsx','xls'])
     fallback_period = st.sidebar.text_input("🗓️ Fallback Period (YYYY-MM) bila kolom tanggal kosong", value=datetime.now().strftime("%Y-%m"))
 
     if uploaded_file is not None:
         try:
-            # Sheet picker
             xls = pd.ExcelFile(uploaded_file)
             st.subheader("📑 Pilih Sheet")
             default_sheets = suggest_default_sheets(xls.sheet_names)
@@ -752,7 +741,6 @@ def show_upload_data(config: Config):
             if not selected_sheets:
                 st.warning("Pilih minimal satu sheet."); return
 
-            # Preview small
             try:
                 st.caption("Preview 10 baris pertama dari sheet pertama terpilih")
                 prev = pd.read_excel(xls, sheet_name=selected_sheets[0], nrows=10)
@@ -760,66 +748,94 @@ def show_upload_data(config: Config):
             except Exception:
                 pass
 
-            # Read + normalize
             full_df_raw = read_selected_sheets(uploaded_file, selected_sheets)
             if full_df_raw.empty:
                 st.error("❌ Sheet terpilih kosong."); return
 
-            mapped_raw, used_mapping = apply_column_mapping(full_df_raw)
-            mapped = sanitize_mapped_df(mapped_raw)
-
+            # Mapping manual
             st.subheader("🧭 Column Mapping")
-            if used_mapping:
-                st.success("Kolom dimapping:\n" + "\n".join([f"- **{k}** → **{v}**" for k,v in used_mapping.items()]))
-            else:
-                st.warning("Tidak ada kolom yang di-rename. Pastikan header sudah sesuai (Outlet, Harga, Tanggal, dll).")
+            auto_map = apply_column_mapping_auto(full_df_raw)
+            col_outlet  = st.selectbox("Kolom Outlet → outlet_name", ["<None>"]+list(full_df_raw.columns),
+                                       index=(list(full_df_raw.columns).index(auto_map.get("outlet_name",""))+1) if auto_map.get("outlet_name") in full_df_raw.columns else 0)
+            col_harga   = st.selectbox("Kolom Harga → harga", ["<None>"]+list(full_df_raw.columns),
+                                       index=(list(full_df_raw.columns).index(auto_map.get("harga",""))+1) if auto_map.get("harga") in full_df_raw.columns else 0)
+            col_tanggal = st.selectbox("Kolom Tanggal → tanggal (opsional)", ["<None>"]+list(full_df_raw.columns),
+                                       index=(list(full_df_raw.columns).index(auto_map.get("tanggal",""))+1) if auto_map.get("tanggal") in full_df_raw.columns else 0)
+            col_area    = st.selectbox("Kolom Area → area (opsional)", ["<None>"]+list(full_df_raw.columns),
+                                       index=(list(full_df_raw.columns).index(auto_map.get("area",""))+1) if auto_map.get("area") in full_df_raw.columns else 0)
+            col_type    = st.selectbox("Kolom Jenis/Type (Foto/Unlock/Print) → type", ["<None>"]+list(full_df_raw.columns),
+                                       index=(list(full_df_raw.columns).index(auto_map.get("type",""))+1) if auto_map.get("type") in full_df_raw.columns else 0)
 
-            # DEDUP sebelum agregasi
-            mapped_dedup, dd_audit = deduplicate_rows(mapped)
+            if col_outlet == "<None>" or col_harga == "<None>":
+                st.error("❌ Wajib pilih kolom Outlet dan Harga."); return
 
-            st.subheader("🧮 Ringkasan Excel RAW (setelah cleaning & dedup)")
-            st.write(f"- Sheets terpakai: **{', '.join(selected_sheets)}**")
-            st.write(f"- Key dedup: **{', '.join(dd_audit['subset'])}**")
+            mapping = {col_outlet: "outlet_name", col_harga: "harga"}
+            if col_tanggal != "<None>": mapping[col_tanggal] = "tanggal"
+            if col_area    != "<None>": mapping[col_area]    = "area"
+            if col_type    != "<None>": mapping[col_type]    = "type"
+
+            cleaned = full_df_raw.rename(columns=mapping).copy()
+
+            # Scale harga
+            st.subheader("💵 Harga Scale (kalau total 10×)")
+            scale_option = st.radio("Pilih scale harga:", ["x1 (normal)","÷10","÷100","÷1000"], index=0, horizontal=True)
+            scale_value = {"x1 (normal)":1.0,"÷10":0.1,"÷100":0.01,"÷1000":0.001}[scale_option]
+            cleaned["harga"] = to_numeric_clean(cleaned["harga"]) * scale_value
+
+            if "tanggal" in cleaned.columns:
+                cleaned["tanggal"] = pd.to_datetime(cleaned["tanggal"], errors="coerce")
+            if "outlet_name" in cleaned.columns:
+                cleaned["outlet_name"] = cleaned["outlet_name"].astype(str).str.strip()
+            if "area" not in cleaned.columns:
+                cleaned["area"] = ""
+
+            # DIAG: Distribusi type
+            if "type" in cleaned.columns:
+                st.caption("Distribusi nilai kolom Type (untuk derive Foto/Unlock/Print):")
+                vc = cleaned["type"].astype(str).str.strip().str.lower().value_counts().head(15)
+                st.dataframe(vc.to_frame("count"))
+
+            # JANGAN membuat kolom foto/unlock/print = 0 di sini! (ini penyebab agregasi 0)
+            # Dedup
+            tmp_for_dedup = cleaned.copy()
+            deduped, dd_audit = deduplicate_rows(tmp_for_dedup)
+
+            st.subheader("🧮 Ringkasan Excel RAW (setelah mapping, cleaning & dedup)")
             st.write(f"- Rows sebelum dedup: **{dd_audit['rows_before']:,}**")
             st.write(f"- Rows sesudah dedup: **{dd_audit['rows_after']:,}**  (hapus **{dd_audit['dup_removed']:,}** duplikat)")
-            st.write(f"- Total Harga sebelum dedup: **{Config().format_currency(dd_audit['sum_before'])}**")
             st.write(f"- Total Harga sesudah dedup: **{Config().format_currency(dd_audit['sum_after'])}**")
-            if dd_audit['dup_removed'] > 0:
-                st.info("✅ Duplikat antar sheet sudah dihapus. Ini biasanya penyebab angka 10×.")
+            st.write(f"- Key dedup: **{', '.join(dd_audit['subset']) or '(none)'}**")
 
-            # Validasi minimum
-            if "outlet_name" not in mapped_dedup.columns or "harga" not in mapped_dedup.columns:
-                st.error("❌ Wajib ada kolom **Outlet** dan **Harga**."); return
+            # Agregasi (akan derive dari 'type' bila perlu)
+            processed_df, derive_audit = aggregate_monthly(deduped, config, fallback_period=fallback_period)
 
-            # Agregasi → dashboard
-            processed_df = aggregate_monthly(mapped_dedup, config, fallback_period=fallback_period)
-            for c in ["foto_qty","unlock_qty","print_qty"]:
-                if c in processed_df.columns:
-                    processed_df[c] = pd.to_numeric(processed_df[c], errors="coerce").fillna(0).astype(int)
+            # Audit derive
+            st.subheader("🧪 Derive Audit (dari kolom Type)")
+            st.write(f"- Match Foto  : **{derive_audit.get('match_foto',0):,}** rows")
+            st.write(f"- Match Unlock: **{derive_audit.get('match_unlock',0):,}** rows")
+            st.write(f"- Match Print : **{derive_audit.get('match_print',0):,}** rows")
 
-            # Audit Excel vs Agregasi
+            # Preview agregasi (seharusnya TIDAK 0 bila ada Type)
+            st.subheader("🔎 Preview Hasil Agregasi")
+            show_cols = ["periode","outlet_name","area","total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate"]
+            st.dataframe(processed_df[show_cols].head(25), use_container_width=True)
+
+            # Audit total
             st.subheader("🧾 Audit — Perbandingan Total (Excel vs Agregasi)")
-            total_raw = mapped_dedup["harga"].sum()
-            total_aggr = processed_df["total_revenue"].sum()
-            st.write(f"- Total Harga **Excel RAW (DEDUP)**: **{Config().format_currency(total_raw)}**")
+            total_raw = float(dd_audit['sum_after'])
+            total_aggr = float(processed_df["total_revenue"].sum())
+            st.write(f"- Total Harga **Excel RAW (DEDUP & SCALE)**: **{Config().format_currency(total_raw)}**")
             st.write(f"- Total Revenue **Agregasi file ini**: **{Config().format_currency(total_aggr)}**")
             st.write(f"- Selisih (Agregasi - Raw): **{Config().format_currency(total_aggr - total_raw)}**")
 
-            # Tampilkan ringkas by outlet (cek cepat)
-            st.subheader("🏪 Top 15 Outlet by Revenue (agregasi)")
-            tmp = processed_df.sort_values("total_revenue", ascending=False).head(15).copy()
-            tmp["total_revenue_fmt"] = tmp["total_revenue"].apply(lambda x: Config().format_currency(x))
-            st.dataframe(tmp[["periode","outlet_name","total_revenue_fmt","foto_qty","unlock_qty","print_qty"]], use_container_width=True)
-
-            # Simpan
+            # Save
             if st.button("🚀 Process and Update Dashboard"):
                 with st.spinner("Menyimpan & menggabungkan data..."):
                     merged = append_and_dedup(processed_df, DATA_CSV_PATH)
                     per_uploaded = sorted(processed_df["periode"].unique())
                     csv_subset = merged[merged["periode"].isin(per_uploaded)]
-                    csv_total_for_periods = csv_subset["total_revenue"].sum()
+                    csv_total_for_periods = float(csv_subset["total_revenue"].sum())
 
-                    # clear cache agar periode baru muncul
                     try: load_app_data.clear()
                     except Exception: pass
 
@@ -827,15 +843,15 @@ def show_upload_data(config: Config):
                     st.subheader("🧾 Audit — Nilai Tersimpan ke CSV (periode file ini)")
                     st.write(f"- Periode tersimpan: **{', '.join(per_uploaded)}**")
                     st.write(f"- Total di CSV (periode tsb): **{Config().format_currency(csv_total_for_periods)}**")
-                    st.write(f"- Selisih (CSV - Excel RAW DEDUP): **{Config().format_currency(csv_total_for_periods - total_raw)}**")
+                    st.write(f"- Selisih (CSV - Excel RAW DEDUP & SCALE): **{Config().format_currency(csv_total_for_periods - total_raw)}**")
                     st.write(f"- Selisih (CSV - Agregasi): **{Config().format_currency(csv_total_for_periods - total_aggr)}**")
                     st.info(f"Periode tersedia sekarang: **{', '.join(sorted(merged['periode'].unique()))}**")
-                    st.write(f"Total revenue (SEMUA periode): **{Config().format_currency(merged['total_revenue'].sum())}**")
+                    st.write(f"Total revenue (SEMUA periode): **{Config().format_currency(float(merged['total_revenue'].sum()))}**")
                     st.rerun()
 
         except Exception as e:
             st.error(f"❌ Error reading/processing file: {e}")
 
-# ================ BOOT ================
+# ================= BOOT =================
 if __name__ == "__main__":
     main()
