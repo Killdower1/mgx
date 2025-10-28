@@ -1,6 +1,8 @@
-# app.py — FULL
+# app.py — Difotoin Dashboard (sheet selection + dedup + audit fix 10x sum)
 
 import io
+import os
+import re
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -13,7 +15,7 @@ from visualizations import Visualizations
 from utils import *
 from config import Config
 
-# ================== PAGE CONFIG ==================
+# ================ PAGE CONFIG ================
 st.set_page_config(
     page_title="Difotoin Sales Dashboard",
     page_icon="📸",
@@ -21,7 +23,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ================== CONSTANTS ==================
+# ================ CONSTANTS ================
 INDONESIA_AREAS = [
     "Jakarta Pusat","Jakarta Utara","Jakarta Barat","Jakarta Selatan","Jakarta Timur","Jakarta",
     "Surabaya","Bandung","Medan","Bekasi","Tangerang","Depok","Semarang","Palembang","Makassar",
@@ -36,13 +38,11 @@ INDONESIA_AREAS = [
     "Bondowoso","Banyuwangi","Jember","Lumajang","Malang","Batu","Bali","Denpasar","Badung",
     "Gianyar","Klungkung","Bangli","Karangasem","Buleleng","Jembrana","Tabanan"
 ]
-
 KATEGORI_TEMPAT = [
     "Mall","Wisata","Restoran","Hotel","Komunitas","Sekolah","Universitas","Rumah Sakit",
     "Perkantoran","Apartemen","Cafe","Gym","Salon","Spa","Bioskop","Taman","Museum",
     "Galeri","Event Space","Co-working Space","Lainnya"
 ]
-
 SUB_KATEGORI_TEMPAT = [
     "Food Court","Department Store","Supermarket","Boutique","Electronics Store","Bookstore",
     "Pantai","Gunung","Danau","Taman Nasional","Candi","Kebun Binatang","Waterpark",
@@ -53,8 +53,9 @@ SUB_KATEGORI_TEMPAT = [
 
 VALID_EMAIL = "octadimas@gmail.com"
 VALID_PASSWORD = "dowerdower1"
+DATA_CSV_PATH = "data/difotoin_dashboard_data.csv"
 
-# ================== STYLES ==================
+# ================ STYLES ================
 st.markdown("""
 <style>
     .main-header{font-size:2.5rem;font-weight:bold;color:#fff!important;text-align:center;margin-bottom:2rem;}
@@ -69,30 +70,24 @@ st.markdown("""
     .stMetric>label{font-size:.8rem!important;color:#6b7280!important;}
     .stMetric [data-testid="metric-value"]{font-size:1.5rem!important;color:#fff!important;}
     .stApp{color:#fff!important;background:#1a1a1a!important;}
-    .stSidebar{background:#000000!important;} /* <- sidebar full black */
+    .stSidebar{background:#000000!important;}
     .stSidebar *{color:#fff!important;}
     .stMarkdown,.stMarkdown *,.stText,.stText *,h1,h2,h3,h4,h5,h6,p,span,div,label{color:#fff!important;}
     .stSelectbox label,.stTextInput label,.stNumberInput label,.stTextArea label{color:#fff!important;}
     .stDataFrame,.stDataFrame *{color:#1f2937!important;}
     .stTabs [data-baseweb="tab-list"] button{color:#fff!important;}
     .stButton button{color:#1f2937!important;background:#3b82f6!important;border:none!important;}
-    .stAlert{color:#1f2937!important;}
     .performer-card{padding:.5rem;margin:.25rem 0;border-radius:.25rem;background:#2a2a2a;border:1px solid #404040;}
-    .performer-card strong{color:#fff!important;}
 </style>
 """, unsafe_allow_html=True)
 
-# ================== AUTH ==================
+# ================ AUTH ================
 def show_login_page():
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    st.markdown('<h1 class="login-header">📸 Difotoin Dashboard</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="login-subheader">Please login to access the dashboard</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">📸 Difotoin Dashboard</h1>', unsafe_allow_html=True)
     with st.form("login_form"):
         email = st.text_input("Email", placeholder="Enter your email")
         password = st.text_input("Password", type="password", placeholder="Enter your password")
-        _, c, _ = st.columns([1,2,1])
-        with c:
-            submitted = st.form_submit_button("🔐 Login", use_container_width=True)
+        submitted = st.form_submit_button("🔐 Login", use_container_width=True)
         if submitted:
             if email == VALID_EMAIL and password == VALID_PASSWORD:
                 st.session_state.logged_in = True
@@ -101,7 +96,6 @@ def show_login_page():
                 st.rerun()
             else:
                 st.error("❌ Invalid email or password. Please try again.")
-    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown("---")
     st.info("💡 **Demo Credentials:**\n- Email: octadimas@gmail.com\n- Password: dowerdower1")
 
@@ -118,27 +112,27 @@ def check_login():
         st.session_state.logged_in = False
     return st.session_state.logged_in
 
-# ================== DATA LOADING ==================
+# ================ LOAD DATA ================
 @st.cache_data
 def load_app_data():
     processor = DataProcessor()
     return processor.load_data()
 
-# ================== PERIOD SELECTOR (SIDEBAR) ==================
+# ================ PERIOD SELECTOR (SIDEBAR) ================
 def create_sidebar_period_selector(df):
-    if df.empty:
+    if df.empty or "periode" not in df.columns:
         return None, None
+    periods = sorted([str(p) for p in df["periode"].dropna().unique()])
     st.sidebar.markdown("### 📅 Periode Selection")
-    periods = sorted(df["periode"].unique())
     current = st.sidebar.selectbox("Current Period", periods, index=len(periods)-1 if periods else 0, key="period_current_sidebar")
     compare_opts = ["None"] + [p for p in periods if p != current]
     compare = st.sidebar.selectbox("Compare with", compare_opts, key="period_compare_sidebar")
     return current, (None if compare == "None" else compare)
 
-# ================== HELPERS ==================
+# ================ HELPERS ================
 def format_number_with_dots(num):
     try:
-        return f"{int(num):,}".replace(",", ".")
+        return f"{int(round(float(num))):,}".replace(",", ".")
     except Exception:
         return str(num)
 
@@ -146,37 +140,43 @@ def format_comparison_value(current_val, compare_val, is_percentage=False):
     if compare_val == 0:
         return "0.0%" if not is_percentage else "0.0pp"
     if is_percentage:
-        change = current_val - compare_val
+        change = float(current_val) - float(compare_val)
         sign = "+" if change > 0 else ""
         return f"{sign}{change:.1f}pp" if change != 0 else "0.0pp"
-    change_pct = ((current_val - compare_val) / compare_val) * 100
+    change_pct = ((float(current_val) - float(compare_val)) / float(compare_val)) * 100
     sign = "+" if change_pct > 0 else ""
     return f"{sign}{change_pct:.1f}%" if change_pct != 0 else "0.0%"
 
 def _norm_name(s: str) -> str:
     return str(s).strip().lower()
 
-# ----- Upload mapping helpers -----
+def safe_unique_str(df: pd.DataFrame, col: str) -> list[str]:
+    if col not in df.columns:
+        return []
+    vals = df[col].dropna().astype(str).unique().tolist()
+    return sorted(vals)
+
+# --- Upload mapping helpers ---
 EXCEL_TO_APP_COLMAP = {
-    "outlet": "outlet_name","nama outlet":"outlet_name","toko":"outlet_name",
-    "harga":"harga","amount":"harga","price":"harga",
+    "outlet":"outlet_name","nama outlet":"outlet_name","toko":"outlet_name",
+    "harga":"harga","amount":"harga","price":"harga","nominal":"harga",
     "tanggal":"tanggal","date":"tanggal","waktu":"tanggal",
     "area":"area","kota":"area",
+    "type":"type","tipe":"type",
     "kategori":"kategori_tempat","kategori tempat":"kategori_tempat",
     "sub kategori":"sub_kategori_tempat","sub_kategori":"sub_kategori_tempat",
-    "tipe":"tipe_tempat","tipe tempat":"tipe_tempat",
-    "omset":"total_revenue","revenue":"total_revenue",
-    "foto":"foto_qty","unlock":"unlock_qty","print":"print_qty","conversion":"conversion_rate",
+    "tipe tempat":"tipe_tempat",
+    # opsi agregat
+    "foto":"foto","unlock":"unlock","print":"print",
+    "omset":"total_revenue","revenue":"total_revenue","conversion":"conversion_rate",
 }
 
 def normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
-    new_cols = [" ".join(str(c).strip().split()) for c in df.columns]
     df = df.copy()
-    df.columns = new_cols
+    df.columns = [" ".join(str(c).strip().split()) for c in df.columns]
     return df
 
 def apply_column_mapping(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    df = df.copy()
     lower_map = {k.lower(): v for k, v in EXCEL_TO_APP_COLMAP.items()}
     used, ren = {}, {}
     for col in df.columns:
@@ -188,34 +188,137 @@ def apply_column_mapping(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     return df, used
 
 def to_numeric_clean(series: pd.Series) -> pd.Series:
-    """why: harga bisa '35.000', '35,000', '35000', None -> numerik"""
-    s = series.astype(str).str.replace(r"[.\s]", "", regex=True)  # hapus titik & spasi
-    s = s.str.replace(",", ".", regex=False)  # koma jadi titik untuk desimal
-    s = pd.to_numeric(s, errors="coerce")
-    return s
+    s = series.astype(str).str.strip()
+    s = s.str.replace(r"^\((.*)\)$", r"-\1", regex=True)
+    s = s.str.replace(r"[^\d\-,\.]", "", regex=True)
+    s = s.str.replace(".", "", regex=False)
+    s = s.str.replace(",", ".", regex=False)
+    return pd.to_numeric(s, errors="coerce").fillna(0.0)
 
 def sanitize_mapped_df(df: pd.DataFrame) -> pd.DataFrame:
-    """why: cegah validasi 'harga empty' — NaN/None jadi 0, negatif dibulatkan 0."""
     df = df.copy()
     if "harga" in df.columns:
-        # coerce ke numerik + isi NaN/None dengan 0
-        df["harga"] = to_numeric_clean(df["harga"]).fillna(0)
-        # harga negatif dianggap 0 (safety)
+        df["harga"] = to_numeric_clean(df["harga"])
         df.loc[df["harga"] < 0, "harga"] = 0
-    # kolom agregat lain kalau ada, rapikan tipe
-    for col in ["total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate"]:
+    else:
+        df["harga"] = 0.0
+    for col in ["foto","unlock","print"]:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            df[col] = to_numeric_clean(df[col]).fillna(0).astype(int)
+        else:
+            df[col] = 0
+    df["type"] = df["type"].astype(str).fillna("") if "type" in df.columns else pd.Series([""]*len(df), index=df.index)
+    df["tanggal"] = pd.to_datetime(df["tanggal"], errors="coerce") if "tanggal" in df.columns else pd.NaT
+    for c in ["outlet_name","area"]:
+        if c in df.columns: df[c] = df[c].astype(str).str.strip()
+        else: df[c] = "" if c=="area" else df.get(c, "")
     return df
 
-def df_to_excel_bytes(df: pd.DataFrame) -> io.BytesIO:
-    bio = io.BytesIO()
-    with pd.ExcelWriter(bio, engine="xlsxwriter") as w:
-        df.to_excel(w, index=False, sheet_name="Sheet1")
-    bio.seek(0)
-    return bio
+def compute_status(total_revenue: float, config: Config) -> str:
+    keep = config.get_threshold('keeper_minimum'); opt = config.get_threshold('optimasi_minimum')
+    if total_revenue >= keep: return "Keeper"
+    if total_revenue >= opt:  return "Optimasi"
+    return "Relocate"
 
-# ================== OUTLET TABLE ==================
+def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: str | None = None) -> pd.DataFrame:
+    df = mapped_df.copy()
+    if "tanggal" in df.columns and df["tanggal"].notna().any():
+        df["periode"] = df["tanggal"].dt.strftime("%Y-%m")
+    else:
+        df["periode"] = fallback_period or datetime.now().strftime("%Y-%m")
+
+    if all(col in df.columns for col in ["foto","unlock","print"]):
+        df["_foto_qty"]   = df["foto"].fillna(0).astype(int)
+        df["_unlock_qty"] = df["unlock"].fillna(0).astype(int)
+        df["_print_qty"]  = df["print"].fillna(0).astype(int)
+    else:
+        t = df["type"].astype(str).str.lower() if "type" in df.columns else pd.Series([""]*len(df), index=df.index)
+        df["_foto_qty"]   = t.str.contains("foto").astype(int)
+        df["_unlock_qty"] = t.str.contains("unlock").astype(int)
+        df["_print_qty"]  = t.str.contains("print").astype(int)
+
+    if "outlet_name" not in df.columns:
+        raise ValueError("Kolom 'Outlet' tidak ditemukan (harap ada kolom Outlet di Excel).")
+
+    group_keys = ["periode","outlet_name"]
+    if "area" in df.columns: group_keys.append("area")
+
+    agg = df.groupby(group_keys, dropna=False).agg(
+        total_revenue=("harga","sum"),
+        foto_qty=("_foto_qty","sum"),
+        unlock_qty=("_unlock_qty","sum"),
+        print_qty=("_print_qty","sum")
+    ).reset_index()
+
+    agg["conversion_rate"] = np.where(agg["foto_qty"]>0, agg["print_qty"]/agg["foto_qty"]*100, 0.0)
+    cfg = Config()
+    agg["outlet_status"] = agg["total_revenue"].apply(lambda x: compute_status(float(x), cfg))
+
+    for col in ["kategori_tempat","sub_kategori_tempat","tipe_tempat"]:
+        if col not in agg.columns: agg[col] = "Tidak Terkategorisasi"
+
+    agg["area"] = agg.get("area","").astype(str).replace({"nan": ""})
+    cols = ["periode","outlet_name","area","kategori_tempat","sub_kategori_tempat","tipe_tempat",
+            "total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate","outlet_status"]
+    for c in cols:
+        if c not in agg.columns: agg[c] = np.nan
+    return agg[cols]
+
+def append_and_dedup(new_df: pd.DataFrame, path: str) -> pd.DataFrame:
+    if os.path.exists(path):
+        old = pd.read_csv(path)
+        for c in new_df.columns:
+            if c not in old.columns: old[c] = np.nan
+        for c in old.columns:
+            if c not in new_df.columns: new_df[c] = np.nan
+        merged = pd.concat([old, new_df], ignore_index=True)
+        merged = merged.sort_values(["periode","outlet_name"]).drop_duplicates(subset=["periode","outlet_name"], keep="last")
+        merged.to_csv(path, index=False); return merged
+    else:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        new_df.to_csv(path, index=False); return new_df
+
+# === NEW: Sheet selection + Dedup ===
+def suggest_default_sheets(sheet_names: list[str]) -> list[str]:
+    picks = []
+    for s in sheet_names:
+        sl = s.lower()
+        if any(k in sl for k in ["data","transaksi","raw","detail"]):
+            picks.append(s)
+    return picks or sheet_names[:1]
+
+def read_selected_sheets(uploaded_file, selected_sheets: list[str]) -> pd.DataFrame:
+    xls = pd.ExcelFile(uploaded_file)
+    frames = []
+    for name in selected_sheets:
+        df = pd.read_excel(xls, sheet_name=name)
+        if df is None or df.empty: continue
+        frames.append(normalize_headers(df))
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+def deduplicate_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Drop duplicates on best-available subset to prevent multi-sheet double counting."""
+    df = df.copy()
+    subset = [c for c in ["outlet_name","tanggal","harga","type"] if c in df.columns]
+    if not subset:
+        subset = [c for c in ["outlet_name","harga"] if c in df.columns]
+    before_rows = len(df)
+    before_sum  = df["harga"].sum() if "harga" in df.columns else 0.0
+    df = df.drop_duplicates(subset=subset, keep="first")
+    after_rows  = len(df)
+    after_sum   = df["harga"].sum() if "harga" in df.columns else 0.0
+    audit = {
+        "subset": subset,
+        "rows_before": before_rows,
+        "rows_after": after_rows,
+        "dup_removed": before_rows - after_rows,
+        "sum_before": float(before_sum),
+        "sum_after": float(after_sum),
+        "sum_diff": float(after_sum - before_sum),
+    }
+    return df, audit
+
+# ================ OUTLET TABLE ================
 def create_outlet_table(df, current_period, compare_period, full_df=None):
     st.markdown('<div class="outlet-table">', unsafe_allow_html=True)
     st.markdown("### 🏪 Outlet Performance Table")
@@ -249,30 +352,29 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
         name = r["outlet_name"]; key = _norm_name(name)
         omset = float(r["total_revenue"]); foto = int(r["foto_qty"]); unlock = int(r["unlock_qty"]); conv = float(r["conversion_rate"])
         rec = {
-            "Outlet": name, "Area": r["area"],
+            "Outlet": name, "Area": r.get("area",""),
             "_omset_sort": int(omset), "_foto_sort": int(foto), "_unlock_sort": int(unlock), "_conversion_sort": float(conv),
-            "Omset": format_number_with_dots(omset), "Foto": format_number_with_dots(foto),
-            "Unlock": format_number_with_dots(unlock), "Conversion": f"{conv:.1f}%", "Status": r["outlet_status"],
+            "Omset": format_number_with_dots(omset), "Omset Compare": "New Outlet",
+            "Foto": format_number_with_dots(foto), "Foto Compare": "New Outlet",
+            "Unlock": format_number_with_dots(unlock), "Unlock Compare": "New Outlet",
+            "Conversion": f"{conv:.1f}%", "Conversion Compare": "New Outlet",
+            "Status": r["outlet_status"],
             "_omset_delta": np.nan, "_foto_delta": np.nan, "_unlock_delta": np.nan, "_conv_delta": np.nan
         }
         if compare_period and key in compare_map:
             p = compare_map[key]
-            p_omset = float(p.get("total_revenue", 0) or 0); p_foto = int(p.get("foto_qty", 0) or 0)
-            p_unlock = int(p.get("unlock_qty", 0) or 0); p_conv = float(p.get("conversion_rate", 0) or 0)
+            p_omset = float(p.get("total_revenue", 0) or 0)
+            p_foto  = int(p.get("foto_qty", 0) or 0)
+            p_unlock= int(p.get("unlock_qty", 0) or 0)
+            p_conv  = float(p.get("conversion_rate", 0) or 0)
             rec["Omset Compare"] = format_comparison_value(omset, p_omset, False)
-            rec["Foto Compare"] = format_comparison_value(foto, p_foto, False)
-            rec["Unlock Compare"] = format_comparison_value(unlock, p_unlock, False)
+            rec["Foto Compare"]  = format_comparison_value(foto, p_foto, False)
+            rec["Unlock Compare"]= format_comparison_value(unlock, p_unlock, False)
             rec["Conversion Compare"] = format_comparison_value(conv, p_conv, True)
-            rec["_omset_delta"] = 0 if p_omset == 0 else ((omset - p_omset) / p_omset) * 100
-            rec["_foto_delta"]  = 0 if p_foto  == 0 else ((foto  - p_foto ) / p_foto ) * 100
-            rec["_unlock_delta"]= 0 if p_unlock== 0 else ((unlock- p_unlock) / p_unlock) * 100
+            rec["_omset_delta"] = 0 if p_omset==0 else ((omset - p_omset)/p_omset)*100
+            rec["_foto_delta"]  = 0 if p_foto ==0 else ((foto  - p_foto )/p_foto )*100
+            rec["_unlock_delta"]= 0 if p_unlock==0 else ((unlock- p_unlock)/p_unlock)*100
             rec["_conv_delta"]  = (conv - p_conv)
-        else:
-            if compare_period:
-                rec["Omset Compare"] = "New Outlet"
-                rec["Foto Compare"] = "New Outlet"
-                rec["Unlock Compare"] = "New Outlet"
-                rec["Conversion Compare"] = "New Outlet"
         rows.append(rec)
 
     if not rows:
@@ -297,7 +399,6 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
         if val == 'Optimasi': return 'color:#f59e0b;font-weight:bold'
         if val == 'Relocate': return 'color:#ef4444;font-weight:bold'
         return ''
-
     styled = display_df.style.applymap(style_status, subset=["Status"])
 
     def color_by_delta(series, delta_series):
@@ -314,23 +415,20 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
         "Outlet": st.column_config.TextColumn("Outlet", width="medium", pinned=True),
         "Area": st.column_config.TextColumn("Area", width="small"),
         "Omset": st.column_config.TextColumn("Omset", width="medium"),
+        "Omset Compare": st.column_config.TextColumn("Omset Compare", width="medium"),
         "Foto": st.column_config.TextColumn("Foto", width="small"),
+        "Foto Compare": st.column_config.TextColumn("Foto Compare", width="small"),
         "Unlock": st.column_config.TextColumn("Unlock", width="small"),
+        "Unlock Compare": st.column_config.TextColumn("Unlock Compare", width="small"),
         "Conversion": st.column_config.TextColumn("Conversion", width="small"),
+        "Conversion Compare": st.column_config.TextColumn("Conversion Compare", width="small"),
         "Status": st.column_config.TextColumn("Status", width="small"),
     }
-    if compare_period:
-        column_config.update({
-            "Omset Compare": st.column_config.TextColumn("Omset Compare", width="medium"),
-            "Foto Compare": st.column_config.TextColumn("Foto Compare", width="small"),
-            "Unlock Compare": st.column_config.TextColumn("Unlock Compare", width="small"),
-            "Conversion Compare": st.column_config.TextColumn("Conversion Compare", width="small"),
-        })
 
     st.dataframe(styled, use_container_width=True, hide_index=True, column_config=column_config)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ================== PAGES ==================
+# ================ PAGES ================
 def main():
     if not check_login():
         show_login_page()
@@ -339,7 +437,10 @@ def main():
     config = Config()
     processor = DataProcessor()
     viz = Visualizations(config)
+
     df = load_app_data()
+    if "area" in df.columns:
+        df["area"] = df["area"].astype(str).replace({"nan": ""})
 
     st.sidebar.title("📸 Difotoin Dashboard")
     st.sidebar.markdown("---")
@@ -357,14 +458,17 @@ def main():
         st.sidebar.markdown("---")
 
     st.sidebar.markdown("### 🔍 Filter Data")
+
     if not df.empty:
-        areas = ["Semua"] + sorted(df['area'].unique().tolist())
+        areas = ["Semua"] + safe_unique_str(df, "area")
         selected_area = st.sidebar.selectbox("Area", areas)
-        kategoris = ["Semua"] + sorted(df['kategori_tempat'].unique().tolist())
+        kategoris = ["Semua"] + safe_unique_str(df, "kategori_tempat")
         selected_kategori = st.sidebar.selectbox("Kategori Tempat", kategoris)
-        tipes = ["Semua"] + sorted(df['tipe_tempat'].unique().tolist())
+        tipes = ["Semua"] + safe_unique_str(df, "tipe_tempat")
         selected_tipe = st.sidebar.selectbox("Tipe Tempat", tipes)
-        filtered_df = processor.filter_data(df, selected_area, selected_kategori, selected_tipe, current_period)
+
+        filtered_df = processor.filter_data(df, selected_area, selected_kategori, selected_tipe, current_period) \
+                       if hasattr(processor, "filter_data") else df
     else:
         filtered_df = df
 
@@ -383,20 +487,33 @@ def main():
     elif page == "⚙️ Admin Panel":
         show_admin_panel(config)
     elif page == "📤 Upload Data":
-        show_upload_data(processor, config)
+        show_upload_data(config)
 
 def show_main_dashboard(df, config, processor, viz, current_period, compare_period, full_df):
     st.markdown('<h1 class="main-header">📸 Difotoin Sales Dashboard</h1>', unsafe_allow_html=True)
     if df.empty:
         st.error("❌ Data tidak tersedia. Silakan upload data terlebih dahulu.")
         return
-    metrics = processor.calculate_metrics(df)
+
+    m_df = df.copy()
+    for col in ["total_revenue","foto_qty","print_qty","conversion_rate"]:
+        if col in m_df.columns:
+            m_df[col] = pd.to_numeric(m_df[col], errors="coerce").fillna(0)
+
+    metrics = processor.calculate_metrics(m_df) if hasattr(processor, "calculate_metrics") else {
+        "total_revenue": m_df["total_revenue"].sum(),
+        "total_outlets": m_df["outlet_name"].nunique(),
+        "avg_conversion": (m_df["conversion_rate"].mean() if "conversion_rate" in m_df.columns else 0),
+        "total_photos": (m_df["foto_qty"].sum() if "foto_qty" in m_df.columns else 0),
+    }
+
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.metric("💰 Revenue", config.format_currency(metrics['total_revenue']))
     with c2: st.metric("🏪 Outlets", f"{metrics['total_outlets']}")
     with c3: st.metric("📈 Avg Conv Rate", f"{metrics['avg_conversion']:.1f}%")
     with c4: st.metric("📸 Photos", format_number(metrics['total_photos']))
     st.markdown("---")
+
     create_outlet_table(df, current_period, compare_period, full_df=full_df)
 
     col1, col2 = st.columns([1, 1])
@@ -405,9 +522,9 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
         st.plotly_chart(viz.create_status_distribution(df), use_container_width=True)
     with col2:
         st.subheader("🏆 Top 5 Performers")
-        top = processor.get_top_performers(df, 5)
+        top = processor.get_top_performers(df, 5) if hasattr(processor, "get_top_performers") else df.sort_values("total_revenue", ascending=False).head(5)
         for _, row in top.iterrows():
-            status_class = f"status-{row['outlet_status'].lower()}"
+            status_class = f"status-{str(row['outlet_status']).lower()}"
             st.markdown(f"""
             <div class="performer-card">
                 <strong>{row['outlet_name']}</strong><br>
@@ -433,15 +550,15 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
 
 def show_outlet_crud(df, config, processor):
     st.title("🗃️ CRUD Data Outlet & Master Data")
-    outlet_mapping = processor.load_outlet_mapping()
-    if outlet_mapping.empty:
+    outlet_mapping = processor.load_outlet_mapping() if hasattr(processor, "load_outlet_mapping") else pd.DataFrame()
+    if outlet_mapping.empty and not df.empty:
         outlets = df['outlet_name'].unique()
         outlet_mapping = pd.DataFrame({
             'outlet_name': outlets,
-            'area': df.groupby('outlet_name')['area'].first().values,
-            'kategori_tempat': df.groupby('outlet_name')['kategori_tempat'].first().values,
-            'sub_kategori_tempat': df.groupby('outlet_name')['sub_kategori_tempat'].first().values,
-            'tipe_tempat': df.groupby('outlet_name')['tipe_tempat'].first().values
+            'area': df.groupby('outlet_name')['area'].first().values if "area" in df.columns else "",
+            'kategori_tempat': df.groupby('outlet_name')['kategori_tempat'].first().values if "kategori_tempat" in df.columns else "Tidak Terkategorisasi",
+            'sub_kategori_tempat': df.groupby('outlet_name')['sub_kategori_tempat'].first().values if "sub_kategori_tempat" in df.columns else "Tidak Terkategorisasi",
+            'tipe_tempat': df.groupby('outlet_name')['tipe_tempat'].first().values if "tipe_tempat" in df.columns else "Indoor"
         })
     tab1, tab2, tab3 = st.tabs(["🏪 Outlet Management", "📋 Master Data Kategori", "🗺️ Master Data Area"])
     with tab1:
@@ -458,7 +575,7 @@ def show_outlet_crud(df, config, processor):
                 new_sub_kategori = st.selectbox("Sub Kategori Tempat", SUB_KATEGORI_TEMPAT)
                 new_tipe = st.selectbox("Tipe Tempat", ["Indoor","Outdoor","Semi-Outdoor"])
                 if st.form_submit_button("Add Outlet") and new_outlet_name:
-                    if new_outlet_name in outlet_mapping['outlet_name'].values:
+                    if 'outlet_name' in outlet_mapping and new_outlet_name in outlet_mapping['outlet_name'].values:
                         st.error("❌ Outlet already exists!")
                     else:
                         new_row = pd.DataFrame({'outlet_name':[new_outlet_name],'area':[new_area],
@@ -477,7 +594,8 @@ def show_outlet_crud(df, config, processor):
                         edit_area = st.selectbox("Area", INDONESIA_AREAS, index=INDONESIA_AREAS.index(row['area']) if row['area'] in INDONESIA_AREAS else 0)
                         edit_kat = st.selectbox("Kategori Tempat", KATEGORI_TEMPAT, index=KATEGORI_TEMPAT.index(row['kategori_tempat']) if row['kategori_tempat'] in KATEGORI_TEMPAT else 0)
                         edit_sub = st.selectbox("Sub Kategori Tempat", SUB_KATEGORI_TEMPAT, index=SUB_KATEGORI_TEMPAT.index(row['sub_kategori_tempat']) if row['sub_kategori_tempat'] in SUB_KATEGORI_TEMPAT else 0)
-                        edit_tipe = st.selectbox("Tipe Tempat", ["Indoor","Outdoor","Semi-Outdoor"], index=["Indoor","Outdoor","Semi-Outdoor"].index(row['tipe_tempat']))
+                        pilihan_tipe = ["Indoor","Outdoor","Semi-Outdoor"]
+                        edit_tipe = st.selectbox("Tipe Tempat", pilihan_tipe, index=pilihan_tipe.index(row['tipe_tempat']) if row['tipe_tempat'] in pilihan_tipe else 0)
                         if st.form_submit_button("Update Outlet"):
                             outlet_mapping.loc[outlet_mapping['outlet_name']==outlet_to_edit, ['area','kategori_tempat','sub_kategori_tempat','tipe_tempat']] = [edit_area, edit_kat, edit_sub, edit_tipe]
                             outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
@@ -546,8 +664,16 @@ def show_conversion_analysis(df, config, processor, viz):
     if df.empty: st.error("❌ Data tidak tersedia."); return
     c1, c2, c3 = st.columns(3)
     with c1: st.metric("📸➡️🖨️ Foto to Print", f"{df['conversion_rate'].mean():.1f}%")
-    with c2: st.metric("🔓➡️🖨️ Unlock to Print", f"{df['unlock_to_print_rate'].mean():.1f}%")
-    with c3: st.metric("🎯 Overall Conversion", f"{(df['print_qty'].sum()/df['foto_qty'].sum())*100:.1f}%")
+    with c2:
+        unlock_sum = pd.to_numeric(df.get('unlock_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
+        print_sum  = pd.to_numeric(df.get('print_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
+        rate = (print_sum/unlock_sum*100) if unlock_sum>0 else 0
+        st.metric("🔓➡️🖨️ Unlock to Print", f"{rate:.1f}%")
+    with c3:
+        foto_sum = pd.to_numeric(df.get('foto_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
+        print_sum = pd.to_numeric(df.get('print_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
+        over = (print_sum/foto_sum*100) if foto_sum>0 else 0
+        st.metric("🎯 Overall Conversion", f"{over:.1f}%")
     st.subheader("🔄 Conversion Funnel"); st.plotly_chart(viz.create_conversion_funnel(df), use_container_width=True)
     st.subheader("📊 Conversion Rate by Outlet")
     a,b = st.columns(2)
@@ -578,7 +704,7 @@ def show_outlet_ranking(df, config, processor):
     ranked = df.sort_values('total_revenue', ascending=False).reset_index(drop=True)
     ranked['rank'] = range(1,len(ranked)+1)
     disp = ranked[['rank','outlet_name','area','kategori_tempat','total_revenue','conversion_rate','outlet_status']].copy()
-    disp['total_revenue'] = disp['total_revenue'].apply(lambda x: config.format_currency(x))
+    disp['total_revenue'] = disp['total_revenue'].apply(lambda x: Config().format_currency(x))
     disp['conversion_rate'] = disp['conversion_rate'].apply(lambda x: f"{x:.1f}%")
     st.dataframe(disp, use_container_width=True)
     st.subheader("📋 Analysis by Status")
@@ -604,87 +730,112 @@ def show_period_comparison(df, config, processor, viz, current_period, compare_p
         with c1: st.metric("Revenue Growth", f"{gm.get('revenue_growth',0):+.1f}%", delta=f"{gm.get('revenue_growth',0):+.1f}%")
         with c2: st.metric("Photo Growth", f"{gm.get('photo_growth',0):+.1f}%", delta=f"{gm.get('photo_growth',0):+.1f}%")
         with c3: st.metric("Conversion Change", f"{gm.get('conversion_change',0):+.1f}pp", delta=f"{gm.get('conversion_change',0):+.1f}pp")
-        st.subheader("📊 Side-by-Side Comparison")
-        a,b = st.columns(2)
-        with a:
-            m = processor.calculate_metrics(cur)
-            st.write(f"**{current_period}**"); st.write(f"Revenue: {config.format_currency(m['total_revenue'])}"); st.write(f"Outlets: {m['total_outlets']}"); st.write(f"Avg Conversion: {m['avg_conversion']:.1f}%")
-        with b:
-            m = processor.calculate_metrics(prev)
-            st.write(f"**{compare_period}**"); st.write(f"Revenue: {config.format_currency(m['total_revenue'])}"); st.write(f"Outlets: {m['total_outlets']}"); st.write(f"Avg Conversion: {m['avg_conversion']:.1f}%")
         st.subheader("📈 Trend Analysis"); st.plotly_chart(viz.create_trend_chart(df, 'total_revenue'), use_container_width=True)
     else:
         st.info("Pilih kedua periode di sidebar untuk membandingkan.")
 
-# ================== UPLOAD (FIX: harga 0 valid) ==================
-def show_upload_data(processor, config):
+# ================ UPLOAD (SHEET PICK + DEDUP + AUDIT) ================
+def show_upload_data(config: Config):
     st.title("📤 Upload Data Bulanan")
-    st.info("📋 Upload file Excel bulanan untuk memperbarui dashboard")
+    st.info("📋 Pilih sheet yang berisi transaksi RAW saja. Sistem akan **hapus duplikat** antar-sheet.")
 
-    uploaded_file = st.file_uploader(
-        "Choose Excel file",
-        type=['xlsx','xls'],
-        help="Header bebas: Outlet, Harga, Tanggal, Area, dst. Sistem otomatis memetakan & membersihkan."
-    )
+    uploaded_file = st.file_uploader("Choose Excel file", type=['xlsx','xls'])
+    fallback_period = st.sidebar.text_input("🗓️ Fallback Period (YYYY-MM) bila kolom tanggal kosong", value=datetime.now().strftime("%Y-%m"))
 
     if uploaded_file is not None:
         try:
-            # Preview raw
-            preview_df = pd.read_excel(uploaded_file, nrows=5)
-            st.subheader("👀 Preview Data (Raw)")
-            st.dataframe(preview_df, use_container_width=True)
+            # Sheet picker
+            xls = pd.ExcelFile(uploaded_file)
+            st.subheader("📑 Pilih Sheet")
+            default_sheets = suggest_default_sheets(xls.sheet_names)
+            selected_sheets = st.multiselect("Gunakan sheet berikut:", xls.sheet_names, default=default_sheets)
+            if not selected_sheets:
+                st.warning("Pilih minimal satu sheet."); return
 
-            # Full → normalize → map → sanitize
-            uploaded_file.seek(0)
-            full_df = pd.read_excel(uploaded_file)
-            full_df = normalize_headers(full_df)
-            mapped_df, used_mapping = apply_column_mapping(full_df)
-            mapped_df = sanitize_mapped_df(mapped_df)  # <- core fix: harga NaN/None jadi 0
+            # Preview small
+            try:
+                st.caption("Preview 10 baris pertama dari sheet pertama terpilih")
+                prev = pd.read_excel(xls, sheet_name=selected_sheets[0], nrows=10)
+                st.dataframe(prev, use_container_width=True)
+            except Exception:
+                pass
 
-            # Mapping info
+            # Read + normalize
+            full_df_raw = read_selected_sheets(uploaded_file, selected_sheets)
+            if full_df_raw.empty:
+                st.error("❌ Sheet terpilih kosong."); return
+
+            mapped_raw, used_mapping = apply_column_mapping(full_df_raw)
+            mapped = sanitize_mapped_df(mapped_raw)
+
             st.subheader("🧭 Column Mapping")
             if used_mapping:
-                st.success("Kolom dimapping otomatis:\n" + "\n".join([f"- **{k}** → **{v}**" for k,v in used_mapping.items()]))
+                st.success("Kolom dimapping:\n" + "\n".join([f"- **{k}** → **{v}**" for k,v in used_mapping.items()]))
             else:
-                st.warning("Tidak ada kolom yang perlu di-rename.")
+                st.warning("Tidak ada kolom yang di-rename. Pastikan header sudah sesuai (Outlet, Harga, Tanggal, dll).")
 
-            st.subheader("🔎 Preview Setelah Mapping & Sanitizing")
-            st.dataframe(mapped_df.head(10), use_container_width=True)
+            # DEDUP sebelum agregasi
+            mapped_dedup, dd_audit = deduplicate_rows(mapped)
 
-            # Validate with sanitized df
-            is_valid, message = validate_excel_file(mapped_df)
-            if is_valid:
-                st.success(f"✅ {message}")
-                if st.button("🚀 Process and Update Dashboard"):
-                    with st.spinner("Processing data..."):
-                        excel_bytes = df_to_excel_bytes(mapped_df)  # kirim hasil bersih
-                        processed_df = processor.process_uploaded_file(excel_bytes)
-                        if processed_df is not None:
-                            processed_df.to_csv("data/difotoin_dashboard_data.csv", index=False)
-                            st.success("✅ Data berhasil diproses dan dashboard diperbarui!")
-                            st.subheader("📊 Summary")
-                            st.write(f"Total outlets: {len(processed_df)}")
-                            st.write(f"Total revenue: {config.format_currency(processed_df['total_revenue'].sum())}")
-                        else:
-                            st.error("❌ Gagal memproses data")
-            else:
-                st.error(f"❌ {message}")
-                st.caption("Harga 0 itu valid. Sistem sudah mengubah sel kosong/None menjadi 0.")
+            st.subheader("🧮 Ringkasan Excel RAW (setelah cleaning & dedup)")
+            st.write(f"- Sheets terpakai: **{', '.join(selected_sheets)}**")
+            st.write(f"- Key dedup: **{', '.join(dd_audit['subset'])}**")
+            st.write(f"- Rows sebelum dedup: **{dd_audit['rows_before']:,}**")
+            st.write(f"- Rows sesudah dedup: **{dd_audit['rows_after']:,}**  (hapus **{dd_audit['dup_removed']:,}** duplikat)")
+            st.write(f"- Total Harga sebelum dedup: **{Config().format_currency(dd_audit['sum_before'])}**")
+            st.write(f"- Total Harga sesudah dedup: **{Config().format_currency(dd_audit['sum_after'])}**")
+            if dd_audit['dup_removed'] > 0:
+                st.info("✅ Duplikat antar sheet sudah dihapus. Ini biasanya penyebab angka 10×.")
+
+            # Validasi minimum
+            if "outlet_name" not in mapped_dedup.columns or "harga" not in mapped_dedup.columns:
+                st.error("❌ Wajib ada kolom **Outlet** dan **Harga**."); return
+
+            # Agregasi → dashboard
+            processed_df = aggregate_monthly(mapped_dedup, config, fallback_period=fallback_period)
+            for c in ["foto_qty","unlock_qty","print_qty"]:
+                if c in processed_df.columns:
+                    processed_df[c] = pd.to_numeric(processed_df[c], errors="coerce").fillna(0).astype(int)
+
+            # Audit Excel vs Agregasi
+            st.subheader("🧾 Audit — Perbandingan Total (Excel vs Agregasi)")
+            total_raw = mapped_dedup["harga"].sum()
+            total_aggr = processed_df["total_revenue"].sum()
+            st.write(f"- Total Harga **Excel RAW (DEDUP)**: **{Config().format_currency(total_raw)}**")
+            st.write(f"- Total Revenue **Agregasi file ini**: **{Config().format_currency(total_aggr)}**")
+            st.write(f"- Selisih (Agregasi - Raw): **{Config().format_currency(total_aggr - total_raw)}**")
+
+            # Tampilkan ringkas by outlet (cek cepat)
+            st.subheader("🏪 Top 15 Outlet by Revenue (agregasi)")
+            tmp = processed_df.sort_values("total_revenue", ascending=False).head(15).copy()
+            tmp["total_revenue_fmt"] = tmp["total_revenue"].apply(lambda x: Config().format_currency(x))
+            st.dataframe(tmp[["periode","outlet_name","total_revenue_fmt","foto_qty","unlock_qty","print_qty"]], use_container_width=True)
+
+            # Simpan
+            if st.button("🚀 Process and Update Dashboard"):
+                with st.spinner("Menyimpan & menggabungkan data..."):
+                    merged = append_and_dedup(processed_df, DATA_CSV_PATH)
+                    per_uploaded = sorted(processed_df["periode"].unique())
+                    csv_subset = merged[merged["periode"].isin(per_uploaded)]
+                    csv_total_for_periods = csv_subset["total_revenue"].sum()
+
+                    # clear cache agar periode baru muncul
+                    try: load_app_data.clear()
+                    except Exception: pass
+
+                    st.success("✅ Data berhasil diproses & ditambahkan ke dashboard!")
+                    st.subheader("🧾 Audit — Nilai Tersimpan ke CSV (periode file ini)")
+                    st.write(f"- Periode tersimpan: **{', '.join(per_uploaded)}**")
+                    st.write(f"- Total di CSV (periode tsb): **{Config().format_currency(csv_total_for_periods)}**")
+                    st.write(f"- Selisih (CSV - Excel RAW DEDUP): **{Config().format_currency(csv_total_for_periods - total_raw)}**")
+                    st.write(f"- Selisih (CSV - Agregasi): **{Config().format_currency(csv_total_for_periods - total_aggr)}**")
+                    st.info(f"Periode tersedia sekarang: **{', '.join(sorted(merged['periode'].unique()))}**")
+                    st.write(f"Total revenue (SEMUA periode): **{Config().format_currency(merged['total_revenue'].sum())}**")
+                    st.rerun()
+
         except Exception as e:
-            st.error(f"❌ Error reading file: {e}")
+            st.error(f"❌ Error reading/processing file: {e}")
 
-    st.subheader("📋 Format Data Guide")
-    st.write("""
-    **Header Excel yang didukung (otomatis dipetakan & dibersihkan):**
-    - Outlet → `outlet_name`
-    - Harga / Price / Amount → `harga` (kosong/None otomatis jadi **0**)
-    - Tanggal / Date → `tanggal`
-    - Area / Kota → `area`
-    - Kategori / Kategori Tempat → `kategori_tempat`
-    - Sub Kategori → `sub_kategori_tempat`
-    - Tipe → `tipe_tempat`
-    """)
-
-# ================== BOOT ==================
+# ================ BOOT ================
 if __name__ == "__main__":
     main()

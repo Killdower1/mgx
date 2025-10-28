@@ -1,39 +1,90 @@
 outlet_name,periode,area,kategori_tempat,sub_kategori_tempat,tipe_tempat,foto_qty,unlock_qty,print_qty,total_revenue,conversion_rate,unlock_to_print_rate,outlet_status
-Omman Kopi Temanggung - Tugu Jogja,2024-03,Jakarta,Mall,Food Court,Indoor,125300,100240,12530,1290500000,10.0,12.5,Keeper
-Teras Samarinda,2024-03,Jakarta,Mall,Food Court,Indoor,44500,35600,4450,254025000,10.0,12.5,Keeper
-Kembali Ke Alam Puncak,2024-03,Jakarta,Mall,Food Court,Indoor,43590,34872,4359,233700000,10.0,12.5,Keeper
-Taman Literasi Jakarta,2024-03,Jakarta,Mall,Food Court,Indoor,27650,22120,2765,96300000,10.0,12.5,Keeper
-Buy Local Creative Zone by JXB,2024-03,Jakarta,Mall,Food Court,Indoor,12160,9728,1216,44675000,10.0,12.5,Keeper
-Sarinah Dewata,2024-03,Jakarta,Mall,Food Court,Indoor,16460,13168,1646,117250000,10.0,12.5,Keeper
-Mall Bali Icon,2024-03,Jakarta,Mall,Food Court,Indoor,19190,15352,1919,80550000,10.0,12.5,Keeper
-Kuwa Koffie x Mulih Ka Uwa,2024-03,Jakarta,Mall,Food Court,Indoor,14250,11400,1425,53650000,10.0,12.5,Keeper
-Batavia PIK,2024-03,Jakarta,Mall,Food Court,Indoor,17420,13936,1742,67900000,10.0,12.5,Keeper
-Ancol LB,2024-03,Jakarta,Mall,Food Court,Indoor,29050,23240,2905,115500000,10.0,12.5,Keeper
-Beachwalk Mall Kuta - Gate,2024-03,Jakarta,Mall,Food Court,Indoor,21370,17096,2137,134500000,10.0,12.5,Keeper
-Kayumanis Seaside Sanur,2024-03,Jakarta,Mall,Food Court,Indoor,20430,16344,2043,93600000,10.0,12.5,Keeper
-Flavor Bliss & Broadway Alam Sutera,2024-03,Jakarta,Mall,Food Court,Indoor,13950,11160,1395,60100000,10.0,12.5,Keeper
-Senayan Park,2024-03,Jakarta,Mall,Food Court,Indoor,12880,10304,1288,62850000,10.0,12.5,Keeper
-Aeon Deltamas - Entrance,2024-03,Jakarta,Mall,Food Court,Indoor,17500,14000,1750,37550000,10.0,12.5,Keeper
-Entertainment District PIK 2,2024-03,Jakarta,Mall,Food Court,Indoor,6200,4960,620,20650000,10.0,12.5,Keeper
-Aloha - PIK 2,2024-03,Jakarta,Mall,Food Court,Indoor,36050,28840,3605,287425000,10.0,12.5,Keeper
-Sarinah Kolam,2024-03,Jakarta,Mall,Food Court,Indoor,22640,18112,2264,172100000,10.0,12.5,Keeper
-Taman Ismail Marzuki,2024-03,Jakarta,Mall,Food Court,Indoor,25250,20200,2525,117800000,10.0,12.5,Keeper
-Kopi Ngegasss,2024-03,Jakarta,Mall,Food Court,Indoor,4020,3216,402,32500000,10.0,12.5,Keeper
-Zonablu x Gofit,2024-03,Jakarta,Mall,Food Court,Indoor,26970,21576,2697,202750000,10.0,12.5,Keeper
-JGC,2024-03,Jakarta,Mall,Food Court,Indoor,20830,16664,2083,50450000,10.0,12.5,Keeper
-Senayan Park 2,2024-03,Jakarta,Mall,Food Court,Indoor,20150,16120,2015,141550000,10.0,12.5,Keeper
-Discovery Mall Icon,2024-03,Jakarta,Mall,Food Court,Indoor,11260,9008,1126,46850000,10.0,12.5,Keeper
-Sacra | Stuja Ubud,2024-03,Jakarta,Mall,Food Court,Indoor,7940,6352,794,41150000,10.0,12.5,Keeper
-Taman Lapangan Banteng,2024-03,Jakarta,Mall,Food Court,Indoor,34430,27544,3443,93000000,10.0,12.5,Keeper
-Ancol LB 2,2024-03,Jakarta,Mall,Food Court,Indoor,31610,25288,3161,132050000,10.0,12.5,Keeper
-HeHa Sky View - Love Lock,2024-03,Jakarta,Mall,Food Court,Indoor,16910,13528,1691,70900000,10.0,12.5,Keeper
-The Keranjang Bali,2024-03,Jakarta,Mall,Food Court,Indoor,14920,11936,1492,94150000,10.0,12.5,Keeper
-Stuja Di Pantai,2024-03,Jakarta,Mall,Food Court,Indoor,16710,13368,1671,135100000,10.0,12.5,Keeper
-Museum Mandiri Jakarta,2024-03,Jakarta,Mall,Food Court,Indoor,10710,8568,1071,54700000,10.0,12.5,Keeper
-Kopi Daong - Hutan Pinus,2024-03,Jakarta,Mall,Food Court,Indoor,12780,10224,1278,97850000,10.0,12.5,Keeper
-HeHa Waterfall,2024-03,Jakarta,Mall,Food Court,Indoor,13360,10688,1336,56700000,10.0,12.5,Keeper
-Beachwalk Vacation,2024-03,Jakarta,Mall,Food Court,Indoor,350,280,35,14250000,10.0,12.5,Optimasi
-Taman Mini Indonesia Indah,2024-03,Jakarta,Mall,Food Court,Indoor,190,152,19,0,10.0,12.5,Relocate
-Vacation Hotel Sheraton,2024-03,Jakarta,Mall,Food Court,Indoor,140,112,14,6000000,10.0,12.5,Relocate
-Ibarbo Park,2024-03,Jakarta,Mall,Food Court,Indoor,10,8,1,100000,10.0,12.5,Relocate
-The Alana Hotel & Conference Center Sentul City,2024-03,Jakarta,Mall,Food Court,Indoor,160,128,16,350000,10.0,12.5,Relocate
+Aeon Deltamas - Entrance,2024-03,Jakarta,Mall,Food Court,Indoor,17500,14000,1750,37550000.0,10.0,12.5,Keeper
+Aloha - PIK 2,2024-03,Jakarta,Mall,Food Court,Indoor,36050,28840,3605,287425000.0,10.0,12.5,Keeper
+Ancol LB,2024-03,Jakarta,Mall,Food Court,Indoor,29050,23240,2905,115500000.0,10.0,12.5,Keeper
+Ancol LB 2,2024-03,Jakarta,Mall,Food Court,Indoor,31610,25288,3161,132050000.0,10.0,12.5,Keeper
+Batavia PIK,2024-03,Jakarta,Mall,Food Court,Indoor,17420,13936,1742,67900000.0,10.0,12.5,Keeper
+Beachwalk Mall Kuta - Gate,2024-03,Jakarta,Mall,Food Court,Indoor,21370,17096,2137,134500000.0,10.0,12.5,Keeper
+Beachwalk Vacation,2024-03,Jakarta,Mall,Food Court,Indoor,350,280,35,14250000.0,10.0,12.5,Optimasi
+Buy Local Creative Zone by JXB,2024-03,Jakarta,Mall,Food Court,Indoor,12160,9728,1216,44675000.0,10.0,12.5,Keeper
+Discovery Mall Icon,2024-03,Jakarta,Mall,Food Court,Indoor,11260,9008,1126,46850000.0,10.0,12.5,Keeper
+Entertainment District PIK 2,2024-03,Jakarta,Mall,Food Court,Indoor,6200,4960,620,20650000.0,10.0,12.5,Keeper
+Flavor Bliss & Broadway Alam Sutera,2024-03,Jakarta,Mall,Food Court,Indoor,13950,11160,1395,60100000.0,10.0,12.5,Keeper
+HeHa Sky View - Love Lock,2024-03,Jakarta,Mall,Food Court,Indoor,16910,13528,1691,70900000.0,10.0,12.5,Keeper
+HeHa Waterfall,2024-03,Jakarta,Mall,Food Court,Indoor,13360,10688,1336,56700000.0,10.0,12.5,Keeper
+Ibarbo Park,2024-03,Jakarta,Mall,Food Court,Indoor,10,8,1,100000.0,10.0,12.5,Relocate
+JGC,2024-03,Jakarta,Mall,Food Court,Indoor,20830,16664,2083,50450000.0,10.0,12.5,Keeper
+Kayumanis Seaside Sanur,2024-03,Jakarta,Mall,Food Court,Indoor,20430,16344,2043,93600000.0,10.0,12.5,Keeper
+Kembali Ke Alam Puncak,2024-03,Jakarta,Mall,Food Court,Indoor,43590,34872,4359,233700000.0,10.0,12.5,Keeper
+Kopi Daong - Hutan Pinus,2024-03,Jakarta,Mall,Food Court,Indoor,12780,10224,1278,97850000.0,10.0,12.5,Keeper
+Kopi Ngegasss,2024-03,Jakarta,Mall,Food Court,Indoor,4020,3216,402,32500000.0,10.0,12.5,Keeper
+Kuwa Koffie x Mulih Ka Uwa,2024-03,Jakarta,Mall,Food Court,Indoor,14250,11400,1425,53650000.0,10.0,12.5,Keeper
+Mall Bali Icon,2024-03,Jakarta,Mall,Food Court,Indoor,19190,15352,1919,80550000.0,10.0,12.5,Keeper
+Museum Mandiri Jakarta,2024-03,Jakarta,Mall,Food Court,Indoor,10710,8568,1071,54700000.0,10.0,12.5,Keeper
+Omman Kopi Temanggung - Tugu Jogja,2024-03,Jakarta,Mall,Food Court,Indoor,125300,100240,12530,1290500000.0,10.0,12.5,Keeper
+Sacra | Stuja Ubud,2024-03,Jakarta,Mall,Food Court,Indoor,7940,6352,794,41150000.0,10.0,12.5,Keeper
+Sarinah Dewata,2024-03,Jakarta,Mall,Food Court,Indoor,16460,13168,1646,117250000.0,10.0,12.5,Keeper
+Sarinah Kolam,2024-03,Jakarta,Mall,Food Court,Indoor,22640,18112,2264,172100000.0,10.0,12.5,Keeper
+Senayan Park,2024-03,Jakarta,Mall,Food Court,Indoor,12880,10304,1288,62850000.0,10.0,12.5,Keeper
+Senayan Park 2,2024-03,Jakarta,Mall,Food Court,Indoor,20150,16120,2015,141550000.0,10.0,12.5,Keeper
+Stuja Di Pantai,2024-03,Jakarta,Mall,Food Court,Indoor,16710,13368,1671,135100000.0,10.0,12.5,Keeper
+Taman Ismail Marzuki,2024-03,Jakarta,Mall,Food Court,Indoor,25250,20200,2525,117800000.0,10.0,12.5,Keeper
+Taman Lapangan Banteng,2024-03,Jakarta,Mall,Food Court,Indoor,34430,27544,3443,93000000.0,10.0,12.5,Keeper
+Taman Literasi Jakarta,2024-03,Jakarta,Mall,Food Court,Indoor,27650,22120,2765,96300000.0,10.0,12.5,Keeper
+Taman Mini Indonesia Indah,2024-03,Jakarta,Mall,Food Court,Indoor,190,152,19,0.0,10.0,12.5,Relocate
+Teras Samarinda,2024-03,Jakarta,Mall,Food Court,Indoor,44500,35600,4450,254025000.0,10.0,12.5,Keeper
+The Alana Hotel & Conference Center Sentul City,2024-03,Jakarta,Mall,Food Court,Indoor,160,128,16,350000.0,10.0,12.5,Relocate
+The Keranjang Bali,2024-03,Jakarta,Mall,Food Court,Indoor,14920,11936,1492,94150000.0,10.0,12.5,Keeper
+Vacation Hotel Sheraton,2024-03,Jakarta,Mall,Food Court,Indoor,140,112,14,6000000.0,10.0,12.5,Relocate
+Zonablu x Gofit,2024-03,Jakarta,Mall,Food Court,Indoor,26970,21576,2697,202750000.0,10.0,12.5,Keeper
+AIBI Solo,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+Aeon Deltamas - Entrance,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,37550000.0,0.0,,Keeper
+Aloha - PIK 2,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,287425000.0,0.0,,Keeper
+Ancol LB,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,115500000.0,0.0,,Keeper
+Ancol LB 2,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,132050000.0,0.0,,Keeper
+Batavia PIK,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,67900000.0,0.0,,Keeper
+Beachwalk Mall Kuta - Gate,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,134500000.0,0.0,,Keeper
+Beachwalk Vacation,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,14250000.0,0.0,,Optimasi
+Buy Local Creative Zone by JXB,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,44675000.0,0.0,,Keeper
+Carnavelo Velodrome,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,12000000.0,0.0,,Optimasi
+Discovery Mall Icon,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,46850000.0,0.0,,Keeper
+Entertainment District PIK 2,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,20650000.0,0.0,,Keeper
+Event Youth GBK HALL,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+Flavor Bliss & Broadway Alam Sutera,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,60100000.0,0.0,,Keeper
+Freelance,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,1110.0,0.0,,Relocate
+HeHa Sky View - Love Lock,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,70900000.0,0.0,,Keeper
+HeHa Waterfall,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,56700000.0,0.0,,Keeper
+Ibarbo Park,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,100000.0,0.0,,Relocate
+Indonesia Game Expo 2025,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+Indonesia Sustainability Forum 2025,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+JGC,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,50450000.0,0.0,,Keeper
+Kayumanis Seaside Sanur,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,93950000.0,0.0,,Keeper
+Kembali Ke Alam Puncak,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,233700000.0,0.0,,Keeper
+Kopi Daong - Hutan Pinus,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,97850000.0,0.0,,Keeper
+Kopi Ngegasss,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,32500000.0,0.0,,Keeper
+Kuta Beach Festival 2025,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,17250000.0,0.0,,Keeper
+Kuwa Koffie x Mulih Ka Uwa,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,53650000.0,0.0,,Keeper
+Lenovo MRT Bund. HI,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+Mall Bali Icon,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,80550000.0,0.0,,Keeper
+Museum Mandiri Jakarta,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,54700000.0,0.0,,Keeper
+Omman Kopi Temanggung - Tugu Jogja,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,1292950000.0,0.0,,Keeper
+Posture Event,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+Reuni 55 Sampoerna Strategic,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+Reuni SMA 4 Angkatan '85,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+Sacra | Stuja Ubud,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,41150000.0,0.0,,Keeper
+Sarinah Dewata,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,117250000.0,0.0,,Keeper
+Sarinah Kolam,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,172100000.0,0.0,,Keeper
+Senayan Park,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,62850000.0,0.0,,Keeper
+Senayan Park 2,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,141550000.0,0.0,,Keeper
+Singaraja @ Synchronize Fest 2025,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+Stuja Di Pantai,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,135100000.0,0.0,,Keeper
+Taman Ismail Marzuki,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,117800000.0,0.0,,Keeper
+Taman Lapangan Banteng,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,93000000.0,0.0,,Keeper
+Taman Literasi Jakarta,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,96575000.0,0.0,,Keeper
+Taman Mini Indonesia Indah,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,0.0,0.0,,Relocate
+Teras Samarinda,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,254375000.0,0.0,,Keeper
+The Alana Hotel & Conference Center Sentul City,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,350000.0,0.0,,Relocate
+The Keranjang Bali,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,94150000.0,0.0,,Keeper
+Vacation Hotel Sheraton,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,6000000.0,0.0,,Relocate
+Widi Coffee,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,12750000.0,0.0,,Optimasi
+Zonablu x Gofit,2025-10,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi,0,0,0,202750000.0,0.0,,Keeper
