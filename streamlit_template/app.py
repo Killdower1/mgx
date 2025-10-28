@@ -1,7 +1,7 @@
-# app.py — Difotoin Dashboard (FIX: derive foto/unlock/print dari 'type' walau kolom ada tapi total 0)
-# - Upload: TIDAK lagi membuat kolom foto/unlock/print = 0
-# - Agregasi: jika kolom ada tapi total 0 dan 'type' tersedia → paksa derive dari 'type'
-# - Normalizer 'type' (regex synonim) + audit hitungan match
+# app.py — Difotoin Dashboard (Overwrite by Period)
+# Highlights:
+# - Upload per bulan: SAVE akan OVERWRITE seluruh baris di CSV untuk periode (YYYY-MM) yang sama dengan file upload
+# - Tetap: mapping manual, scaler harga, derive foto/unlock/print dari 'type', audit totals & derive, compare table, colored compare
 
 import io
 import os
@@ -177,7 +177,7 @@ def to_numeric_clean(series: pd.Series) -> pd.Series:
     s = s.str.replace(",", ".", regex=False)
     return pd.to_numeric(s, errors="coerce").fillna(0.0)
 
-# ======== NEW: Derive foto/unlock/print from 'type' with synonyms ========
+# ======== Derive foto/unlock/print from 'type' with synonyms ========
 FOTO_RE = re.compile(r"\b(foto|photo|photos|capture|shoot)\b", re.I)
 UNLOCK_RE = re.compile(r"\b(unlock|qr|scan)\b", re.I)
 PRINT_RE = re.compile(r"\b(print|printed|cetak|printout|print-out)\b", re.I)
@@ -186,7 +186,7 @@ def derive_counts_from_type(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     d = df.copy()
     t = d["type"].astype(str).str.strip().str.lower().fillna("") if "type" in d.columns else pd.Series([""]*len(d), index=d.index)
     d["_foto_qty"]   = t.str.contains(FOTO_RE).astype(int)
-    d["_unlock_qty"] = t.str.contains(UNLOCK_RE).astype(int)
+    d["_unlock_qty"] = t.str_contains(UNLOCK_RE).astype(int) if hasattr(t, "str_contains") else t.str.contains(UNLOCK_RE).astype(int)
     d["_print_qty"]  = t.str.contains(PRINT_RE).astype(int)
     audit = {
         "match_foto": int(d["_foto_qty"].sum()),
@@ -201,7 +201,7 @@ def compute_status(total_revenue: float, config: Config) -> str:
     if total_revenue >= opt:  return "Optimasi"
     return "Relocate"
 
-# ======== FIXED: Agregasi memilih derive_from_type bila kolom ada tapi total 0 ========
+# ======== Agregasi (derive bila kolom tidak lengkap atau total 0) ========
 def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: str | None = None) -> tuple[pd.DataFrame, dict]:
     df = mapped_df.copy()
 
@@ -222,7 +222,7 @@ def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: 
 
     audit_derive = {"match_foto":0,"match_unlock":0,"match_print":0}
 
-    # PAKSA derive jika (kolom tidak lengkap) ATAU (semua total 0) dan ada 'type'
+    # Derive dari 'type' apabila tidak ada kolom atau total 0
     if (not have_cols or totals_zero) and ("type" in df.columns):
         df, audit_derive = derive_counts_from_type(df)
 
@@ -255,21 +255,35 @@ def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: 
 
     return agg[cols], audit_derive
 
-def append_and_dedup(new_df: pd.DataFrame, path: str) -> pd.DataFrame:
+# ======== SAVE: OVERWRITE by PERIOD ========
+def save_overwrite_periods(new_df: pd.DataFrame, path: str) -> tuple[pd.DataFrame, dict]:
+    periods = sorted(new_df["periode"].astype(str).unique().tolist())
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path):
         old = pd.read_csv(path)
-        for c in new_df.columns:
-            if c not in old.columns: old[c] = np.nan
-        for c in old.columns:
-            if c not in new_df.columns: new_df[c] = np.nan
-        merged = pd.concat([old, new_df], ignore_index=True)
-        merged = merged.sort_values(["periode","outlet_name"]).drop_duplicates(subset=["periode","outlet_name"], keep="last")
-        merged.to_csv(path, index=False); return merged
+        before_total = float(pd.to_numeric(old.get("total_revenue", 0), errors="coerce").fillna(0).sum())
+        before_periods = sorted(old.get("periode", pd.Series(dtype=str)).astype(str).unique().tolist())
+        # drop periode yang sama
+        remaining = old[~old["periode"].astype(str).isin(periods)].copy()
+        merged = pd.concat([remaining, new_df], ignore_index=True)
     else:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        new_df.to_csv(path, index=False); return new_df
+        before_total = 0.0
+        before_periods = []
+        merged = new_df.copy()
 
-# ================= TABLE =================
+    merged = merged.sort_values(["periode","outlet_name"]).reset_index(drop=True)
+    merged.to_csv(path, index=False)
+
+    after_total = float(pd.to_numeric(merged["total_revenue"], errors="coerce").fillna(0).sum())
+    return merged, {
+        "periods_overwritten": periods,
+        "before_total": before_total,
+        "after_total": after_total,
+        "before_periods": before_periods,
+        "remaining_periods": sorted(merged["periode"].astype(str).unique().tolist())
+    }
+
+# ================= TABLE (compare w/ colors) =================
 def format_comparison_value(current_val, compare_val, is_percentage=False):
     if compare_val == 0:
         return "0.0%" if not is_percentage else "0.0pp"
@@ -694,13 +708,9 @@ def show_period_comparison(df, config, processor, viz, current_period, compare_p
     else:
         st.info("Pilih kedua periode di sidebar untuk membandingkan.")
 
-# ================= UPLOAD =================
+# ================= UPLOAD (overwrite by period) =================
 def suggest_default_sheets(sheet_names: list[str]) -> list[str]:
-    picks = []
-    for s in sheet_names:
-        sl = s.lower()
-        if any(k in sl for k in ["data","transaksi","raw","detail"]):
-            picks.append(s)
+    picks = [s for s in sheet_names if any(k in s.lower() for k in ["data","transaksi","raw","detail"])]
     return picks or sheet_names[:1]
 
 def read_selected_sheets(uploaded_file, selected_sheets: list[str]) -> pd.DataFrame:
@@ -726,8 +736,8 @@ def deduplicate_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     return df, audit
 
 def show_upload_data(config: Config):
-    st.title("📤 Upload Data Bulanan")
-    st.info("📋 Pilih sheet transaksi → mapping kolom → atur scale Harga bila perlu → dedup → audit → simpan. **Foto/Unlock/Print** otomatis dideteksi dari kolom **Type**.")
+    st.title("📤 Upload Data Bulanan (Overwrite by Period)")
+    st.info("📋 Upload **per bulan**. Saat menyimpan, **semua data** pada periode (YYYY-MM) yang sama di CSV akan **dihapus**, lalu diganti data dari file ini.")
 
     uploaded_file = st.file_uploader("Choose Excel file", type=['xlsx','xls'])
     fallback_period = st.sidebar.text_input("🗓️ Fallback Period (YYYY-MM) bila kolom tanggal kosong", value=datetime.now().strftime("%Y-%m"))
@@ -795,7 +805,6 @@ def show_upload_data(config: Config):
                 vc = cleaned["type"].astype(str).str.strip().str.lower().value_counts().head(15)
                 st.dataframe(vc.to_frame("count"))
 
-            # JANGAN membuat kolom foto/unlock/print = 0 di sini! (ini penyebab agregasi 0)
             # Dedup
             tmp_for_dedup = cleaned.copy()
             deduped, dd_audit = deduplicate_rows(tmp_for_dedup)
@@ -809,13 +818,13 @@ def show_upload_data(config: Config):
             # Agregasi (akan derive dari 'type' bila perlu)
             processed_df, derive_audit = aggregate_monthly(deduped, config, fallback_period=fallback_period)
 
-            # Audit derive
+            # Derive audit
             st.subheader("🧪 Derive Audit (dari kolom Type)")
             st.write(f"- Match Foto  : **{derive_audit.get('match_foto',0):,}** rows")
             st.write(f"- Match Unlock: **{derive_audit.get('match_unlock',0):,}** rows")
             st.write(f"- Match Print : **{derive_audit.get('match_print',0):,}** rows")
 
-            # Preview agregasi (seharusnya TIDAK 0 bila ada Type)
+            # Preview agregasi
             st.subheader("🔎 Preview Hasil Agregasi")
             show_cols = ["periode","outlet_name","area","total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate"]
             st.dataframe(processed_df[show_cols].head(25), use_container_width=True)
@@ -828,25 +837,28 @@ def show_upload_data(config: Config):
             st.write(f"- Total Revenue **Agregasi file ini**: **{Config().format_currency(total_aggr)}**")
             st.write(f"- Selisih (Agregasi - Raw): **{Config().format_currency(total_aggr - total_raw)}**")
 
-            # Save
-            if st.button("🚀 Process and Update Dashboard"):
-                with st.spinner("Menyimpan & menggabungkan data..."):
-                    merged = append_and_dedup(processed_df, DATA_CSV_PATH)
-                    per_uploaded = sorted(processed_df["periode"].unique())
-                    csv_subset = merged[merged["periode"].isin(per_uploaded)]
-                    csv_total_for_periods = float(csv_subset["total_revenue"].sum())
+            # Save (OVERWRITE by period)
+            if st.button("🚀 Save (Overwrite periode terpilih)"):
+                with st.spinner("Menyimpan (overwrite by period)..."):
+                    merged, ow = save_overwrite_periods(processed_df, DATA_CSV_PATH)
+                    per_uploaded = ow["periods_overwritten"]
+                    before_total = ow["before_total"]; after_total = ow["after_total"]
 
                     try: load_app_data.clear()
                     except Exception: pass
 
-                    st.success("✅ Data berhasil diproses & ditambahkan ke dashboard!")
-                    st.subheader("🧾 Audit — Nilai Tersimpan ke CSV (periode file ini)")
-                    st.write(f"- Periode tersimpan: **{', '.join(per_uploaded)}**")
-                    st.write(f"- Total di CSV (periode tsb): **{Config().format_currency(csv_total_for_periods)}**")
-                    st.write(f"- Selisih (CSV - Excel RAW DEDUP & SCALE): **{Config().format_currency(csv_total_for_periods - total_raw)}**")
-                    st.write(f"- Selisih (CSV - Agregasi): **{Config().format_currency(csv_total_for_periods - total_aggr)}**")
-                    st.info(f"Periode tersedia sekarang: **{', '.join(sorted(merged['periode'].unique()))}**")
-                    st.write(f"Total revenue (SEMUA periode): **{Config().format_currency(float(merged['total_revenue'].sum()))}**")
+                    st.success("✅ Data berhasil di-overwrite berdasarkan periode!")
+                    st.subheader("🧾 Audit — Overwrite by Period")
+                    st.write(f"- Periode di-overwrite: **{', '.join(per_uploaded)}**")
+                    st.write(f"- Total di CSV (sebelum overwrite): **{Config().format_currency(before_total)}**")
+                    st.write(f"- Total di CSV (sesudah overwrite): **{Config().format_currency(after_total)}**")
+                    st.info(f"Periode tersedia sekarang: **{', '.join(ow['remaining_periods'])}**")
+
+                    # Audit subset CSV utk periode yang baru ditulis
+                    csv_subset = merged[merged["periode"].isin(per_uploaded)]
+                    csv_total_for_periods = float(csv_subset["total_revenue"].sum())
+                    st.write(f"- Total di CSV (periode file ini): **{Config().format_currency(csv_total_for_periods)}**")
+                    st.write(f"- Selisih (CSV - Agregasi file ini): **{Config().format_currency(csv_total_for_periods - total_aggr)}**")
                     st.rerun()
 
         except Exception as e:
