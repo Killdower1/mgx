@@ -1,17 +1,19 @@
+# app.py — FULL
+
+import io
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Import custom modules
 from data_processor import DataProcessor
 from visualizations import Visualizations
 from utils import *
 from config import Config
 
-# Page configuration
+# ================== PAGE CONFIG ==================
 st.set_page_config(
     page_title="Difotoin Sales Dashboard",
     page_icon="📸",
@@ -19,253 +21,78 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Indonesian cities and regencies list
+# ================== CONSTANTS ==================
 INDONESIA_AREAS = [
-    "Jakarta Pusat", "Jakarta Utara", "Jakarta Barat", "Jakarta Selatan", "Jakarta Timur", "Jakarta",
-    "Surabaya", "Bandung", "Medan", "Bekasi", "Tangerang", "Depok", "Semarang", "Palembang", "Makassar",
-    "Batam", "Bogor", "Pekanbaru", "Bandar Lampung", "Malang", "Padang", "Denpasar", "Samarinda", "Tasikmalaya",
-    "Balikpapan", "Pontianak", "Jambi", "Cimahi", "Sukabumi", "Bengkulu", "Mataram", "Yogyakarta", "Solo",
-    "Purwokerto", "Magelang", "Tegal", "Pekalongan", "Kudus", "Jepara", "Demak", "Kendal", "Temanggung",
-    "Wonosobo", "Purworejo", "Kebumen", "Banjarnegara", "Cilacap", "Banyumas", "Brebes", "Pemalang",
-    "Batang", "Blora", "Rembang", "Pati", "Grobogan", "Sragen", "Karanganyar", "Wonogiri", "Sukoharjo",
-    "Klaten", "Boyolali", "Sleman", "Bantul", "Kulon Progo", "Gunungkidul", "Madiun", "Ngawi", "Bojonegoro",
-    "Tuban", "Lamongan", "Gresik", "Bangkalan", "Sampang", "Pamekasan", "Sumenep", "Kediri", "Blitar",
-    "Tulungagung", "Trenggalek", "Nganjuk", "Jombang", "Mojokerto", "Pasuruan", "Probolinggo", "Situbondo",
-    "Bondowoso", "Banyuwangi", "Jember", "Lumajang", "Malang", "Batu", "Bali", "Denpasar", "Badung",
-    "Gianyar", "Klungkung", "Bangli", "Karangasem", "Buleleng", "Jembrana", "Tabanan"
+    "Jakarta Pusat","Jakarta Utara","Jakarta Barat","Jakarta Selatan","Jakarta Timur","Jakarta",
+    "Surabaya","Bandung","Medan","Bekasi","Tangerang","Depok","Semarang","Palembang","Makassar",
+    "Batam","Bogor","Pekanbaru","Bandar Lampung","Malang","Padang","Denpasar","Samarinda","Tasikmalaya",
+    "Balikpapan","Pontianak","Jambi","Cimahi","Sukabumi","Bengkulu","Mataram","Yogyakarta","Solo",
+    "Purwokerto","Magelang","Tegal","Pekalongan","Kudus","Jepara","Demak","Kendal","Temanggung",
+    "Wonosobo","Purworejo","Kebumen","Banjarnegara","Cilacap","Banyumas","Brebes","Pemalang",
+    "Batang","Blora","Rembang","Pati","Grobogan","Sragen","Karanganyar","Wonogiri","Sukoharjo",
+    "Klaten","Boyolali","Sleman","Bantul","Kulon Progo","Gunungkidul","Madiun","Ngawi","Bojonegoro",
+    "Tuban","Lamongan","Gresik","Bangkalan","Sampang","Pamekasan","Sumenep","Kediri","Blitar",
+    "Tulungagung","Trenggalek","Nganjuk","Jombang","Mojokerto","Pasuruan","Probolinggo","Situbondo",
+    "Bondowoso","Banyuwangi","Jember","Lumajang","Malang","Batu","Bali","Denpasar","Badung",
+    "Gianyar","Klungkung","Bangli","Karangasem","Buleleng","Jembrana","Tabanan"
 ]
 
 KATEGORI_TEMPAT = [
-    "Mall", "Wisata", "Restoran", "Hotel", "Komunitas", "Sekolah", "Universitas", "Rumah Sakit", 
-    "Perkantoran", "Apartemen", "Cafe", "Gym", "Salon", "Spa", "Bioskop", "Taman", "Museum",
-    "Galeri", "Event Space", "Co-working Space", "Lainnya"
+    "Mall","Wisata","Restoran","Hotel","Komunitas","Sekolah","Universitas","Rumah Sakit",
+    "Perkantoran","Apartemen","Cafe","Gym","Salon","Spa","Bioskop","Taman","Museum",
+    "Galeri","Event Space","Co-working Space","Lainnya"
 ]
 
 SUB_KATEGORI_TEMPAT = [
-    "Food Court", "Department Store", "Supermarket", "Boutique", "Electronics Store", "Bookstore",
-    "Pantai", "Gunung", "Danau", "Taman Nasional", "Candi", "Kebun Binatang", "Waterpark",
-    "Fine Dining", "Fast Food", "Street Food", "Bakery", "Coffee Shop", "Bar", "Lounge",
-    "Budget Hotel", "Luxury Hotel", "Resort", "Homestay", "Guest House", "Hostel",
-    "Tidak Terkategorisasi", "Lainnya"
+    "Food Court","Department Store","Supermarket","Boutique","Electronics Store","Bookstore",
+    "Pantai","Gunung","Danau","Taman Nasional","Candi","Kebun Binatang","Waterpark",
+    "Fine Dining","Fast Food","Street Food","Bakery","Coffee Shop","Bar","Lounge",
+    "Budget Hotel","Luxury Hotel","Resort","Homestay","Guest House","Hostel",
+    "Tidak Terkategorisasi","Lainnya"
 ]
 
-# Login credentials
 VALID_EMAIL = "octadimas@gmail.com"
 VALID_PASSWORD = "dowerdower1"
 
-# Custom CSS - Updated styling
+# ================== STYLES ==================
 st.markdown("""
 <style>
-    /* Base styling */
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #ffffff !important;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    
-    /* Status colors */
-    .status-keeper { color: #10b981 !important; font-weight: bold; }
-    .status-optimasi { color: #f59e0b !important; font-weight: bold; }
-    .status-relocate { color: #ef4444 !important; font-weight: bold; }
-    
-    /* Insight box */
-    .insight-box {
-        background-color: #000000;
-        border-left: 4px solid #3b82f6;
-        padding: 1rem;
-        margin: 1rem 0;
-        border-radius: 0.25rem;
-        color: #ffffff !important;
-    }
-    
-    /* Period selector */
-    .period-selector {
-        padding: 1rem 0;
-        margin-bottom: 1rem;
-    }
-    .period-selector h3 {
-        color: #ffffff !important;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Outlet table */
-    .outlet-table {
-        padding: 0;
-        margin-bottom: 2rem;
-    }
-    
-    /* Filter buttons */
-    .filter-buttons {
-        margin-bottom: 1rem;
-    }
-    .filter-buttons .stCheckbox > label {
-        background-color: #f8fafc !important;
-        padding: 0.5rem 1rem;
-        border-radius: 0.5rem;
-        border: 1px solid #e5e7eb;
-        color: #1f2937 !important;
-        font-weight: 500;
-    }
-    .filter-buttons .stCheckbox > label:hover {
-        background-color: #f1f5f9 !important;
-    }
-    
-    /* Metrics styling */
-    .stMetric > label {
-        font-size: 0.8rem !important;
-        color: #6b7280 !important;
-    }
-    .stMetric [data-testid="metric-value"] {
-        font-size: 1.5rem !important;
-        color: #ffffff !important;
-    }
-    
-    /* Comprehensive text color fixes */
-    .stApp {
-        color: #ffffff !important;
-        background-color: #1a1a1a !important;
-    }
-    
-    /* Sidebar fixes */
-    .stSidebar {
-        background-color: #000000 !important;
-    }
-    .stSidebar * {
-        color: #ffffff !important;
-    }
-    .stSidebar .stSelectbox label,
-    .stSidebar .stMarkdown,
-    .stSidebar h1,
-    .stSidebar h2,
-    .stSidebar h3,
-    .stSidebar p,
-    .stSidebar div {
-        color: #ffffff !important;
-    }
-    
-    /* Main content text fixes */
-    .stMarkdown,
-    .stMarkdown *,
-    .stText,
-    .stText *,
-    h1, h2, h3, h4, h5, h6,
-    p, span, div, label {
-        color: #ffffff !important;
-    }
-    
-    /* Form elements */
-    .stSelectbox label,
-    .stTextInput label,
-    .stNumberInput label,
-    .stTextArea label {
-        color: #ffffff !important;
-    }
-    
-    /* Dataframe text */
-    .stDataFrame,
-    .stDataFrame * {
-        color: #1f2937 !important;
-    }
-    
-    /* Tab text */
-    .stTabs [data-baseweb="tab-list"] button {
-        color: #ffffff !important;
-    }
-    
-    /* Button text */
-    .stButton button {
-        color: #1f2937 !important;
-        background-color: #3b82f6 !important;
-        border: none !important;
-    }
-    
-    /* Info/warning/error text */
-    .stAlert {
-        color: #1f2937 !important;
-    }
-    
-    /* Top performers card */
-    .performer-card {
-        padding: 0.5rem;
-        margin: 0.25rem 0;
-        border-radius: 0.25rem;
-        background-color: #2a2a2a;
-        border: 1px solid #404040;
-    }
-    .performer-card strong {
-        color: #ffffff !important;
-    }
-    .performer-card span:not([class*="status-"]) {
-        color: #ffffff !important;
-    }
-    
-    /* Subheader text */
-    .stSubheader {
-        color: #ffffff !important;
-    }
-    
-    /* Login form styling */
-    .login-container {
-        max-width: 400px;
-        margin: 0 auto;
-        padding: 2rem;
-        background-color: #2a2a2a;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin-top: 5rem;
-    }
-    
-    .login-header {
-        text-align: center;
-        color: #ffffff !important;
-        margin-bottom: 2rem;
-        font-size: 2rem;
-        font-weight: bold;
-    }
-    
-    .login-subheader {
-        text-align: center;
-        color: #a0a0a0 !important;
-        margin-bottom: 2rem;
-    }
-    
-    /* Exception for status colors */
-    .status-keeper,
-    .status-optimasi, 
-    .status-relocate {
-        color: inherit !important;
-    }
-    
-    /* Background color override */
-    .st-emotion-cache-155jwzh {
-        background-color: #A6A6A6 !important;
-    }
-    
-    /* Main content background */
-    .main .block-container {
-        background-color: #1a1a1a !important;
-    }
-    
+    .main-header{font-size:2.5rem;font-weight:bold;color:#fff!important;text-align:center;margin-bottom:2rem;}
+    .status-keeper{color:#10b981!important;font-weight:bold;}
+    .status-optimasi{color:#f59e0b!important;font-weight:bold;}
+    .status-relocate{color:#ef4444!important;font-weight:bold;}
+    .insight-box{background:#000;border-left:4px solid #3b82f6;padding:1rem;margin:1rem 0;border-radius:.25rem;color:#fff!important;}
+    .outlet-table{padding:0;margin-bottom:2rem;}
+    .filter-buttons{margin-bottom:1rem;}
+    .filter-buttons .stCheckbox>label{background:#f8fafc!important;padding:.5rem 1rem;border-radius:.5rem;border:1px solid #e5e7eb;color:#1f2937!important;font-weight:500;}
+    .filter-buttons .stCheckbox>label:hover{background:#f1f5f9!important;}
+    .stMetric>label{font-size:.8rem!important;color:#6b7280!important;}
+    .stMetric [data-testid="metric-value"]{font-size:1.5rem!important;color:#fff!important;}
+    .stApp{color:#fff!important;background:#1a1a1a!important;}
+    .stSidebar{background:#000000!important;} /* <- sidebar full black */
+    .stSidebar *{color:#fff!important;}
+    .stMarkdown,.stMarkdown *,.stText,.stText *,h1,h2,h3,h4,h5,h6,p,span,div,label{color:#fff!important;}
+    .stSelectbox label,.stTextInput label,.stNumberInput label,.stTextArea label{color:#fff!important;}
+    .stDataFrame,.stDataFrame *{color:#1f2937!important;}
+    .stTabs [data-baseweb="tab-list"] button{color:#fff!important;}
+    .stButton button{color:#1f2937!important;background:#3b82f6!important;border:none!important;}
+    .stAlert{color:#1f2937!important;}
+    .performer-card{padding:.5rem;margin:.25rem 0;border-radius:.25rem;background:#2a2a2a;border:1px solid #404040;}
+    .performer-card strong{color:#fff!important;}
 </style>
 """, unsafe_allow_html=True)
 
+# ================== AUTH ==================
 def show_login_page():
-    """Display login page"""
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    
     st.markdown('<h1 class="login-header">📸 Difotoin Dashboard</h1>', unsafe_allow_html=True)
     st.markdown('<p class="login-subheader">Please login to access the dashboard</p>', unsafe_allow_html=True)
-    
     with st.form("login_form"):
         email = st.text_input("Email", placeholder="Enter your email")
         password = st.text_input("Password", type="password", placeholder="Enter your password")
-        
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
+        _, c, _ = st.columns([1,2,1])
+        with c:
             submitted = st.form_submit_button("🔐 Login", use_container_width=True)
-        
         if submitted:
             if email == VALID_EMAIL and password == VALID_PASSWORD:
                 st.session_state.logged_in = True
@@ -274,371 +101,275 @@ def show_login_page():
                 st.rerun()
             else:
                 st.error("❌ Invalid email or password. Please try again.")
-    
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Add some helpful info
     st.markdown("---")
     st.info("💡 **Demo Credentials:**\n- Email: octadimas@gmail.com\n- Password: dowerdower1")
 
 def show_logout_button():
-    """Show logout button in sidebar"""
     st.sidebar.markdown("---")
     if st.sidebar.button("🚪 Logout"):
         st.session_state.logged_in = False
         st.session_state.user_email = None
         st.rerun()
-    
     st.sidebar.markdown(f"👤 **Logged in as:**\n{st.session_state.user_email}")
 
 def check_login():
-    """Check if user is logged in"""
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
-    
     return st.session_state.logged_in
 
-# Initialize components
+# ================== DATA LOADING ==================
 @st.cache_data
 def load_app_data():
     processor = DataProcessor()
     return processor.load_data()
 
-def create_period_selector(df):
-    """Create static period selector at top - only for specific pages"""
+# ================== PERIOD SELECTOR (SIDEBAR) ==================
+def create_sidebar_period_selector(df):
     if df.empty:
         return None, None
-    
-    st.markdown('<div class="period-selector">', unsafe_allow_html=True)
-    st.markdown("### 📅 Periode Selection")
-    
-    available_periods = sorted(df['periode'].unique())
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        current_period = st.selectbox(
-            "Current Period", 
-            available_periods, 
-            index=len(available_periods)-1 if available_periods else 0,
-            key="current_period_top"
-        )
-    
-    with col2:
-        previous_periods = ["None"] + [p for p in available_periods if p != current_period]
-        compare_period = st.selectbox(
-            "Compare with", 
-            previous_periods,
-            key="compare_period_top"
-        )
-        compare_period = None if compare_period == "None" else compare_period
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    return current_period, compare_period
+    st.sidebar.markdown("### 📅 Periode Selection")
+    periods = sorted(df["periode"].unique())
+    current = st.sidebar.selectbox("Current Period", periods, index=len(periods)-1 if periods else 0, key="period_current_sidebar")
+    compare_opts = ["None"] + [p for p in periods if p != current]
+    compare = st.sidebar.selectbox("Compare with", compare_opts, key="period_compare_sidebar")
+    return current, (None if compare == "None" else compare)
+
+# ================== HELPERS ==================
+def format_number_with_dots(num):
+    try:
+        return f"{int(num):,}".replace(",", ".")
+    except Exception:
+        return str(num)
 
 def format_comparison_value(current_val, compare_val, is_percentage=False):
-    """Format comparison value with proper icons and colors"""
     if compare_val == 0:
-        return "➡️ 0.0%"
-    
+        return "0.0%" if not is_percentage else "0.0pp"
     if is_percentage:
-        # For percentage values (like conversion rate), calculate difference in percentage points
         change = current_val - compare_val
-        if change > 0:
-            return f"🔺 +{change:.1f}pp"
-        elif change < 0:
-            return f"🔻 {change:.1f}pp"
-        else:
-            return "➡️ 0.0pp"
-    else:
-        # For absolute values (revenue, foto, unlock), calculate percentage change
-        change_pct = ((current_val - compare_val) / compare_val) * 100
-        if change_pct > 0:
-            return f"🔺 +{change_pct:.1f}%"
-        elif change_pct < 0:
-            return f"🔻 {change_pct:.1f}%"
-        else:
-            return "➡️ 0.0%"
+        sign = "+" if change > 0 else ""
+        return f"{sign}{change:.1f}pp" if change != 0 else "0.0pp"
+    change_pct = ((current_val - compare_val) / compare_val) * 100
+    sign = "+" if change_pct > 0 else ""
+    return f"{sign}{change_pct:.1f}%" if change_pct != 0 else "0.0%"
 
-def format_number_with_dots(num):
-    """Format number with dot separators (Indonesian style)"""
-    return f"{int(num):,}".replace(',', '.')
+def _norm_name(s: str) -> str:
+    return str(s).strip().lower()
 
-def create_outlet_table(df, current_period, compare_period):
-    """Create outlet table with PERFECT sorting AND number separators"""
+# ----- Upload mapping helpers -----
+EXCEL_TO_APP_COLMAP = {
+    "outlet": "outlet_name","nama outlet":"outlet_name","toko":"outlet_name",
+    "harga":"harga","amount":"harga","price":"harga",
+    "tanggal":"tanggal","date":"tanggal","waktu":"tanggal",
+    "area":"area","kota":"area",
+    "kategori":"kategori_tempat","kategori tempat":"kategori_tempat",
+    "sub kategori":"sub_kategori_tempat","sub_kategori":"sub_kategori_tempat",
+    "tipe":"tipe_tempat","tipe tempat":"tipe_tempat",
+    "omset":"total_revenue","revenue":"total_revenue",
+    "foto":"foto_qty","unlock":"unlock_qty","print":"print_qty","conversion":"conversion_rate",
+}
+
+def normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
+    new_cols = [" ".join(str(c).strip().split()) for c in df.columns]
+    df = df.copy()
+    df.columns = new_cols
+    return df
+
+def apply_column_mapping(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    df = df.copy()
+    lower_map = {k.lower(): v for k, v in EXCEL_TO_APP_COLMAP.items()}
+    used, ren = {}, {}
+    for col in df.columns:
+        k = col.lower()
+        if k in lower_map:
+            ren[col] = lower_map[k]
+            used[col] = lower_map[k]
+    df = df.rename(columns=ren)
+    return df, used
+
+def to_numeric_clean(series: pd.Series) -> pd.Series:
+    """why: harga bisa '35.000', '35,000', '35000', None -> numerik"""
+    s = series.astype(str).str.replace(r"[.\s]", "", regex=True)  # hapus titik & spasi
+    s = s.str.replace(",", ".", regex=False)  # koma jadi titik untuk desimal
+    s = pd.to_numeric(s, errors="coerce")
+    return s
+
+def sanitize_mapped_df(df: pd.DataFrame) -> pd.DataFrame:
+    """why: cegah validasi 'harga empty' — NaN/None jadi 0, negatif dibulatkan 0."""
+    df = df.copy()
+    if "harga" in df.columns:
+        # coerce ke numerik + isi NaN/None dengan 0
+        df["harga"] = to_numeric_clean(df["harga"]).fillna(0)
+        # harga negatif dianggap 0 (safety)
+        df.loc[df["harga"] < 0, "harga"] = 0
+    # kolom agregat lain kalau ada, rapikan tipe
+    for col in ["total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    return df
+
+def df_to_excel_bytes(df: pd.DataFrame) -> io.BytesIO:
+    bio = io.BytesIO()
+    with pd.ExcelWriter(bio, engine="xlsxwriter") as w:
+        df.to_excel(w, index=False, sheet_name="Sheet1")
+    bio.seek(0)
+    return bio
+
+# ================== OUTLET TABLE ==================
+def create_outlet_table(df, current_period, compare_period, full_df=None):
     st.markdown('<div class="outlet-table">', unsafe_allow_html=True)
     st.markdown("### 🏪 Outlet Performance Table")
-    
-    # Filter buttons
+
     st.markdown('<div class="filter-buttons">', unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        show_keeper = st.checkbox("🟢 Keeper", value=True, key="filter_keeper")
-    with col2:
-        show_optimasi = st.checkbox("🟡 Optimasi", value=True, key="filter_optimasi")
-    with col3:
-        show_relocate = st.checkbox("🔴 Relocate", value=True, key="filter_relocate")
-    with col4:
-        show_all = st.checkbox("Show All", value=False, key="filter_all")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Filter data based on current period
-    current_df = df[df['periode'] == current_period] if current_period else df
-    
-    # Apply status filters
-    if not show_all:
-        status_filters = []
-        if show_keeper:
-            status_filters.append('Keeper')
-        if show_optimasi:
-            status_filters.append('Optimasi')
-        if show_relocate:
-            status_filters.append('Relocate')
-        
-        if status_filters:
-            current_df = current_df[current_df['outlet_status'].isin(status_filters)]
-    
-    # Get compare data if available
-    compare_df = None
-    if compare_period:
-        compare_df = df[df['periode'] == compare_period]
-    
-    # Create table data with DUAL COLUMNS approach
-    table_data = []
-    
-    for _, row in current_df.iterrows():
-        outlet_name = row['outlet_name']
-        
-        # Create row with BOTH numeric (for sorting) AND formatted (for display) columns
-        row_data = {
-            'Outlet': outlet_name,
-            'Area': row['area'],
-            # NUMERIC columns for sorting (hidden from user but used for sorting)
-            '_omset_sort': int(row['total_revenue']),
-            '_foto_sort': int(row['foto_qty']),
-            '_unlock_sort': int(row['unlock_qty']),
-            '_conversion_sort': float(row['conversion_rate']),
-            # FORMATTED columns for display (what user sees)
-            'Omset': format_number_with_dots(row['total_revenue']),
-            'Foto': format_number_with_dots(row['foto_qty']),
-            'Unlock': format_number_with_dots(row['unlock_qty']),
-            'Conversion': f"{row['conversion_rate']:.1f}%",
-            'Status': row['outlet_status']
-        }
-        
-        # Add compare columns only if compare_period exists
-        if compare_period and compare_df is not None:
-            compare_match = compare_df[compare_df['outlet_name'] == outlet_name]
-            if not compare_match.empty:
-                compare_row = compare_match.iloc[0]
-                
-                # Revenue comparison
-                row_data['Omset Compare'] = format_comparison_value(
-                    row['total_revenue'], compare_row['total_revenue']
-                )
-                
-                # Photo comparison
-                row_data['Foto Compare'] = format_comparison_value(
-                    row['foto_qty'], compare_row['foto_qty']
-                )
-                
-                # Unlock comparison
-                row_data['Unlock Compare'] = format_comparison_value(
-                    row['unlock_qty'], compare_row['unlock_qty']
-                )
-                
-                # Conversion comparison (percentage points)
-                row_data['Conversion Compare'] = format_comparison_value(
-                    row['conversion_rate'], compare_row['conversion_rate'], is_percentage=True
-                )
-            else:
-                # No compare data available for this outlet
-                row_data['Omset Compare'] = "➡️ New Outlet"
-                row_data['Foto Compare'] = "➡️ New Outlet"
-                row_data['Unlock Compare'] = "➡️ New Outlet"
-                row_data['Conversion Compare'] = "➡️ New Outlet"
-        
-        table_data.append(row_data)
-    
-    # Display table
-    if table_data:
-        table_df = pd.DataFrame(table_data)
-        
-        # Define column order - HIDE the sorting columns from user
-        if compare_period:
-            visible_columns = [
-                'Outlet', 'Area', 
-                'Omset', 'Omset Compare',
-                'Foto', 'Foto Compare', 
-                'Unlock', 'Unlock Compare',
-                'Conversion', 'Conversion Compare',
-                'Status'
-            ]
-        else:
-            visible_columns = [
-                'Outlet', 'Area', 'Omset', 'Foto', 'Unlock', 'Conversion', 'Status'
-            ]
-        
-        # Create display dataframe with only visible columns
-        display_df = table_df[visible_columns].copy()
-        
-        # Style the dataframe
-        def style_status(val):
-            if val == 'Keeper':
-                return 'color: #10b981; font-weight: bold'
-            elif val == 'Optimasi':
-                return 'color: #f59e0b; font-weight: bold'
-            elif val == 'Relocate':
-                return 'color: #ef4444; font-weight: bold'
-            return ''
-        
-        styled_df = display_df.style.applymap(style_status, subset=['Status'])
-        
-        # Column configuration - ALL TEXT COLUMNS to preserve formatting
-        column_config = {
-            "Outlet": st.column_config.TextColumn(
-                "Outlet",
-                width="medium",
-                pinned=True
-            ),
-            "Omset": st.column_config.TextColumn(
-                "Omset",
-                width="medium"
-            ),
-            "Foto": st.column_config.TextColumn(
-                "Foto", 
-                width="small"
-            ),
-            "Unlock": st.column_config.TextColumn(
-                "Unlock",
-                width="small"
-            ),
-            "Conversion": st.column_config.TextColumn(
-                "Conversion",
-                width="small"
-            )
-        }
-        
-        # Add compare column configs if they exist
-        if compare_period:
-            column_config.update({
-                "Omset Compare": st.column_config.TextColumn("Omset Compare", width="small"),
-                "Foto Compare": st.column_config.TextColumn("Foto Compare", width="small"),
-                "Unlock Compare": st.column_config.TextColumn("Unlock Compare", width="small"),
-                "Conversion Compare": st.column_config.TextColumn("Conversion Compare", width="small")
-            })
-        
-        # CUSTOM SORTING IMPLEMENTATION
-        st.info("💡 **Sorting**: Gunakan dropdown di bawah untuk mengurutkan data berdasarkan kolom numerik")
-        
-        # Sorting controls
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            sort_column = st.selectbox(
-                "Sort by:",
-                ["Omset", "Foto", "Unlock", "Conversion"],
-                key="sort_column"
-            )
-        with col2:
-            sort_order = st.selectbox(
-                "Order:",
-                ["Descending (High to Low)", "Ascending (Low to High)"],
-                key="sort_order"
-            )
-        
-        # Apply sorting based on selection
-        if sort_column != "Default":
-            # Map display column to sort column
-            sort_mapping = {
-                "Omset": "_omset_sort",
-                "Foto": "_foto_sort", 
-                "Unlock": "_unlock_sort",
-                "Conversion": "_conversion_sort"
-            }
-            
-            sort_col = sort_mapping[sort_column]
-            ascending = sort_order == "Ascending (Low to High)"
-            
-            # Sort the original dataframe with numeric columns
-            table_df_sorted = table_df.sort_values(sort_col, ascending=ascending)
-            
-            # Create new display dataframe from sorted data
-            display_df = table_df_sorted[visible_columns].copy()
-            styled_df = display_df.style.applymap(style_status, subset=['Status'])
-        
-        # Display the table
-        st.dataframe(
-            styled_df, 
-            use_container_width=True, 
-            hide_index=True,
-            column_config=column_config
-        )
-        
-        # Success message
-        st.success("✅ **PERFECT SOLUTION**: Semua angka menggunakan separator (25.000.000) DAN sorting berfungsi dengan benar!")
-        
-    else:
-        st.info("No outlets match the selected filters")
-    
+    with col1: show_keeper = st.checkbox("🟢 Keeper", value=True, key="filter_keeper")
+    with col2: show_optimasi = st.checkbox("🟡 Optimasi", value=True, key="filter_optimasi")
+    with col3: show_relocate = st.checkbox("🔴 Relocate", value=True, key="filter_relocate")
+    with col4: show_all = st.checkbox("Show All", value=False, key="filter_all")
     st.markdown('</div>', unsafe_allow_html=True)
 
+    current_df = df[df['periode'] == current_period] if current_period else df
+    if not show_all:
+        keep = []
+        if show_keeper: keep.append("Keeper")
+        if show_optimasi: keep.append("Optimasi")
+        if show_relocate: keep.append("Relocate")
+        if keep: current_df = current_df[current_df['outlet_status'].isin(keep)]
+
+    compare_map = {}
+    if compare_period:
+        src = full_df if full_df is not None else df
+        cmp_df = src[src["periode"] == compare_period].copy()
+        if not cmp_df.empty:
+            cmp_df["_key"] = cmp_df["outlet_name"].map(_norm_name)
+            compare_map = cmp_df.set_index("_key").to_dict(orient="index")
+
+    rows = []
+    for _, r in current_df.iterrows():
+        name = r["outlet_name"]; key = _norm_name(name)
+        omset = float(r["total_revenue"]); foto = int(r["foto_qty"]); unlock = int(r["unlock_qty"]); conv = float(r["conversion_rate"])
+        rec = {
+            "Outlet": name, "Area": r["area"],
+            "_omset_sort": int(omset), "_foto_sort": int(foto), "_unlock_sort": int(unlock), "_conversion_sort": float(conv),
+            "Omset": format_number_with_dots(omset), "Foto": format_number_with_dots(foto),
+            "Unlock": format_number_with_dots(unlock), "Conversion": f"{conv:.1f}%", "Status": r["outlet_status"],
+            "_omset_delta": np.nan, "_foto_delta": np.nan, "_unlock_delta": np.nan, "_conv_delta": np.nan
+        }
+        if compare_period and key in compare_map:
+            p = compare_map[key]
+            p_omset = float(p.get("total_revenue", 0) or 0); p_foto = int(p.get("foto_qty", 0) or 0)
+            p_unlock = int(p.get("unlock_qty", 0) or 0); p_conv = float(p.get("conversion_rate", 0) or 0)
+            rec["Omset Compare"] = format_comparison_value(omset, p_omset, False)
+            rec["Foto Compare"] = format_comparison_value(foto, p_foto, False)
+            rec["Unlock Compare"] = format_comparison_value(unlock, p_unlock, False)
+            rec["Conversion Compare"] = format_comparison_value(conv, p_conv, True)
+            rec["_omset_delta"] = 0 if p_omset == 0 else ((omset - p_omset) / p_omset) * 100
+            rec["_foto_delta"]  = 0 if p_foto  == 0 else ((foto  - p_foto ) / p_foto ) * 100
+            rec["_unlock_delta"]= 0 if p_unlock== 0 else ((unlock- p_unlock) / p_unlock) * 100
+            rec["_conv_delta"]  = (conv - p_conv)
+        else:
+            if compare_period:
+                rec["Omset Compare"] = "New Outlet"
+                rec["Foto Compare"] = "New Outlet"
+                rec["Unlock Compare"] = "New Outlet"
+                rec["Conversion Compare"] = "New Outlet"
+        rows.append(rec)
+
+    if not rows:
+        st.info("No outlets match the selected filters")
+        st.markdown('</div>', unsafe_allow_html=True); return
+
+    table_df = pd.DataFrame(rows)
+    visible = (["Outlet","Area","Omset","Omset Compare","Foto","Foto Compare","Unlock","Unlock Compare","Conversion","Conversion Compare","Status"]
+               if compare_period else ["Outlet","Area","Omset","Foto","Unlock","Conversion","Status"])
+
+    st.info("💡 **Sorting**: gunakan dropdown untuk mengurutkan")
+    c1, c2 = st.columns([2,1])
+    with c1: sort_col_name = st.selectbox("Sort by:", ["Omset","Foto","Unlock","Conversion"], key="sort_column")
+    with c2: order = st.selectbox("Order:", ["Descending (High to Low)","Ascending (Low to High)"], key="sort_order")
+    sort_key = {"Omset":"_omset_sort","Foto":"_foto_sort","Unlock":"_unlock_sort","Conversion":"_conversion_sort"}[sort_col_name]
+    ascending = order == "Ascending (Low to High)"
+    table_sorted = table_df.sort_values(sort_key, ascending=ascending).reset_index(drop=True)
+    display_df = table_sorted[visible].copy()
+
+    def style_status(val):
+        if val == 'Keeper': return 'color:#10b981;font-weight:bold'
+        if val == 'Optimasi': return 'color:#f59e0b;font-weight:bold'
+        if val == 'Relocate': return 'color:#ef4444;font-weight:bold'
+        return ''
+
+    styled = display_df.style.applymap(style_status, subset=["Status"])
+
+    def color_by_delta(series, delta_series):
+        d = delta_series.reindex(series.index).fillna(0)
+        return ['color:#10b981;font-weight:600' if x>0 else ('color:#ef4444;font-weight:600' if x<0 else '') for x in d]
+
+    if compare_period:
+        styled = styled.apply(lambda s: color_by_delta(s, table_sorted['_omset_delta']), axis=0, subset=['Omset Compare'])
+        styled = styled.apply(lambda s: color_by_delta(s, table_sorted['_foto_delta']), axis=0, subset=['Foto Compare'])
+        styled = styled.apply(lambda s: color_by_delta(s, table_sorted['_unlock_delta']), axis=0, subset=['Unlock Compare'])
+        styled = styled.apply(lambda s: color_by_delta(s, table_sorted['_conv_delta']), axis=0, subset=['Conversion Compare'])
+
+    column_config = {
+        "Outlet": st.column_config.TextColumn("Outlet", width="medium", pinned=True),
+        "Area": st.column_config.TextColumn("Area", width="small"),
+        "Omset": st.column_config.TextColumn("Omset", width="medium"),
+        "Foto": st.column_config.TextColumn("Foto", width="small"),
+        "Unlock": st.column_config.TextColumn("Unlock", width="small"),
+        "Conversion": st.column_config.TextColumn("Conversion", width="small"),
+        "Status": st.column_config.TextColumn("Status", width="small"),
+    }
+    if compare_period:
+        column_config.update({
+            "Omset Compare": st.column_config.TextColumn("Omset Compare", width="medium"),
+            "Foto Compare": st.column_config.TextColumn("Foto Compare", width="small"),
+            "Unlock Compare": st.column_config.TextColumn("Unlock Compare", width="small"),
+            "Conversion Compare": st.column_config.TextColumn("Conversion Compare", width="small"),
+        })
+
+    st.dataframe(styled, use_container_width=True, hide_index=True, column_config=column_config)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ================== PAGES ==================
 def main():
-    # Check login status
     if not check_login():
         show_login_page()
         return
-    
-    # Initialize configuration and data processor
+
     config = Config()
     processor = DataProcessor()
     viz = Visualizations(config)
-    
-    # Load data
     df = load_app_data()
-    
-    # Sidebar
+
     st.sidebar.title("📸 Difotoin Dashboard")
     st.sidebar.markdown("---")
-    
-    # Show logout button
     show_logout_button()
-    
-    # Navigation
+
     page = st.sidebar.selectbox(
         "Pilih Halaman",
-        ["🏠 Dashboard Utama", "📊 Analisis Trend", "🔄 Analisis Konversi", 
-         "🏆 Ranking Outlet", "📅 Perbandingan Periode", "🗃️ CRUD Data Outlet", "⚙️ Admin Panel", "📤 Upload Data"]
+        ["🏠 Dashboard Utama","📊 Analisis Trend","🔄 Analisis Konversi",
+         "🏆 Ranking Outlet","📅 Perbandingan Periode","🗃️ CRUD Data Outlet","⚙️ Admin Panel","📤 Upload Data"]
     )
-    
-    # Period selector - only show on specific pages
-    current_period, compare_period = None, None
-    if page in ["🏠 Dashboard Utama", "📅 Perbandingan Periode"]:
-        current_period, compare_period = create_period_selector(df)
-    
-    # Filters
+
+    current_period, compare_period = (None, None)
+    if page in ["🏠 Dashboard Utama","📅 Perbandingan Periode"]:
+        current_period, compare_period = create_sidebar_period_selector(df)
+        st.sidebar.markdown("---")
+
     st.sidebar.markdown("### 🔍 Filter Data")
-    
     if not df.empty:
         areas = ["Semua"] + sorted(df['area'].unique().tolist())
         selected_area = st.sidebar.selectbox("Area", areas)
-        
         kategoris = ["Semua"] + sorted(df['kategori_tempat'].unique().tolist())
         selected_kategori = st.sidebar.selectbox("Kategori Tempat", kategoris)
-        
         tipes = ["Semua"] + sorted(df['tipe_tempat'].unique().tolist())
         selected_tipe = st.sidebar.selectbox("Tipe Tempat", tipes)
-        
-        # Apply filters
         filtered_df = processor.filter_data(df, selected_area, selected_kategori, selected_tipe, current_period)
     else:
         filtered_df = df
-    
-    # Main content based on selected page
+
     if page == "🏠 Dashboard Utama":
-        show_main_dashboard(filtered_df, config, processor, viz, current_period, compare_period)
+        show_main_dashboard(filtered_df, config, processor, viz, current_period, compare_period, full_df=df)
     elif page == "📊 Analisis Trend":
         show_trend_analysis(filtered_df, config, processor, viz)
     elif page == "🔄 Analisis Konversi":
@@ -654,64 +385,28 @@ def main():
     elif page == "📤 Upload Data":
         show_upload_data(processor, config)
 
-def show_main_dashboard(df, config, processor, viz, current_period, compare_period):
-    """Main dashboard page"""
+def show_main_dashboard(df, config, processor, viz, current_period, compare_period, full_df):
     st.markdown('<h1 class="main-header">📸 Difotoin Sales Dashboard</h1>', unsafe_allow_html=True)
-    
     if df.empty:
         st.error("❌ Data tidak tersedia. Silakan upload data terlebih dahulu.")
         return
-    
-    # Key metrics with smaller text
     metrics = processor.calculate_metrics(df)
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric(
-            "💰 Revenue",
-            config.format_currency(metrics['total_revenue']),
-            delta=None
-        )
-    
-    with col2:
-        st.metric(
-            "🏪 Outlets",
-            f"{metrics['total_outlets']}",
-            delta=None
-        )
-    
-    with col3:
-        st.metric(
-            "📈 Avg Conv Rate",
-            f"{metrics['avg_conversion']:.1f}%",
-            delta=None
-        )
-    
-    with col4:
-        st.metric(
-            "📸 Photos",
-            format_number(metrics['total_photos']),
-            delta=None
-        )
-    
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.metric("💰 Revenue", config.format_currency(metrics['total_revenue']))
+    with c2: st.metric("🏪 Outlets", f"{metrics['total_outlets']}")
+    with c3: st.metric("📈 Avg Conv Rate", f"{metrics['avg_conversion']:.1f}%")
+    with c4: st.metric("📸 Photos", format_number(metrics['total_photos']))
     st.markdown("---")
-    
-    # Outlet table (new feature)
-    create_outlet_table(df, current_period, compare_period)
-    
-    # Status distribution
+    create_outlet_table(df, current_period, compare_period, full_df=full_df)
+
     col1, col2 = st.columns([1, 1])
-    
     with col1:
         st.subheader("📊 Distribusi Status Outlet")
-        fig_status = viz.create_status_distribution(df)
-        st.plotly_chart(fig_status, use_container_width=True)
-    
+        st.plotly_chart(viz.create_status_distribution(df), use_container_width=True)
     with col2:
         st.subheader("🏆 Top 5 Performers")
-        top_performers = processor.get_top_performers(df, 5)
-        for idx, row in top_performers.iterrows():
+        top = processor.get_top_performers(df, 5)
+        for _, row in top.iterrows():
             status_class = f"status-{row['outlet_status'].lower()}"
             st.markdown(f"""
             <div class="performer-card">
@@ -721,40 +416,25 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
                 <span>{row['conversion_rate']:.1f}%</span>
             </div>
             """, unsafe_allow_html=True)
-    
-    # Charts
+
     st.markdown("---")
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
+    a, b = st.columns([2, 1])
+    with a:
         st.subheader("💹 Revenue by Outlet")
-        fig_revenue = viz.create_revenue_chart(df)
-        st.plotly_chart(fig_revenue, use_container_width=True)
-    
-    with col2:
+        st.plotly_chart(viz.create_revenue_chart(df), use_container_width=True)
+    with b:
         st.subheader("🔄 Conversion Funnel")
-        fig_funnel = viz.create_conversion_funnel(df)
-        st.plotly_chart(fig_funnel, use_container_width=True)
-    
-    # Insights
+        st.plotly_chart(viz.create_conversion_funnel(df), use_container_width=True)
+
     st.markdown("---")
     st.subheader("💡 Key Insights")
-    insights = generate_insights(df, config)
-    
-    for insight in insights:
+    for insight in generate_insights(df, config):
         st.markdown(f'<div class="insight-box">{insight}</div>', unsafe_allow_html=True)
 
 def show_outlet_crud(df, config, processor):
-    """CRUD page for outlet data management with master data management"""
     st.title("🗃️ CRUD Data Outlet & Master Data")
-    st.markdown("Manage outlet data dan master data: kategori, sub kategori, area")
-    
-    # Load outlet mapping
     outlet_mapping = processor.load_outlet_mapping()
-    
     if outlet_mapping.empty:
-        # Create default mapping from existing data
         outlets = df['outlet_name'].unique()
         outlet_mapping = pd.DataFrame({
             'outlet_name': outlets,
@@ -763,536 +443,248 @@ def show_outlet_crud(df, config, processor):
             'sub_kategori_tempat': df.groupby('outlet_name')['sub_kategori_tempat'].first().values,
             'tipe_tempat': df.groupby('outlet_name')['tipe_tempat'].first().values
         })
-    
-    # Main tabs
     tab1, tab2, tab3 = st.tabs(["🏪 Outlet Management", "📋 Master Data Kategori", "🗺️ Master Data Area"])
-    
     with tab1:
-        # Outlet CRUD Operations
-        subtab1, subtab2, subtab3, subtab4 = st.tabs(["📋 View All", "➕ Add New", "✏️ Edit", "🗑️ Delete"])
-        
-        with subtab1:
+        s1, s2, s3, s4 = st.tabs(["📋 View All", "➕ Add New", "✏️ Edit", "🗑️ Delete"])
+        with s1:
             st.subheader("📋 All Outlet Data")
-            if not outlet_mapping.empty:
-                st.dataframe(outlet_mapping, use_container_width=True)
-            else:
-                st.info("No outlet data available")
-        
-        with subtab2:
+            st.dataframe(outlet_mapping, use_container_width=True) if not outlet_mapping.empty else st.info("No outlet data available")
+        with s2:
             st.subheader("➕ Add New Outlet")
-            
             with st.form("add_outlet_form"):
                 new_outlet_name = st.text_input("Outlet Name")
                 new_area = st.selectbox("Area", INDONESIA_AREAS)
                 new_kategori = st.selectbox("Kategori Tempat", KATEGORI_TEMPAT)
                 new_sub_kategori = st.selectbox("Sub Kategori Tempat", SUB_KATEGORI_TEMPAT)
-                new_tipe = st.selectbox("Tipe Tempat", ["Indoor", "Outdoor", "Semi-Outdoor"])
-                
-                submitted = st.form_submit_button("Add Outlet")
-                
-                if submitted and new_outlet_name:
-                    # Check if outlet already exists
+                new_tipe = st.selectbox("Tipe Tempat", ["Indoor","Outdoor","Semi-Outdoor"])
+                if st.form_submit_button("Add Outlet") and new_outlet_name:
                     if new_outlet_name in outlet_mapping['outlet_name'].values:
                         st.error("❌ Outlet already exists!")
                     else:
-                        # Add new outlet
-                        new_row = pd.DataFrame({
-                            'outlet_name': [new_outlet_name],
-                            'area': [new_area],
-                            'kategori_tempat': [new_kategori],
-                            'sub_kategori_tempat': [new_sub_kategori],
-                            'tipe_tempat': [new_tipe]
-                        })
+                        new_row = pd.DataFrame({'outlet_name':[new_outlet_name],'area':[new_area],
+                                                'kategori_tempat':[new_kategori],'sub_kategori_tempat':[new_sub_kategori],
+                                                'tipe_tempat':[new_tipe]})
                         outlet_mapping = pd.concat([outlet_mapping, new_row], ignore_index=True)
-                        
-                        # Save to file
                         outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
-                        st.success("✅ Outlet added successfully!")
-                        st.rerun()
-        
-        with subtab3:
+                        st.success("✅ Outlet added successfully!"); st.rerun()
+        with s3:
             st.subheader("✏️ Edit Outlet")
-            
             if not outlet_mapping.empty:
                 outlet_to_edit = st.selectbox("Select Outlet to Edit", outlet_mapping['outlet_name'].tolist())
-                
                 if outlet_to_edit:
-                    current_data = outlet_mapping[outlet_mapping['outlet_name'] == outlet_to_edit].iloc[0]
-                    
+                    row = outlet_mapping[outlet_mapping['outlet_name']==outlet_to_edit].iloc[0]
                     with st.form("edit_outlet_form"):
-                        edit_area = st.selectbox("Area", INDONESIA_AREAS, 
-                                               index=INDONESIA_AREAS.index(current_data['area']) if current_data['area'] in INDONESIA_AREAS else 0)
-                        edit_kategori = st.selectbox("Kategori Tempat", KATEGORI_TEMPAT,
-                                                   index=KATEGORI_TEMPAT.index(current_data['kategori_tempat']) if current_data['kategori_tempat'] in KATEGORI_TEMPAT else 0)
-                        edit_sub_kategori = st.selectbox("Sub Kategori Tempat", SUB_KATEGORI_TEMPAT,
-                                                       index=SUB_KATEGORI_TEMPAT.index(current_data['sub_kategori_tempat']) if current_data['sub_kategori_tempat'] in SUB_KATEGORI_TEMPAT else 0)
-                        edit_tipe = st.selectbox("Tipe Tempat", ["Indoor", "Outdoor", "Semi-Outdoor"],
-                                               index=["Indoor", "Outdoor", "Semi-Outdoor"].index(current_data['tipe_tempat']))
-                        
-                        submitted = st.form_submit_button("Update Outlet")
-                        
-                        if submitted:
-                            # Update outlet data
-                            outlet_mapping.loc[outlet_mapping['outlet_name'] == outlet_to_edit, 'area'] = edit_area
-                            outlet_mapping.loc[outlet_mapping['outlet_name'] == outlet_to_edit, 'kategori_tempat'] = edit_kategori
-                            outlet_mapping.loc[outlet_mapping['outlet_name'] == outlet_to_edit, 'sub_kategori_tempat'] = edit_sub_kategori
-                            outlet_mapping.loc[outlet_mapping['outlet_name'] == outlet_to_edit, 'tipe_tempat'] = edit_tipe
-                            
-                            # Save to file
+                        edit_area = st.selectbox("Area", INDONESIA_AREAS, index=INDONESIA_AREAS.index(row['area']) if row['area'] in INDONESIA_AREAS else 0)
+                        edit_kat = st.selectbox("Kategori Tempat", KATEGORI_TEMPAT, index=KATEGORI_TEMPAT.index(row['kategori_tempat']) if row['kategori_tempat'] in KATEGORI_TEMPAT else 0)
+                        edit_sub = st.selectbox("Sub Kategori Tempat", SUB_KATEGORI_TEMPAT, index=SUB_KATEGORI_TEMPAT.index(row['sub_kategori_tempat']) if row['sub_kategori_tempat'] in SUB_KATEGORI_TEMPAT else 0)
+                        edit_tipe = st.selectbox("Tipe Tempat", ["Indoor","Outdoor","Semi-Outdoor"], index=["Indoor","Outdoor","Semi-Outdoor"].index(row['tipe_tempat']))
+                        if st.form_submit_button("Update Outlet"):
+                            outlet_mapping.loc[outlet_mapping['outlet_name']==outlet_to_edit, ['area','kategori_tempat','sub_kategori_tempat','tipe_tempat']] = [edit_area, edit_kat, edit_sub, edit_tipe]
                             outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
-                            st.success("✅ Outlet updated successfully!")
-                            st.rerun()
+                            st.success("✅ Outlet updated successfully!"); st.rerun()
             else:
                 st.info("No outlets available to edit")
-        
-        with subtab4:
+        with s4:
             st.subheader("🗑️ Delete Outlet")
-            
             if not outlet_mapping.empty:
                 outlet_to_delete = st.selectbox("Select Outlet to Delete", outlet_mapping['outlet_name'].tolist())
-                
-                if outlet_to_delete:
-                    st.warning(f"⚠️ Are you sure you want to delete '{outlet_to_delete}'?")
-                    
-                    if st.button("🗑️ Confirm Delete", type="secondary"):
-                        # Remove outlet
-                        outlet_mapping = outlet_mapping[outlet_mapping['outlet_name'] != outlet_to_delete]
-                        
-                        # Save to file
-                        outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
-                        st.success("✅ Outlet deleted successfully!")
-                        st.rerun()
+                if outlet_to_delete and st.button("🗑️ Confirm Delete", type="secondary"):
+                    outlet_mapping = outlet_mapping[outlet_mapping['outlet_name']!=outlet_to_delete]
+                    outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
+                    st.success("✅ Outlet deleted successfully!"); st.rerun()
             else:
                 st.info("No outlets available to delete")
-    
     with tab2:
         st.subheader("📋 Master Data Kategori & Sub Kategori")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
+        c1, c2 = st.columns(2)
+        with c1:
             st.markdown("**Kategori Tempat**")
-            kategori_df = pd.DataFrame({'Kategori': KATEGORI_TEMPAT})
-            st.dataframe(kategori_df, use_container_width=True, hide_index=True)
-            
-            st.markdown("**Tambah Kategori Baru**")
+            st.dataframe(pd.DataFrame({'Kategori': KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
             with st.form("add_kategori_form"):
-                new_kategori = st.text_input("Nama Kategori Baru")
+                nk = st.text_input("Nama Kategori Baru")
                 if st.form_submit_button("Tambah Kategori"):
-                    if new_kategori and new_kategori not in KATEGORI_TEMPAT:
-                        KATEGORI_TEMPAT.append(new_kategori)
-                        st.success(f"✅ Kategori '{new_kategori}' berhasil ditambahkan!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Kategori sudah ada atau kosong!")
-        
-        with col2:
+                    if nk and nk not in KATEGORI_TEMPAT:
+                        KATEGORI_TEMPAT.append(nk); st.success(f"✅ Kategori '{nk}' berhasil ditambahkan!"); st.rerun()
+                    else: st.error("❌ Kategori sudah ada atau kosong!")
+        with c2:
             st.markdown("**Sub Kategori Tempat**")
-            sub_kategori_df = pd.DataFrame({'Sub Kategori': SUB_KATEGORI_TEMPAT})
-            st.dataframe(sub_kategori_df, use_container_width=True, hide_index=True)
-            
-            st.markdown("**Tambah Sub Kategori Baru**")
+            st.dataframe(pd.DataFrame({'Sub Kategori': SUB_KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
             with st.form("add_sub_kategori_form"):
-                new_sub_kategori = st.text_input("Nama Sub Kategori Baru")
+                ns = st.text_input("Nama Sub Kategori Baru")
                 if st.form_submit_button("Tambah Sub Kategori"):
-                    if new_sub_kategori and new_sub_kategori not in SUB_KATEGORI_TEMPAT:
-                        SUB_KATEGORI_TEMPAT.append(new_sub_kategori)
-                        st.success(f"✅ Sub Kategori '{new_sub_kategori}' berhasil ditambahkan!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Sub Kategori sudah ada atau kosong!")
-    
+                    if ns and ns not in SUB_KATEGORI_TEMPAT:
+                        SUB_KATEGORI_TEMPAT.append(ns); st.success(f"✅ Sub Kategori '{ns}' berhasil ditambahkan!"); st.rerun()
+                    else: st.error("❌ Sub Kategori sudah ada atau kosong!")
     with tab3:
         st.subheader("🗺️ Master Data Area (Kota & Kabupaten Indonesia)")
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
+        a1, a2 = st.columns([2,1])
+        with a1:
             st.markdown("**Daftar Area Indonesia**")
-            area_df = pd.DataFrame({'Area': INDONESIA_AREAS})
-            st.dataframe(area_df, use_container_width=True, hide_index=True, height=400)
-        
-        with col2:
-            st.markdown("**Tambah Area Baru**")
+            st.dataframe(pd.DataFrame({'Area': INDONESIA_AREAS}), use_container_width=True, hide_index=True, height=400)
+        with a2:
             with st.form("add_area_form"):
-                new_area = st.text_input("Nama Kota/Kabupaten Baru")
+                na = st.text_input("Nama Kota/Kabupaten Baru")
                 if st.form_submit_button("Tambah Area"):
-                    if new_area and new_area not in INDONESIA_AREAS:
-                        INDONESIA_AREAS.append(new_area)
-                        INDONESIA_AREAS.sort()  # Keep alphabetical order
-                        st.success(f"✅ Area '{new_area}' berhasil ditambahkan!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Area sudah ada atau kosong!")
-            
-            st.markdown("**Info**")
+                    if na and na not in INDONESIA_AREAS:
+                        INDONESIA_AREAS.append(na); INDONESIA_AREAS.sort(); st.success(f"✅ Area '{na}' berhasil ditambahkan!"); st.rerun()
+                    else: st.error("❌ Area sudah ada atau kosong!")
             st.info(f"📊 Total Area: {len(INDONESIA_AREAS)} kota/kabupaten")
 
 def show_trend_analysis(df, config, processor, viz):
-    """Trend analysis page"""
     st.title("📊 Analisis Trend Penjualan")
-    
-    if df.empty:
-        st.error("❌ Data tidak tersedia.")
-        return
-    
-    # Area analysis
-    st.subheader("🗺️ Analisis per Area")
-    fig_area = viz.create_area_analysis_chart(df)
-    st.plotly_chart(fig_area, use_container_width=True)
-    
-    # Category analysis
-    st.subheader("🏢 Analisis per Kategori Tempat")
-    fig_kategori = viz.create_kategori_analysis(df)
-    st.plotly_chart(fig_kategori, use_container_width=True)
-    
-    # Indoor vs Outdoor
-    st.subheader("🏠 Indoor vs Outdoor Analysis")
-    fig_indoor_outdoor = viz.create_indoor_outdoor_comparison(df)
-    st.plotly_chart(fig_indoor_outdoor, use_container_width=True)
-    
-    # Heatmap
-    st.subheader("🔥 Performance Heatmap")
-    fig_heatmap = viz.create_heatmap(df)
-    st.plotly_chart(fig_heatmap, use_container_width=True)
-    
-    # Summary tables
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📋 Summary by Area")
-        area_summary = processor.aggregate_by_area(df)
-        st.dataframe(area_summary, use_container_width=True)
-    
-    with col2:
-        st.subheader("📋 Summary by Category")
-        kategori_summary = processor.aggregate_by_kategori(df)
-        st.dataframe(kategori_summary, use_container_width=True)
+    if df.empty: st.error("❌ Data tidak tersedia."); return
+    st.subheader("🗺️ Analisis per Area"); st.plotly_chart(viz.create_area_analysis_chart(df), use_container_width=True)
+    st.subheader("🏢 Analisis per Kategori Tempat"); st.plotly_chart(viz.create_kategori_analysis(df), use_container_width=True)
+    st.subheader("🏠 Indoor vs Outdoor Analysis"); st.plotly_chart(viz.create_indoor_outdoor_comparison(df), use_container_width=True)
+    st.subheader("🔥 Performance Heatmap"); st.plotly_chart(viz.create_heatmap(df), use_container_width=True)
+    c1, c2 = st.columns(2)
+    with c1: st.subheader("📋 Summary by Area"); st.dataframe(processor.aggregate_by_area(df), use_container_width=True)
+    with c2: st.subheader("📋 Summary by Category"); st.dataframe(processor.aggregate_by_kategori(df), use_container_width=True)
 
 def show_conversion_analysis(df, config, processor, viz):
-    """Conversion analysis page"""
     st.title("🔄 Analisis Konversi & Awareness")
-    
-    if df.empty:
-        st.error("❌ Data tidak tersedia.")
-        return
-    
-    # Conversion metrics
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        avg_foto_to_print = df['conversion_rate'].mean()
-        st.metric("📸➡️🖨️ Foto to Print", f"{avg_foto_to_print:.1f}%")
-    
-    with col2:
-        avg_unlock_to_print = df['unlock_to_print_rate'].mean()
-        st.metric("🔓➡️🖨️ Unlock to Print", f"{avg_unlock_to_print:.1f}%")
-    
-    with col3:
-        total_conversion = (df['print_qty'].sum() / df['foto_qty'].sum()) * 100
-        st.metric("🎯 Overall Conversion", f"{total_conversion:.1f}%")
-    
-    # Conversion funnel
-    st.subheader("🔄 Conversion Funnel")
-    fig_funnel = viz.create_conversion_funnel(df)
-    st.plotly_chart(fig_funnel, use_container_width=True)
-    
-    # Conversion by outlet
+    if df.empty: st.error("❌ Data tidak tersedia."); return
+    c1, c2, c3 = st.columns(3)
+    with c1: st.metric("📸➡️🖨️ Foto to Print", f"{df['conversion_rate'].mean():.1f}%")
+    with c2: st.metric("🔓➡️🖨️ Unlock to Print", f"{df['unlock_to_print_rate'].mean():.1f}%")
+    with c3: st.metric("🎯 Overall Conversion", f"{(df['print_qty'].sum()/df['foto_qty'].sum())*100:.1f}%")
+    st.subheader("🔄 Conversion Funnel"); st.plotly_chart(viz.create_conversion_funnel(df), use_container_width=True)
     st.subheader("📊 Conversion Rate by Outlet")
-    
-    # High vs Low conversion outlets
-    col1, col2 = st.columns(2)
-    
-    with col1:
+    a,b = st.columns(2)
+    with a:
         st.write("**🟢 High Conversion Outlets (>25%)**")
-        high_conv = df[df['conversion_rate'] > 25].sort_values('conversion_rate', ascending=False)
-        if not high_conv.empty:
-            st.dataframe(high_conv[['outlet_name', 'conversion_rate', 'total_revenue']], use_container_width=True)
-        else:
-            st.info("No outlets with >25% conversion rate")
-    
-    with col2:
+        hi = df[df['conversion_rate']>25].sort_values('conversion_rate', ascending=False)
+        st.dataframe(hi[['outlet_name','conversion_rate','total_revenue']], use_container_width=True) if not hi.empty else st.info("No outlets with >25% conversion rate")
+    with b:
         st.write("**🔴 Low Conversion Outlets (<15%)**")
-        low_conv = df[df['conversion_rate'] < 15].sort_values('conversion_rate', ascending=True)
-        if not low_conv.empty:
-            st.dataframe(low_conv[['outlet_name', 'conversion_rate', 'total_revenue']], use_container_width=True)
-        else:
-            st.info("No outlets with <15% conversion rate")
-    
-    # Awareness analysis
+        lo = df[df['conversion_rate']<15].sort_values('conversion_rate', ascending=True)
+        st.dataframe(lo[['outlet_name','conversion_rate','total_revenue']], use_container_width=True) if not lo.empty else st.info("No outlets with <15% conversion rate")
     st.subheader("📢 Awareness Analysis")
-    
-    # High awareness, low conversion (need promotion)
-    high_foto_low_conv = df[(df['foto_qty'] > df['foto_qty'].median()) & 
-                           (df['conversion_rate'] < df['conversion_rate'].median())]
-    
-    if not high_foto_low_conv.empty:
+    seg = df[(df['foto_qty']>df['foto_qty'].median()) & (df['conversion_rate']<df['conversion_rate'].median())]
+    if not seg.empty:
         st.write("**⚠️ High Awareness, Low Conversion (Need Promotion)**")
-        st.dataframe(high_foto_low_conv[['outlet_name', 'foto_qty', 'conversion_rate', 'total_revenue']], 
-                    use_container_width=True)
-    
-    # Conversion trend chart
-    st.subheader("📈 Conversion Trends")
-    fig_trend = viz.create_trend_chart(df, 'conversion_rate')
-    st.plotly_chart(fig_trend, use_container_width=True)
+        st.dataframe(seg[['outlet_name','foto_qty','conversion_rate','total_revenue']], use_container_width=True)
+    st.subheader("📈 Conversion Trends"); st.plotly_chart(viz.create_trend_chart(df, 'conversion_rate'), use_container_width=True)
 
 def show_outlet_ranking(df, config, processor):
-    """Outlet ranking page"""
     st.title("🏆 Ranking Outlet")
-    
-    if df.empty:
-        st.error("❌ Data tidak tersedia.")
-        return
-    
-    # Status summary
-    status_counts = df['outlet_status'].value_counts()
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric("🟢 Keeper", status_counts.get('Keeper', 0))
-    with col2:
-        st.metric("🟡 Optimasi", status_counts.get('Optimasi', 0))
-    with col3:
-        st.metric("🔴 Relocate", status_counts.get('Relocate', 0))
-    
-    # Ranking table
+    if df.empty: st.error("❌ Data tidak tersedia."); return
+    cnt = df['outlet_status'].value_counts()
+    a,b,c = st.columns(3)
+    with a: st.metric("🟢 Keeper", cnt.get('Keeper',0))
+    with b: st.metric("🟡 Optimasi", cnt.get('Optimasi',0))
+    with c: st.metric("🔴 Relocate", cnt.get('Relocate',0))
     st.subheader("📊 Complete Outlet Ranking")
-    
-    # Sort by revenue
-    ranked_df = df.sort_values('total_revenue', ascending=False).reset_index(drop=True)
-    ranked_df['rank'] = range(1, len(ranked_df) + 1)
-    
-    # Display table with formatting
-    display_df = ranked_df[['rank', 'outlet_name', 'area', 'kategori_tempat', 
-                           'total_revenue', 'conversion_rate', 'outlet_status']].copy()
-    
-    # Format revenue
-    display_df['total_revenue'] = display_df['total_revenue'].apply(
-        lambda x: config.format_currency(x)
-    )
-    display_df['conversion_rate'] = display_df['conversion_rate'].apply(
-        lambda x: f"{x:.1f}%"
-    )
-    
-    st.dataframe(display_df, use_container_width=True)
-    
-    # Status-wise analysis
+    ranked = df.sort_values('total_revenue', ascending=False).reset_index(drop=True)
+    ranked['rank'] = range(1,len(ranked)+1)
+    disp = ranked[['rank','outlet_name','area','kategori_tempat','total_revenue','conversion_rate','outlet_status']].copy()
+    disp['total_revenue'] = disp['total_revenue'].apply(lambda x: config.format_currency(x))
+    disp['conversion_rate'] = disp['conversion_rate'].apply(lambda x: f"{x:.1f}%")
+    st.dataframe(disp, use_container_width=True)
     st.subheader("📋 Analysis by Status")
-    
-    tab1, tab2, tab3 = st.tabs(["🟢 Keeper", "🟡 Optimasi", "🔴 Relocate"])
-    
-    with tab1:
-        keeper_df = df[df['outlet_status'] == 'Keeper']
-        if not keeper_df.empty:
-            st.write(f"**{len(keeper_df)} outlets in Keeper status**")
-            st.dataframe(keeper_df[['outlet_name', 'area', 'total_revenue', 'conversion_rate']], 
-                        use_container_width=True)
-        else:
-            st.info("No outlets in Keeper status")
-    
-    with tab2:
-        optimasi_df = df[df['outlet_status'] == 'Optimasi']
-        if not optimasi_df.empty:
-            st.write(f"**{len(optimasi_df)} outlets in Optimasi status**")
-            st.dataframe(optimasi_df[['outlet_name', 'area', 'total_revenue', 'conversion_rate']], 
-                        use_container_width=True)
-        else:
-            st.info("No outlets in Optimasi status")
-    
-    with tab3:
-        relocate_df = df[df['outlet_status'] == 'Relocate']
-        if not relocate_df.empty:
-            st.write(f"**{len(relocate_df)} outlets in Relocate status**")
-            st.dataframe(relocate_df[['outlet_name', 'area', 'total_revenue', 'conversion_rate']], 
-                        use_container_width=True)
-            
-            st.warning("⚠️ These outlets may need strategic review for relocation or optimization.")
-        else:
-            st.info("No outlets in Relocate status")
+    t1,t2,t3 = st.tabs(["🟢 Keeper","🟡 Optimasi","🔴 Relocate"])
+    with t1:
+        k = df[df['outlet_status']=="Keeper"]
+        st.dataframe(k[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not k.empty else st.info("No outlets in Keeper status")
+    with t2:
+        o = df[df['outlet_status']=="Optimasi"]
+        st.dataframe(o[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not o.empty else st.info("No outlets in Optimasi status")
+    with t3:
+        r = df[df['outlet_status']=="Relocate"]
+        st.dataframe(r[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not r.empty else st.info("No outlets in Relocate status")
 
 def show_period_comparison(df, config, processor, viz, current_period, compare_period):
-    """Period comparison page"""
     st.title("📅 Perbandingan Periode")
-    
-    if df.empty:
-        st.error("❌ Data tidak tersedia.")
-        return
-    
+    if df.empty: st.error("❌ Data tidak tersedia."); return
     if current_period and compare_period:
-        current_df = df[df['periode'] == current_period]
-        previous_df = df[df['periode'] == compare_period]
-        
-        # Calculate growth metrics
-        growth_metrics = calculate_growth_metrics(current_df, previous_df)
-        
-        # Display growth metrics
+        cur = df[df['periode']==current_period]; prev = df[df['periode']==compare_period]
+        gm = calculate_growth_metrics(cur, prev)
         st.subheader("📈 Growth Metrics")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            revenue_growth = growth_metrics.get('revenue_growth', 0)
-            delta_color = "normal" if revenue_growth >= 0 else "inverse"
-            st.metric(
-                "Revenue Growth",
-                f"{revenue_growth:+.1f}%",
-                delta=f"{revenue_growth:+.1f}%"
-            )
-        
-        with col2:
-            photo_growth = growth_metrics.get('photo_growth', 0)
-            st.metric(
-                "Photo Growth",
-                f"{photo_growth:+.1f}%",
-                delta=f"{photo_growth:+.1f}%"
-            )
-        
-        with col3:
-            conversion_change = growth_metrics.get('conversion_change', 0)
-            st.metric(
-                "Conversion Change",
-                f"{conversion_change:+.1f}pp",
-                delta=f"{conversion_change:+.1f}pp"
-            )
-        
-        # Side-by-side comparison
+        c1,c2,c3 = st.columns(3)
+        with c1: st.metric("Revenue Growth", f"{gm.get('revenue_growth',0):+.1f}%", delta=f"{gm.get('revenue_growth',0):+.1f}%")
+        with c2: st.metric("Photo Growth", f"{gm.get('photo_growth',0):+.1f}%", delta=f"{gm.get('photo_growth',0):+.1f}%")
+        with c3: st.metric("Conversion Change", f"{gm.get('conversion_change',0):+.1f}pp", delta=f"{gm.get('conversion_change',0):+.1f}pp")
         st.subheader("📊 Side-by-Side Comparison")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write(f"**{current_period}**")
-            current_metrics = processor.calculate_metrics(current_df)
-            st.write(f"Revenue: {config.format_currency(current_metrics['total_revenue'])}")
-            st.write(f"Outlets: {current_metrics['total_outlets']}")
-            st.write(f"Avg Conversion: {current_metrics['avg_conversion']:.1f}%")
-        
-        with col2:
-            st.write(f"**{compare_period}**")
-            previous_metrics = processor.calculate_metrics(previous_df)
-            st.write(f"Revenue: {config.format_currency(previous_metrics['total_revenue'])}")
-            st.write(f"Outlets: {previous_metrics['total_outlets']}")
-            st.write(f"Avg Conversion: {previous_metrics['avg_conversion']:.1f}%")
-        
-        # Trend charts
-        st.subheader("📈 Trend Analysis")
-        fig_trend = viz.create_trend_chart(df, 'total_revenue')
-        st.plotly_chart(fig_trend, use_container_width=True)
-    
+        a,b = st.columns(2)
+        with a:
+            m = processor.calculate_metrics(cur)
+            st.write(f"**{current_period}**"); st.write(f"Revenue: {config.format_currency(m['total_revenue'])}"); st.write(f"Outlets: {m['total_outlets']}"); st.write(f"Avg Conversion: {m['avg_conversion']:.1f}%")
+        with b:
+            m = processor.calculate_metrics(prev)
+            st.write(f"**{compare_period}**"); st.write(f"Revenue: {config.format_currency(m['total_revenue'])}"); st.write(f"Outlets: {m['total_outlets']}"); st.write(f"Avg Conversion: {m['avg_conversion']:.1f}%")
+        st.subheader("📈 Trend Analysis"); st.plotly_chart(viz.create_trend_chart(df, 'total_revenue'), use_container_width=True)
     else:
-        st.info("Select periods to compare using the period selector above")
+        st.info("Pilih kedua periode di sidebar untuk membandingkan.")
 
-def show_admin_panel(config):
-    """Admin panel for configuration"""
-    st.title("⚙️ Admin Panel")
-    
-    st.subheader("🎯 Threshold Configuration")
-    
-    # Current thresholds
-    current_keeper = config.get_threshold('keeper_minimum')
-    current_optimasi = config.get_threshold('optimasi_minimum')
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        new_keeper = st.number_input(
-            "Keeper Minimum (IDR)",
-            min_value=0,
-            value=current_keeper,
-            step=1000000,
-            format="%d"
-        )
-    
-    with col2:
-        new_optimasi = st.number_input(
-            "Optimasi Minimum (IDR)",
-            min_value=0,
-            value=current_optimasi,
-            step=1000000,
-            format="%d"
-        )
-    
-    if st.button("💾 Save Thresholds"):
-        config.set_threshold('keeper_minimum', new_keeper)
-        config.set_threshold('optimasi_minimum', new_optimasi)
-        
-        if config.save_config():
-            st.success("✅ Thresholds updated successfully!")
-            st.rerun()
-        else:
-            st.error("❌ Failed to save thresholds")
-    
-    # Display current configuration
-    st.subheader("📋 Current Configuration")
-    st.json(config.config)
-    
-    # System information
-    st.subheader("ℹ️ System Information")
-    st.write(f"**Last Updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    st.write(f"**Keeper Threshold:** {config.format_currency(config.get_threshold('keeper_minimum'))}")
-    st.write(f"**Optimasi Threshold:** {config.format_currency(config.get_threshold('optimasi_minimum'))}")
-
+# ================== UPLOAD (FIX: harga 0 valid) ==================
 def show_upload_data(processor, config):
-    """Data upload page"""
     st.title("📤 Upload Data Bulanan")
-    
     st.info("📋 Upload file Excel bulanan untuk memperbarui dashboard")
-    
+
     uploaded_file = st.file_uploader(
         "Choose Excel file",
-        type=['xlsx', 'xls'],
-        help="Upload file Excel dengan format yang sesuai"
+        type=['xlsx','xls'],
+        help="Header bebas: Outlet, Harga, Tanggal, Area, dst. Sistem otomatis memetakan & membersihkan."
     )
-    
+
     if uploaded_file is not None:
         try:
-            # Preview file
-            st.subheader("👀 Preview Data")
+            # Preview raw
             preview_df = pd.read_excel(uploaded_file, nrows=5)
-            st.dataframe(preview_df)
-            
-            # Validate file
+            st.subheader("👀 Preview Data (Raw)")
+            st.dataframe(preview_df, use_container_width=True)
+
+            # Full → normalize → map → sanitize
+            uploaded_file.seek(0)
             full_df = pd.read_excel(uploaded_file)
-            is_valid, message = validate_excel_file(full_df)
-            
+            full_df = normalize_headers(full_df)
+            mapped_df, used_mapping = apply_column_mapping(full_df)
+            mapped_df = sanitize_mapped_df(mapped_df)  # <- core fix: harga NaN/None jadi 0
+
+            # Mapping info
+            st.subheader("🧭 Column Mapping")
+            if used_mapping:
+                st.success("Kolom dimapping otomatis:\n" + "\n".join([f"- **{k}** → **{v}**" for k,v in used_mapping.items()]))
+            else:
+                st.warning("Tidak ada kolom yang perlu di-rename.")
+
+            st.subheader("🔎 Preview Setelah Mapping & Sanitizing")
+            st.dataframe(mapped_df.head(10), use_container_width=True)
+
+            # Validate with sanitized df
+            is_valid, message = validate_excel_file(mapped_df)
             if is_valid:
                 st.success(f"✅ {message}")
-                
                 if st.button("🚀 Process and Update Dashboard"):
                     with st.spinner("Processing data..."):
-                        processed_df = processor.process_uploaded_file(uploaded_file)
-                        
+                        excel_bytes = df_to_excel_bytes(mapped_df)  # kirim hasil bersih
+                        processed_df = processor.process_uploaded_file(excel_bytes)
                         if processed_df is not None:
-                            # Save processed data
                             processed_df.to_csv("data/difotoin_dashboard_data.csv", index=False)
                             st.success("✅ Data berhasil diproses dan dashboard diperbarui!")
-                            
-                            # Show summary
                             st.subheader("📊 Summary")
                             st.write(f"Total outlets: {len(processed_df)}")
                             st.write(f"Total revenue: {config.format_currency(processed_df['total_revenue'].sum())}")
-                            
                         else:
                             st.error("❌ Gagal memproses data")
             else:
                 st.error(f"❌ {message}")
-                
+                st.caption("Harga 0 itu valid. Sistem sudah mengubah sel kosong/None menjadi 0.")
         except Exception as e:
             st.error(f"❌ Error reading file: {e}")
-    
-    # Data format guide
+
     st.subheader("📋 Format Data Guide")
     st.write("""
-    **Required columns:**
-    - `outlet_name`: Nama outlet
-    - `harga`: Revenue per transaksi
-    
-    **Optional columns:**
-    - `tanggal`: Tanggal transaksi
-    - `area`: Area/kota outlet
-    - `kategori_tempat`: Kategori tempat (Mall, Wisata, etc.)
+    **Header Excel yang didukung (otomatis dipetakan & dibersihkan):**
+    - Outlet → `outlet_name`
+    - Harga / Price / Amount → `harga` (kosong/None otomatis jadi **0**)
+    - Tanggal / Date → `tanggal`
+    - Area / Kota → `area`
+    - Kategori / Kategori Tempat → `kategori_tempat`
+    - Sub Kategori → `sub_kategori_tempat`
+    - Tipe → `tipe_tempat`
     """)
 
+# ================== BOOT ==================
 if __name__ == "__main__":
     main()
