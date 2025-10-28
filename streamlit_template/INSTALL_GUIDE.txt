@@ -58,3 +58,18 @@ Error "port already in use":
 
 SUPPORT:
 Baca file README.md untuk dokumentasi lengkap
+
+
+=================================================
+untuk nyalain server 
+
+
+cd ~/MGX/streamlit_template
+source .venv/bin/activate
+nohup python -m streamlit run app.py --server.port=8501 --server.address=0.0.0.0 > streamlit.log 2>&1 &
+disown
+
+
+matiin
+
+pkill -f streamlit
