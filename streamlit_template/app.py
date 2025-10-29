@@ -185,8 +185,9 @@ PRINT_RE = re.compile(r"\b(print|printed|cetak|printout|print-out)\b", re.I)
 def derive_counts_from_type(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     d = df.copy()
     t = d["type"].astype(str).str.strip().str.lower().fillna("") if "type" in d.columns else pd.Series([""]*len(d), index=d.index)
+    # NOTE: fix: always use str.contains (tidak ada str_contains)
     d["_foto_qty"]   = t.str.contains(FOTO_RE).astype(int)
-    d["_unlock_qty"] = t.str_contains(UNLOCK_RE).astype(int) if hasattr(t, "str_contains") else t.str.contains(UNLOCK_RE).astype(int)
+    d["_unlock_qty"] = t.str.contains(UNLOCK_RE).astype(int)
     d["_print_qty"]  = t.str.contains(PRINT_RE).astype(int)
     audit = {
         "match_foto": int(d["_foto_qty"].sum()),
@@ -343,9 +344,9 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
             p_foto  = int(p.get("foto_qty", 0) or 0)
             p_unlock= int(p.get("unlock_qty", 0) or 0)
             p_conv  = float(p.get("conversion_rate", 0) or 0)
-            rec["Omset Compare"] = format_comparison_value(omset, p_omset, False)
-            rec["Foto Compare"]  = format_comparison_value(foto, p_foto, False)
-            rec["Unlock Compare"]= format_comparison_value(unlock, p_unlock, False)
+            rec["Omset Compare"]      = format_comparison_value(omset, p_omset, False)
+            rec["Foto Compare"]       = format_comparison_value(foto, p_foto, False)
+            rec["Unlock Compare"]     = format_comparison_value(unlock, p_unlock, False)
             rec["Conversion Compare"] = format_comparison_value(conv, p_conv, True)
             rec["_omset_delta"] = 0 if p_omset==0 else ((omset - p_omset)/p_omset)*100
             rec["_foto_delta"]  = 0 if p_foto ==0 else ((foto  - p_foto )/p_foto )*100
@@ -707,6 +708,99 @@ def show_period_comparison(df, config, processor, viz, current_period, compare_p
         st.subheader("📈 Trend Analysis"); st.plotly_chart(viz.create_trend_chart(df, 'total_revenue'), use_container_width=True)
     else:
         st.info("Pilih kedua periode di sidebar untuk membandingkan.")
+
+# =============== ADMIN PANEL (FIX: avoid NameError) ===============
+def show_admin_panel(config):
+    """Admin panel: edit threshold, lihat config, util cache."""
+    import os
+    from datetime import datetime as _dt
+
+    st.title("⚙️ Admin Panel")
+
+    st.subheader("🎯 Threshold Configuration")
+    keeper_now = config.get_threshold("keeper_minimum")
+    optim_now  = config.get_threshold("optimasi_minimum")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        new_keeper = st.number_input(
+            "Keeper Minimum (IDR)",
+            min_value=0,
+            value=int(keeper_now) if isinstance(keeper_now, (int, float)) else 0,
+            step=1_000_000,
+            format="%d",
+            help="Minimal omset bulanan untuk status Keeper",
+        )
+    with c2:
+        new_optim = st.number_input(
+            "Optimasi Minimum (IDR)",
+            min_value=0,
+            value=int(optim_now) if isinstance(optim_now, (int, float)) else 0,
+            step=1_000_000,
+            format="%d",
+            help="Minimal omset bulanan untuk status Optimasi",
+        )
+
+    colA, colB = st.columns([1,1])
+    with colA:
+        if st.button("💾 Save Thresholds", use_container_width=True):
+            try:
+                config.set_threshold("keeper_minimum", int(new_keeper))
+                config.set_threshold("optimasi_minimum", int(new_optim))
+                ok = config.save_config()
+                if ok:
+                    try:
+                        load_app_data.clear()
+                    except Exception:
+                        pass
+                    st.success("✅ Thresholds updated & config saved.")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to save thresholds.")
+            except Exception as e:
+                st.error(f"❌ Error saving thresholds: {e}")
+
+    with colB:
+        if st.button("🧹 Clear Cached Data", use_container_width=True, help="Paksa reload data yang dicache"):
+            try:
+                load_app_data.clear()
+                st.success("✅ Cache cleared.")
+            except Exception as e:
+                st.warning(f"ℹ️ Cache clear note: {e}")
+
+    st.subheader("📋 Current Configuration")
+    try:
+        st.json(config.config)
+    except Exception:
+        st.info("ℹ️ Tidak bisa menampilkan JSON config.")
+
+    st.subheader("ℹ️ System Information")
+    st.write(f"**Last Updated:** {_dt.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    try:
+        st.write(f"**Keeper Threshold:** {config.format_currency(config.get_threshold('keeper_minimum'))}")
+        st.write(f"**Optimasi Threshold:** {config.format_currency(config.get_threshold('optimasi_minimum'))}")
+    except Exception:
+        pass
+
+    data_path = "data/difotoin_dashboard_data.csv"
+    with st.expander("📄 Data File Info (opsional)"):
+        if os.path.exists(data_path):
+            try:
+                df_info = pd.read_csv(data_path, nrows=5)
+                st.write(f"Path: `{data_path}`")
+                try:
+                    rows = sum(1 for _ in open(data_path, 'r', encoding='utf-8', errors='ignore')) - 1
+                    st.write(f"Rows (approx): ~{rows:,}")
+                except Exception:
+                    pass
+                st.dataframe(df_info, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Tidak bisa membaca CSV: {e}")
+        else:
+            st.info("File data belum ada.")
+
+    if st.button("🔄 Reload Page"):
+        st.rerun()
 
 # ================= UPLOAD (overwrite by period) =================
 def suggest_default_sheets(sheet_names: list[str]) -> list[str]:

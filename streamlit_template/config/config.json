@@ -1,7 +1,7 @@
 {
   "thresholds": {
-    "keeper_minimum": 15000000,
-    "optimasi_minimum": 8000000
+    "keeper_minimum": 20000000,
+    "optimasi_minimum": 10000000
   },
   "app_settings": {
     "currency": "IDR",
