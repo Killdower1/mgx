@@ -1,4 +1,12 @@
+<<<<<<< HEAD
 # app.py — Difotoin Dashboard (stabil: login persist, Styler.map, width='stretch')
+=======
+# app.py — Difotoin Dashboard (Overwrite by Period)
+# Highlights:
+# - Upload per bulan: SAVE akan OVERWRITE seluruh baris di CSV untuk periode (YYYY-MM) yang sama dengan file upload
+# - Tetap: mapping manual, scaler harga, derive foto/unlock/print dari 'type', audit totals & derive, compare table, colored compare
+
+>>>>>>> parent of b8f1e32 (update review penjualan per bulan)
 import io
 import os
 import re
@@ -189,10 +197,15 @@ PRINT_RE = re.compile(r"\b(print|printed|cetak|printout|print-out)\b", re.I)
 def derive_counts_from_type(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     d = df.copy()
     t = d["type"].astype(str).str.strip().str.lower().fillna("") if "type" in d.columns else pd.Series([""]*len(d), index=d.index)
+    # NOTE: fix: always use str.contains (tidak ada str_contains)
     d["_foto_qty"]   = t.str.contains(FOTO_RE).astype(int)
     d["_unlock_qty"] = t.str.contains(UNLOCK_RE).astype(int)
     d["_print_qty"]  = t.str.contains(PRINT_RE).astype(int)
-    audit = {"match_foto": int(d["_foto_qty"].sum()), "match_unlock": int(d["_unlock_qty"].sum()), "match_print": int(d["_print_qty"].sum())}
+    audit = {
+        "match_foto": int(d["_foto_qty"].sum()),
+        "match_unlock": int(d["_unlock_qty"].sum()),
+        "match_print": int(d["_print_qty"].sum())
+    }
     return d, audit
 
 def compute_status(total_revenue: float, config: Config) -> str:
@@ -201,23 +214,28 @@ def compute_status(total_revenue: float, config: Config) -> str:
     if total_revenue >= opt:  return "Optimasi"
     return "Relocate"
 
-# ======== Agregasi ========
+# ======== Agregasi (derive bila kolom tidak lengkap atau total 0) ========
 def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: str | None = None) -> tuple[pd.DataFrame, dict]:
     df = mapped_df.copy()
+
+    # Periode
     if "tanggal" in df.columns and df["tanggal"].notna().any():
         df["periode"] = pd.to_datetime(df["tanggal"], errors="coerce").dt.strftime("%Y-%m")
     else:
         df["periode"] = fallback_period or datetime.now().strftime("%Y-%m")
 
+    # Siapkan qty
     have_cols = all(c in df.columns for c in ["foto","unlock","print"])
     totals_zero = False
     if have_cols:
         df["_foto_qty"]   = pd.to_numeric(df["foto"], errors="coerce").fillna(0).astype(int)
         df["_unlock_qty"] = pd.to_numeric(df["unlock"], errors="coerce").fillna(0).astype(int)
         df["_print_qty"]  = pd.to_numeric(df["print"], errors="coerce").fillna(0).astype(int)
-        totals_zero = (df["_foto_qty"].sum()==0) and (df["_unlock_qty"].sum()==0) and (df["_print_qty"].sum()==0)
+        totals_zero = (df["_foto_qty"].sum() == 0) and (df["_unlock_qty"].sum() == 0) and (df["_print_qty"].sum() == 0)
 
     audit_derive = {"match_foto":0,"match_unlock":0,"match_print":0}
+
+    # Derive dari 'type' apabila tidak ada kolom atau total 0
     if (not have_cols or totals_zero) and ("type" in df.columns):
         df, audit_derive = derive_counts_from_type(df)
 
@@ -226,6 +244,7 @@ def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: 
 
     group_keys = ["periode","outlet_name"]
     if "area" in df.columns: group_keys.append("area")
+
     df["harga"] = pd.to_numeric(df["harga"], errors="coerce").fillna(0.0)
 
     agg = df.groupby(group_keys, dropna=False).agg(
@@ -237,6 +256,7 @@ def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: 
 
     agg["conversion_rate"] = np.where(agg["foto_qty"]>0, agg["print_qty"]/agg["foto_qty"]*100, 0.0)
     agg["outlet_status"] = agg["total_revenue"].apply(lambda x: compute_status(float(x), config))
+
     for col in ["kategori_tempat","sub_kategori_tempat","tipe_tempat"]:
         if col not in agg.columns: agg[col] = "Tidak Terkategorisasi"
     agg["area"] = agg.get("area","").astype(str).replace({"nan": ""})
@@ -256,6 +276,7 @@ def save_overwrite_periods(new_df: pd.DataFrame, path: str) -> tuple[pd.DataFram
         old = pd.read_csv(path)
         before_total = float(pd.to_numeric(old.get("total_revenue", 0), errors="coerce").fillna(0).sum())
         before_periods = sorted(old.get("periode", pd.Series(dtype=str)).astype(str).unique().tolist())
+        # drop periode yang sama
         remaining = old[~old["periode"].astype(str).isin(periods)].copy()
         merged = pd.concat([remaining, new_df], ignore_index=True)
     else:
@@ -265,11 +286,17 @@ def save_overwrite_periods(new_df: pd.DataFrame, path: str) -> tuple[pd.DataFram
 
     merged = merged.sort_values(["periode","outlet_name"]).reset_index(drop=True)
     merged.to_csv(path, index=False)
-    after_total = float(pd.to_numeric(merged["total_revenue"], errors="coerce").fillna(0).sum())
-    return merged, {"periods_overwritten": periods,"before_total": before_total,"after_total": after_total,
-                    "before_periods": before_periods,"remaining_periods": sorted(merged["periode"].astype(str).unique().tolist())}
 
-# ================= TABLE (compare) =================
+    after_total = float(pd.to_numeric(merged["total_revenue"], errors="coerce").fillna(0).sum())
+    return merged, {
+        "periods_overwritten": periods,
+        "before_total": before_total,
+        "after_total": after_total,
+        "before_periods": before_periods,
+        "remaining_periods": sorted(merged["periode"].astype(str).unique().tolist())
+    }
+
+# ================= TABLE (compare w/ colors) =================
 def format_comparison_value(current_val, compare_val, is_percentage=False):
     if compare_val == 0:
         return "0.0%" if not is_percentage else "0.0pp"
@@ -393,6 +420,7 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
     st.dataframe(styled, width="stretch", hide_index=True, column_config=column_config)
     st.markdown('</div>', unsafe_allow_html=True)
 
+<<<<<<< HEAD
 # ================= NEW: OMSET TREND TABLE (12 bulan, kiri=Current) =================
 def _sort_periods_str(periods: list[str]) -> list[str]:
     s = pd.Series(periods, dtype="string")
@@ -470,6 +498,8 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
     st.dataframe(styled, width="stretch", hide_index=True, column_config=column_config)
     st.caption("Hijau: naik vs bulan lalu (kolom di kanan). Merah: turun.")
 
+=======
+>>>>>>> parent of b8f1e32 (update review penjualan per bulan)
 # ================= PAGES =================
 def main():
     if not check_login():
@@ -588,10 +618,13 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
     for insight in generate_insights(m_df, config):
         st.markdown(f'<div class="insight-box">{insight}</div>', unsafe_allow_html=True)
 
+<<<<<<< HEAD
     st.markdown("---")
     show_omset_trend_table(df_filtered=m_df, df_full=full_df, config=config, current_period=current_period, months=12)
 
 # ---- pages lainnya (CRUD, Trend, Conversion, Ranking, Comparison, Admin, Upload) ----
+=======
+>>>>>>> parent of b8f1e32 (update review penjualan per bulan)
 def show_outlet_crud(df, config, processor):
     st.title("🗃️ CRUD Data Outlet & Master Data")
     outlet_mapping = processor.load_outlet_mapping() if hasattr(processor, "load_outlet_mapping") else pd.DataFrame()
@@ -778,10 +811,12 @@ def show_period_comparison(df, config, processor, viz, current_period, compare_p
     else:
         st.info("Pilih kedua periode di sidebar untuk membandingkan.")
 
-# =============== ADMIN PANEL ===============
+# =============== ADMIN PANEL (FIX: avoid NameError) ===============
 def show_admin_panel(config):
+    """Admin panel: edit threshold, lihat config, util cache."""
     import os
     from datetime import datetime as _dt
+
     st.title("⚙️ Admin Panel")
 
     st.subheader("🎯 Threshold Configuration")
@@ -790,9 +825,23 @@ def show_admin_panel(config):
 
     c1, c2 = st.columns(2)
     with c1:
-        new_keeper = st.number_input("Keeper Minimum (IDR)", min_value=0, value=int(keeper_now) if isinstance(keeper_now, (int, float)) else 0, step=1_000_000, format="%d")
+        new_keeper = st.number_input(
+            "Keeper Minimum (IDR)",
+            min_value=0,
+            value=int(keeper_now) if isinstance(keeper_now, (int, float)) else 0,
+            step=1_000_000,
+            format="%d",
+            help="Minimal omset bulanan untuk status Keeper",
+        )
     with c2:
-        new_optim = st.number_input("Optimasi Minimum (IDR)", min_value=0, value=int(optim_now) if isinstance(optim_now, (int, float)) else 0, step=1_000_000, format="%d")
+        new_optim = st.number_input(
+            "Optimasi Minimum (IDR)",
+            min_value=0,
+            value=int(optim_now) if isinstance(optim_now, (int, float)) else 0,
+            step=1_000_000,
+            format="%d",
+            help="Minimal omset bulanan untuk status Optimasi",
+        )
 
     colA, colB = st.columns([1,1])
     with colA:
@@ -802,8 +851,10 @@ def show_admin_panel(config):
                 config.set_threshold("optimasi_minimum", int(new_optim))
                 ok = config.save_config()
                 if ok:
-                    try: load_app_data.clear()
-                    except Exception: pass
+                    try:
+                        load_app_data.clear()
+                    except Exception:
+                        pass
                     st.success("✅ Thresholds updated & config saved.")
                     st.rerun()
                 else:
@@ -812,7 +863,11 @@ def show_admin_panel(config):
                 st.error(f"❌ Error saving thresholds: {e}")
 
     with colB:
+<<<<<<< HEAD
         if st.button("🧹 Clear Cached Data", key="btn_clear_cache"):
+=======
+        if st.button("🧹 Clear Cached Data", use_container_width=True, help="Paksa reload data yang dicache"):
+>>>>>>> parent of b8f1e32 (update review penjualan per bulan)
             try:
                 load_app_data.clear()
                 st.success("✅ Cache cleared.")
@@ -820,8 +875,10 @@ def show_admin_panel(config):
                 st.warning(f"ℹ️ Cache clear note: {e}")
 
     st.subheader("📋 Current Configuration")
-    try: st.json(config.config)
-    except Exception: st.info("ℹ️ Tidak bisa menampilkan JSON config.")
+    try:
+        st.json(config.config)
+    except Exception:
+        st.info("ℹ️ Tidak bisa menampilkan JSON config.")
 
     st.subheader("ℹ️ System Information")
     st.write(f"**Last Updated:** {_dt.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -851,7 +908,7 @@ def show_admin_panel(config):
     if st.button("🔄 Reload Page", key="btn_reload_page"):
         st.rerun()
 
-# ================= UPLOAD =================
+# ================= UPLOAD (overwrite by period) =================
 def suggest_default_sheets(sheet_names: list[str]) -> list[str]:
     picks = [s for s in sheet_names if any(k in s.lower() for k in ["data","transaksi","raw","detail"])]
     return picks or sheet_names[:1]
@@ -958,18 +1015,21 @@ def show_upload_data(config: Config):
             st.write(f"- Total Harga sesudah dedup: **{Config().format_currency(dd_audit['sum_after'])}**")
             st.write(f"- Key dedup: **{', '.join(dd_audit['subset']) or '(none)'}**")
 
-            # Agregasi
+            # Agregasi (akan derive dari 'type' bila perlu)
             processed_df, derive_audit = aggregate_monthly(deduped, config, fallback_period=fallback_period)
 
+            # Derive audit
             st.subheader("🧪 Derive Audit (dari kolom Type)")
             st.write(f"- Match Foto  : **{derive_audit.get('match_foto',0):,}** rows")
             st.write(f"- Match Unlock: **{derive_audit.get('match_unlock',0):,}** rows")
             st.write(f"- Match Print : **{derive_audit.get('match_print',0):,}** rows")
 
+            # Preview agregasi
             st.subheader("🔎 Preview Hasil Agregasi")
             show_cols = ["periode","outlet_name","area","total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate"]
             st.dataframe(processed_df[show_cols].head(25), width="stretch")
 
+            # Audit total
             st.subheader("🧾 Audit — Perbandingan Total (Excel vs Agregasi)")
             total_raw = float(dd_audit['sum_after'])
             total_aggr = float(processed_df["total_revenue"].sum())
@@ -977,19 +1037,24 @@ def show_upload_data(config: Config):
             st.write(f"- Total Revenue **Agregasi file ini**: **{Config().format_currency(total_aggr)}**")
             st.write(f"- Selisih (Agregasi - Raw): **{Config().format_currency(total_aggr - total_raw)}**")
 
+            # Save (OVERWRITE by period)
             if st.button("🚀 Save (Overwrite periode terpilih)"):
                 with st.spinner("Menyimpan (overwrite by period)..."):
                     merged, ow = save_overwrite_periods(processed_df, DATA_CSV_PATH)
                     per_uploaded = ow["periods_overwritten"]
                     before_total = ow["before_total"]; after_total = ow["after_total"]
+
                     try: load_app_data.clear()
                     except Exception: pass
+
                     st.success("✅ Data berhasil di-overwrite berdasarkan periode!")
                     st.subheader("🧾 Audit — Overwrite by Period")
                     st.write(f"- Periode di-overwrite: **{', '.join(per_uploaded)}**")
                     st.write(f"- Total di CSV (sebelum overwrite): **{Config().format_currency(before_total)}**")
                     st.write(f"- Total di CSV (sesudah overwrite): **{Config().format_currency(after_total)}**")
                     st.info(f"Periode tersedia sekarang: **{', '.join(ow['remaining_periods'])}**")
+
+                    # Audit subset CSV utk periode yang baru ditulis
                     csv_subset = merged[merged["periode"].isin(per_uploaded)]
                     csv_total_for_periods = float(csv_subset["total_revenue"].sum())
                     st.write(f"- Total di CSV (periode file ini): **{Config().format_currency(csv_total_for_periods)}**")
