@@ -20,7 +20,6 @@ from config import Config
 HAS_CACHE_DATA = hasattr(st, "cache_data")
 HAS_COLUMN_CONFIG = hasattr(st, "column_config")
 def cache_data(func=None, **kwargs):
-    # alias decorator: pakai cache_data kalau ada; else st.cache
     deco = st.cache_data if HAS_CACHE_DATA else st.cache
     return deco(func) if func else deco(**kwargs)
 
@@ -42,7 +41,6 @@ def text_col(title, width="medium"):
     return None
 
 def df_show(df_obj, use_container_width=True, hide_index=True, column_config=None):
-    # aman untuk versi lama yang belum dukung column_config/arg baru
     try:
         if column_config is not None and HAS_COLUMN_CONFIG:
             st.dataframe(df_obj, use_container_width=use_container_width, hide_index=hide_index, column_config=column_config)
@@ -57,7 +55,6 @@ def df_show(df_obj, use_container_width=True, hide_index=True, column_config=Non
             st.write(df_obj)
 
 def cache_clear(func):
-    # clear cache untuk fungsi cached di berbagai versi Streamlit
     try:
         func.clear()
         return
@@ -448,7 +445,7 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
     df_show(styled, use_container_width=True, hide_index=True, column_config=column_config)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ================= OMSET TREND TABLE (12 bulan, kiri=Current, + Rata-rata) =================
+# ================= OMSET TREND TABLE (12 bulan, kiri=Current, + Rata-rata + server-side sorting) =================
 def _sort_periods_str(periods: List[str]) -> List[str]:
     s = pd.Series(periods, dtype="string")
     dt = pd.to_datetime(s, format="%Y-%m", errors="coerce")
@@ -516,45 +513,73 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
 
     value_cols = periods_window  # [current, current-1, ..., current-11]
 
-    # === Rata-rata: dari bulan-bulan SEBELUM current (exclude kolom 0), hanya nilai > 0 ===
-    def _avg_prev_row(row: pd.Series):
-        prev_vals = row.iloc[1:]          # exclude current
-        prev_vals = prev_vals.dropna()
-        prev_vals = prev_vals[prev_vals > 0]  # ignore kosong/0
-        if prev_vals.empty:
-            return None
-        return float(prev_vals.mean())
+    # === Rata-rata: 12 bulan TERMASUK current, hanya nilai >0; jika tidak ada → 0.0 ===
+    def _avg_real_row(row: pd.Series) -> float:
+        vals = [float(v) for v in row.tolist() if (pd.notna(v) and float(v) > 0.0)]
+        return float(np.mean(vals)) if len(vals) > 0 else 0.0
 
-    avg_prev = pivot.apply(_avg_prev_row, axis=1)
+    avg_real = pivot.apply(_avg_real_row, axis=1)
+
+    # === Tampilan: NaN -> 0.0 untuk semua kolom bulan ===
+    display_pivot = pivot.fillna(0.0)
 
     # Susun DataFrame untuk display
-    display_df = pivot.reset_index().rename(columns={"outlet_name": "Outlet"})
-    display_df.insert(1, "Rata-rata", avg_prev)
+    display_df = display_pivot.reset_index().rename(columns={"outlet_name": "Outlet"})
+    display_df.insert(1, "Rata-rata", avg_real.values)
 
-    # Styling warna: bandingkan tiap kolom bulan vs kolom di kanan (bulan sebelumnya)
+    # ---------- Server-side Sorting Controls ----------
+    st.info("🔽 Sorting Tren Omset")
+    sc1, sc2 = st.columns([2, 1])
+    with sc1:
+        sort_by = st.selectbox(
+            "Urutkan berdasarkan",
+            ["Rata-rata", "Outlet"],
+            index=0,
+            key="trend_sort_by"
+        )
+    with sc2:
+        sort_order = st.selectbox(
+            "Urutan",
+            ["Descending (High to Low)", "Ascending (Low to High)"],
+            index=0,
+            key="trend_sort_order"
+        )
+    ascending = (sort_order == "Ascending (Low to High)")
+    if sort_by == "Outlet":
+        display_df_sorted = display_df.sort_values(by="Outlet", ascending=ascending, kind="mergesort")
+    else:
+        display_df_sorted = display_df.sort_values(by="Rata-rata", ascending=ascending, kind="mergesort")
+
+    # ---------- Styling (warna naik/turun per bulan) ----------
     def _growth_colors(row: pd.Series):
         vals = row[value_cols]
         cells = []
         last_index = len(vals) - 1
-        for j, v in enumerate(vals):
-            if j == last_index or pd.isna(v) or pd.isna(vals.iloc[j + 1]):
+        for j in range(len(vals)):
+            if j == last_index:
                 cells.append("")
             else:
-                prev = vals.iloc[j + 1]
-                if v > prev:
+                cur = float(vals.iloc[j]) if pd.notna(vals.iloc[j]) else 0.0
+                prv = float(vals.iloc[j+1]) if pd.notna(vals.iloc[j+1]) else 0.0
+                if cur > prv:
                     cells.append("color:#10b981;font-weight:600")
-                elif v < prev:
+                elif cur < prv:
                     cells.append("color:#ef4444;font-weight:600")
                 else:
                     cells.append("")
         return cells
 
-    # Formatter currency utk kolom bulan + rata-rata
-    fmt_map = {col: (lambda x, _cfg=config: "-" if pd.isna(x) else _cfg.format_currency(float(x))) for col in value_cols}
-    fmt_map["Rata-rata"] = (lambda x, _cfg=config: "-" if pd.isna(x) or x is None else _cfg.format_currency(float(x)))
+    def _fmt_currency(x, _cfg=config):
+        try:
+            return _cfg.format_currency(float(0.0 if (x is None or (isinstance(x, float) and (np.isnan(x) or np.isinf(x)))) else x))
+        except Exception:
+            return _cfg.format_currency(0.0)
+
+    fmt_map = {col: _fmt_currency for col in value_cols}
+    fmt_map["Rata-rata"] = _fmt_currency
 
     styled = (
-        display_df.style
+        display_df_sorted.style
         .apply(_growth_colors, axis=1, subset=value_cols)
         .format(fmt_map)
     )
@@ -568,9 +593,9 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
 
     df_show(styled, use_container_width=True, hide_index=True, column_config=column_config)
     try:
-        st.caption("Rata-rata menghitung bulan sebelum current dengan omset > 0. Hijau=naik vs bulan lalu; Merah=turun.")
+        st.caption("Nilai kosong ditampilkan sebagai 0. Rata-rata dihitung dari 12 bulan tampil (termasuk current), hanya omset > 0 yang dihitung. Hijau=naik vs bulan lalu; Merah=turun.")
     except Exception:
-        st.write("_Rata-rata menghitung bulan sebelum current dengan omset > 0. Hijau=naik vs bulan lalu; Merah=turun._")
+        st.write("_Nilai kosong ditampilkan sebagai 0. Rata-rata dihitung dari 12 bulan tampil (termasuk current), hanya omset > 0 yang dihitung._")
 
 # ================= PAGES =================
 def main():
@@ -609,8 +634,7 @@ def main():
         selected_kategori = st.sidebar.selectbox("Kategori Tempat", kategoris)
         tipes = ["Semua"] + safe_unique_str(df, "tipe_tempat")
         selected_tipe = st.sidebar.selectbox("Tipe Tempat", tipes)
-        filtered_df = processor.filter_data(df, selected_area, selected_kategori, selected_tipe, current_period) \
-                       if hasattr(processor, "filter_data") else df
+        filtered_df = processor.filter_data(df, selected_area, selected_kategori, selected_tipe, current_period) if hasattr(processor, "filter_data") else df
     else:
         filtered_df = df
 
@@ -1021,6 +1045,7 @@ def show_upload_data(config: Config):
             col_area    = st.selectbox("Kolom Area → area (opsional)", ["<None>"]+col_list, index=_idx(auto_map.get("area","")))
             col_type    = st.selectbox("Kolom Jenis/Type (Foto/Unlock/Print) → type", ["<None>"]+col_list, index=_idx(auto_map.get("type","")))
 
+            # <<< FIXED: gunakan 'or' (bukan 'atau') >>>
             if col_outlet == "<None>" or col_harga == "<None>":
                 st.error("❌ Wajib pilih kolom Outlet dan Harga."); return
 
