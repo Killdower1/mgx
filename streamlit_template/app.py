@@ -1,4 +1,5 @@
-# app.py — Difotoin Dashboard (Trend 12 bulan + kolom Rata-rata)
+# app.py — Difotoin Dashboard (Trend 12 bulan + kolom Rata-rata) — Server-Compat (Streamlit lama, Python 3.6)
+
 import io
 import os
 import re
@@ -8,11 +9,70 @@ import numpy as np
 from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
+from typing import List, Tuple, Dict, Optional  # 3.6-compatible typing
 
 from data_processor import DataProcessor
 from visualizations import Visualizations
 from utils import *
 from config import Config
+
+# ================= COMPAT LAYER (untuk Streamlit lama / Python 3.6) =================
+HAS_CACHE_DATA = hasattr(st, "cache_data")
+HAS_COLUMN_CONFIG = hasattr(st, "column_config")
+def cache_data(func=None, **kwargs):
+    # alias decorator: pakai cache_data kalau ada; else st.cache
+    deco = st.cache_data if HAS_CACHE_DATA else st.cache
+    return deco(func) if func else deco(**kwargs)
+
+def rerun():
+    try:
+        st.rerun()
+    except Exception:
+        try:
+            st.experimental_rerun()
+        except Exception:
+            pass
+
+def text_col(title, width="medium"):
+    if HAS_COLUMN_CONFIG:
+        try:
+            return st.column_config.TextColumn(title, width=width)
+        except Exception:
+            return None
+    return None
+
+def df_show(df_obj, use_container_width=True, hide_index=True, column_config=None):
+    # aman untuk versi lama yang belum dukung column_config/arg baru
+    try:
+        if column_config is not None and HAS_COLUMN_CONFIG:
+            st.dataframe(df_obj, use_container_width=use_container_width, hide_index=hide_index, column_config=column_config)
+        else:
+            st.dataframe(df_obj, use_container_width=use_container_width, hide_index=hide_index)
+    except TypeError:
+        st.dataframe(df_obj)
+    except Exception:
+        try:
+            st.table(df_obj)
+        except Exception:
+            st.write(df_obj)
+
+def cache_clear(func):
+    # clear cache untuk fungsi cached di berbagai versi Streamlit
+    try:
+        func.clear()
+        return
+    except Exception:
+        pass
+    for name in ("cache_data", "experimental_memo", "legacy_caching", "caching"):
+        mod = getattr(st, name, None)
+        if mod:
+            clear = getattr(mod, "clear" if name in ("cache_data", "experimental_memo") else "clear_cache", None)
+            if callable(clear):
+                try:
+                    clear()
+                    return
+                except Exception:
+                    pass
 
 # ================= CONFIG =================
 st.set_page_config(
@@ -95,7 +155,7 @@ def show_login_page():
                 st.session_state["logged_in"] = True
                 st.session_state["user_email"] = email
                 st.success("✅ Login successful! Redirecting…")
-                st.rerun()
+                rerun()
             else:
                 st.error("❌ Invalid email or password. Please try again.")
     st.markdown("---")
@@ -106,7 +166,7 @@ def show_logout_button():
     if st.sidebar.button("🚪 Logout", key="btn_logout"):
         st.session_state["logged_in"] = False
         st.session_state["user_email"] = None
-        st.rerun()
+        rerun()
     if st.session_state.get("user_email"):
         st.sidebar.markdown(f"👤 **Logged in as:**\n{st.session_state['user_email']}")
 
@@ -115,7 +175,7 @@ def check_login():
     return bool(st.session_state.get("logged_in"))
 
 # ================= LOAD =================
-@st.cache_data
+@cache_data
 def load_app_data():
     processor = DataProcessor()
     return processor.load_data()
@@ -141,7 +201,7 @@ def format_number_with_dots(num):
 def _norm_name(s: str) -> str:
     return str(s).strip().lower()
 
-def safe_unique_str(df: pd.DataFrame, col: str) -> list[str]:
+def safe_unique_str(df: pd.DataFrame, col: str) -> List[str]:
     if col not in df.columns:
         return []
     vals = df[col].dropna().astype(str).unique().tolist()
@@ -182,7 +242,7 @@ FOTO_RE = re.compile(r"\b(foto|photo|photos|capture|shoot)\b", re.I)
 UNLOCK_RE = re.compile(r"\b(unlock|qr|scan)\b", re.I)
 PRINT_RE = re.compile(r"\b(print|printed|cetak|printout|print-out)\b", re.I)
 
-def derive_counts_from_type(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+def derive_counts_from_type(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     d = df.copy()
     t = d["type"].astype(str).str.strip().str.lower().fillna("") if "type" in d.columns else pd.Series([""]*len(d), index=d.index)
     d["_foto_qty"]   = t.str.contains(FOTO_RE).astype(int)
@@ -198,7 +258,7 @@ def compute_status(total_revenue: float, config: Config) -> str:
     return "Relocate"
 
 # ======== Agregasi ========
-def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: str | None = None) -> tuple[pd.DataFrame, dict]:
+def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: Optional[str] = None) -> Tuple[pd.DataFrame, dict]:
     df = mapped_df.copy()
     if "tanggal" in df.columns and df["tanggal"].notna().any():
         df["periode"] = pd.to_datetime(df["tanggal"], errors="coerce").dt.strftime("%Y-%m")
@@ -245,7 +305,7 @@ def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: 
     return agg[cols], audit_derive
 
 # ======== SAVE: OVERWRITE by PERIOD ========
-def save_overwrite_periods(new_df: pd.DataFrame, path: str) -> tuple[pd.DataFrame, dict]:
+def save_overwrite_periods(new_df: pd.DataFrame, path: str) -> Tuple[pd.DataFrame, dict]:
     periods = sorted(new_df["periode"].astype(str).unique().tolist())
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path):
@@ -369,32 +429,34 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
         styled = styled.apply(lambda s: color_by_delta(s, table_sorted['_unlock_delta']), axis=0, subset=['Unlock Compare'])
         styled = styled.apply(lambda s: color_by_delta(s, table_sorted['_conv_delta']), axis=0, subset=['Conversion Compare'])
 
-    column_config = {
-        "Outlet": st.column_config.TextColumn("Outlet", width="medium", pinned=True),
-        "Area": st.column_config.TextColumn("Area", width="small"),
-        "Omset": st.column_config.TextColumn("Omset", width="medium"),
-        "Omset Compare": st.column_config.TextColumn("Omset Compare", width="medium"),
-        "Foto": st.column_config.TextColumn("Foto", width="small"),
-        "Foto Compare": st.column_config.TextColumn("Foto Compare", width="small"),
-        "Unlock": st.column_config.TextColumn("Unlock", width="small"),
-        "Unlock Compare": st.column_config.TextColumn("Unlock Compare", width="small"),
-        "Conversion": st.column_config.TextColumn("Conversion", width="small"),
-        "Conversion Compare": st.column_config.TextColumn("Conversion Compare", width="small"),
-        "Status": st.column_config.TextColumn("Status", width="small"),
-    }
+    column_config = None
+    if HAS_COLUMN_CONFIG:
+        column_config = {
+            "Outlet": text_col("Outlet", width="medium"),
+            "Area": text_col("Area", width="small"),
+            "Omset": text_col("Omset", width="medium"),
+            "Omset Compare": text_col("Omset Compare", width="medium"),
+            "Foto": text_col("Foto", width="small"),
+            "Foto Compare": text_col("Foto Compare", width="small"),
+            "Unlock": text_col("Unlock", width="small"),
+            "Unlock Compare": text_col("Unlock Compare", width="small"),
+            "Conversion": text_col("Conversion", width="small"),
+            "Conversion Compare": text_col("Conversion Compare", width="small"),
+            "Status": text_col("Status", width="small"),
+        }
 
-    st.dataframe(styled, use_container_width=True, hide_index=True, column_config=column_config)
+    df_show(styled, use_container_width=True, hide_index=True, column_config=column_config)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ================= OMSET TREND TABLE (12 bulan, kiri=Current, + Rata-rata) =================
-def _sort_periods_str(periods: list[str]) -> list[str]:
+def _sort_periods_str(periods: List[str]) -> List[str]:
     s = pd.Series(periods, dtype="string")
     dt = pd.to_datetime(s, format="%Y-%m", errors="coerce")
     helper = pd.DataFrame({"p": s, "dt": dt})
     helper = helper.sort_values(by=["dt","p"], na_position="last")
     return helper["p"].astype(str).tolist()
 
-def _list_last_n_periods(anchor_period: str, n: int) -> list[str]:
+def _list_last_n_periods(anchor_period: str, n: int) -> List[str]:
     """Return [anchor, anchor-1, ..., anchor-(n-1)] in 'YYYY-MM'."""
     try:
         y, m = map(int, anchor_period.split("-"))
@@ -410,7 +472,7 @@ def _list_last_n_periods(anchor_period: str, n: int) -> list[str]:
         out.append(f"{yy:04d}-{mm:02d}")
     return out
 
-def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, config: Config, current_period: str | None, months: int = 12):
+def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, config: Config, current_period: Optional[str], months: int = 12):
     st.subheader("📆 Tren Omset Outlet (12 Bulan)")
     if df_filtered.empty or "outlet_name" not in df_filtered.columns or "periode" not in df_full.columns:
         st.info("Data tidak cukup untuk menampilkan tren omset.")
@@ -455,7 +517,7 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
     value_cols = periods_window  # [current, current-1, ..., current-11]
 
     # === Rata-rata: dari bulan-bulan SEBELUM current (exclude kolom 0), hanya nilai > 0 ===
-    def _avg_prev_row(row: pd.Series) -> float | None:
+    def _avg_prev_row(row: pd.Series):
         prev_vals = row.iloc[1:]          # exclude current
         prev_vals = prev_vals.dropna()
         prev_vals = prev_vals[prev_vals > 0]  # ignore kosong/0
@@ -497,13 +559,18 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
         .format(fmt_map)
     )
 
-    column_config = {
-        "Outlet": st.column_config.TextColumn("Outlet", width="medium", pinned=True),
-        "Rata-rata": st.column_config.TextColumn("Rata-rata", width="medium"),
-    }
+    column_config = None
+    if HAS_COLUMN_CONFIG:
+        column_config = {
+            "Outlet": text_col("Outlet", width="medium"),
+            "Rata-rata": text_col("Rata-rata", width="medium"),
+        }
 
-    st.dataframe(styled, use_container_width=True, hide_index=True, column_config=column_config)
-    st.caption("Rata-rata menghitung bulan sebelum current dengan omset > 0. Hijau=naik vs bulan lalu; Merah=turun.")
+    df_show(styled, use_container_width=True, hide_index=True, column_config=column_config)
+    try:
+        st.caption("Rata-rata menghitung bulan sebelum current dengan omset > 0. Hijau=naik vs bulan lalu; Merah=turun.")
+    except Exception:
+        st.write("_Rata-rata menghitung bulan sebelum current dengan omset > 0. Hijau=naik vs bulan lalu; Merah=turun._")
 
 # ================= PAGES =================
 def main():
@@ -644,7 +711,7 @@ def show_outlet_crud(df, config, processor):
         s1, s2, s3, s4 = st.tabs(["📋 View All", "➕ Add New", "✏️ Edit", "🗑️ Delete"])
         with s1:
             st.subheader("📋 All Outlet Data")
-            st.dataframe(outlet_mapping, use_container_width=True) if not outlet_mapping.empty else st.info("No outlet data available")
+            df_show(outlet_mapping, use_container_width=True, hide_index=True) if not outlet_mapping.empty else st.info("No outlet data available")
         with s2:
             st.subheader("➕ Add New Outlet")
             with st.form("add_outlet_form"):
@@ -662,7 +729,7 @@ def show_outlet_crud(df, config, processor):
                                                 'tipe_tempat':[new_tipe]})
                         outlet_mapping = pd.concat([outlet_mapping, new_row], ignore_index=True)
                         outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
-                        st.success("✅ Outlet added successfully!"); st.rerun()
+                        st.success("✅ Outlet added successfully!"); rerun()
         with s3:
             st.subheader("✏️ Edit Outlet")
             if not outlet_mapping.empty:
@@ -678,7 +745,7 @@ def show_outlet_crud(df, config, processor):
                         if st.form_submit_button("Update Outlet"):
                             outlet_mapping.loc[outlet_mapping['outlet_name']==outlet_to_edit, ['area','kategori_tempat','sub_kategori_tempat','tipe_tempat']] = [edit_area, edit_kat, edit_sub, edit_tipe]
                             outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
-                            st.success("✅ Outlet updated successfully!"); st.rerun()
+                            st.success("✅ Outlet updated successfully!"); rerun()
             else:
                 st.info("No outlets available to edit")
         with s4:
@@ -688,7 +755,7 @@ def show_outlet_crud(df, config, processor):
                 if outlet_to_delete and st.button("🗑️ Confirm Delete", type="secondary"):
                     outlet_mapping = outlet_mapping[outlet_mapping['outlet_name']!=outlet_to_delete]
                     outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
-                    st.success("✅ Outlet deleted successfully!"); st.rerun()
+                    st.success("✅ Outlet deleted successfully!"); rerun()
             else:
                 st.info("No outlets available to delete")
     with tab2:
@@ -696,36 +763,36 @@ def show_outlet_crud(df, config, processor):
         c1, c2 = st.columns(2)
         with c1:
             st.markdown("**Kategori Tempat**")
-            st.dataframe(pd.DataFrame({'Kategori': KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
+            df_show(pd.DataFrame({'Kategori': KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
             with st.form("add_kategori_form"):
                 nk = st.text_input("Nama Kategori Baru")
                 if st.form_submit_button("Tambah Kategori"):
                     if nk and nk not in KATEGORI_TEMPAT:
-                        KATEGORI_TEMPAT.append(nk); st.success(f"✅ Kategori '{nk}' berhasil ditambahkan!"); st.rerun()
+                        KATEGORI_TEMPAT.append(nk); st.success(f"✅ Kategori '{nk}' berhasil ditambahkan!"); rerun()
                     else: st.error("❌ Kategori sudah ada atau kosong!")
         with c2:
             st.markdown("**Sub Kategori Tempat**")
-            st.dataframe(pd.DataFrame({'Sub Kategori': SUB_KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
+            df_show(pd.DataFrame({'Sub Kategori': SUB_KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
             with st.form("add_sub_kategori_form"):
                 ns = st.text_input("Nama Sub Kategori Baru")
                 if st.form_submit_button("Tambah Sub Kategori"):
                     if ns and ns not in SUB_KATEGORI_TEMPAT:
-                        SUB_KATEGORI_TEMPAT.append(ns); st.success(f"✅ Sub Kategori '{ns}' berhasil ditambahkan!"); st.rerun()
+                        SUB_KATEGORI_TEMPAT.append(ns); st.success(f"✅ Sub Kategori '{ns}' berhasil ditambahkan!"); rerun()
                     else: st.error("❌ Sub Kategori sudah ada atau kosong!")
     with tab3:
         st.subheader("🗺️ Master Data Area (Kota & Kabupaten Indonesia)")
         a1, a2 = st.columns([2,1])
         with a1:
             st.markdown("**Daftar Area Indonesia**")
-            st.dataframe(pd.DataFrame({'Area': INDONESIA_AREAS}), use_container_width=True, hide_index=True, height=400)
+            df_show(pd.DataFrame({'Area': INDONESIA_AREAS}), use_container_width=True, hide_index=True)
         with a2:
             with st.form("add_area_form"):
                 na = st.text_input("Nama Kota/Kabupaten Baru")
                 if st.form_submit_button("Tambah Area"):
                     if na and na not in INDONESIA_AREAS:
-                        INDONESIA_AREAS.append(na); INDONESIA_AREAS.sort(); st.success(f"✅ Area '{na}' berhasil ditambahkan!"); st.rerun()
+                        INDONESIA_AREAS.append(na); INDONESIA_AREAS.sort(); st.success(f"✅ Area '{na}' berhasil ditambahkan!"); rerun()
                     else: st.error("❌ Area sudah ada atau kosong!")
-            st.info(f"📊 Total Area: {len(INDONESIA_AREAS)} kota/kabupaten")
+            st.info("📊 Total Area: {}".format(len(INDONESIA_AREAS)))
 
 def show_trend_analysis(df, config, processor, viz):
     st.title("📊 Analisis Trend Penjualan")
@@ -735,8 +802,8 @@ def show_trend_analysis(df, config, processor, viz):
     st.subheader("🏠 Indoor vs Outdoor Analysis"); st.plotly_chart(viz.create_indoor_outdoor_comparison(df), use_container_width=True)
     st.subheader("🔥 Performance Heatmap"); st.plotly_chart(viz.create_heatmap(df), use_container_width=True)
     c1, c2 = st.columns(2)
-    with c1: st.subheader("📋 Summary by Area"); st.dataframe(processor.aggregate_by_area(df), use_container_width=True)
-    with c2: st.subheader("📋 Summary by Category"); st.dataframe(processor.aggregate_by_kategori(df), use_container_width=True)
+    with c1: st.subheader("📋 Summary by Area"); df_show(processor.aggregate_by_area(df), use_container_width=True)
+    with c2: st.subheader("📋 Summary by Category"); df_show(processor.aggregate_by_kategori(df), use_container_width=True)
 
 def show_conversion_analysis(df, config, processor, viz):
     st.title("🔄 Analisis Konversi & Awareness")
@@ -759,16 +826,16 @@ def show_conversion_analysis(df, config, processor, viz):
     with a:
         st.write("**🟢 High Conversion Outlets (>25%)**")
         hi = df[df['conversion_rate']>25].sort_values('conversion_rate', ascending=False)
-        st.dataframe(hi[['outlet_name','conversion_rate','total_revenue']], use_container_width=True) if not hi.empty else st.info("No outlets with >25% conversion rate")
+        df_show(hi[['outlet_name','conversion_rate','total_revenue']], use_container_width=True) if not hi.empty else st.info("No outlets with >25% conversion rate")
     with b:
         st.write("**🔴 Low Conversion Outlets (<15%)**")
         lo = df[df['conversion_rate']<15].sort_values('conversion_rate', ascending=True)
-        st.dataframe(lo[['outlet_name','conversion_rate','total_revenue']], use_container_width=True) if not lo.empty else st.info("No outlets with <15% conversion rate")
+        df_show(lo[['outlet_name','conversion_rate','total_revenue']], use_container_width=True) if not lo.empty else st.info("No outlets with <15% conversion rate")
     st.subheader("📢 Awareness Analysis")
     seg = df[(df['foto_qty']>df['foto_qty'].median()) & (df['conversion_rate']<df['conversion_rate'].median())]
     if not seg.empty:
         st.write("**⚠️ High Awareness, Low Conversion (Need Promotion)**")
-        st.dataframe(seg[['outlet_name','foto_qty','conversion_rate','total_revenue']], use_container_width=True)
+        df_show(seg[['outlet_name','foto_qty','conversion_rate','total_revenue']], use_container_width=True)
     st.subheader("📈 Conversion Trends"); st.plotly_chart(viz.create_trend_chart(df, 'conversion_rate'), use_container_width=True)
 
 def show_outlet_ranking(df, config, processor):
@@ -785,18 +852,18 @@ def show_outlet_ranking(df, config, processor):
     disp = ranked[['rank','outlet_name','area','kategori_tempat','total_revenue','conversion_rate','outlet_status']].copy()
     disp['total_revenue'] = disp['total_revenue'].apply(lambda x: Config().format_currency(x))
     disp['conversion_rate'] = disp['conversion_rate'].apply(lambda x: f"{x:.1f}%")
-    st.dataframe(disp, use_container_width=True)
+    df_show(disp, use_container_width=True)
     st.subheader("📋 Analysis by Status")
     t1,t2,t3 = st.tabs(["🟢 Keeper","🟡 Optimasi","🔴 Relocate"])
     with t1:
         k = df[df['outlet_status']=="Keeper"]
-        st.dataframe(k[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not k.empty else st.info("No outlets in Keeper status")
+        df_show(k[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not k.empty else st.info("No outlets in Keeper status")
     with t2:
         o = df[df['outlet_status']=="Optimasi"]
-        st.dataframe(o[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not o.empty else st.info("No outlets in Optimasi status")
+        df_show(o[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not o.empty else st.info("No outlets in Optimasi status")
     with t3:
         r = df[df['outlet_status']=="Relocate"]
-        st.dataframe(r[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not r.empty else st.info("No outlets in Relocate status")
+        df_show(r[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not r.empty else st.info("No outlets in Relocate status")
 
 def show_period_comparison(df, config, processor, viz, current_period, compare_period):
     st.title("📅 Perbandingan Periode")
@@ -837,10 +904,10 @@ def show_admin_panel(config):
                 config.set_threshold("optimasi_minimum", int(new_optim))
                 ok = config.save_config()
                 if ok:
-                    try: load_app_data.clear()
+                    try: cache_clear(load_app_data)
                     except Exception: pass
                     st.success("✅ Thresholds updated & config saved.")
-                    st.rerun()
+                    rerun()
                 else:
                     st.error("❌ Failed to save thresholds.")
             except Exception as e:
@@ -849,7 +916,7 @@ def show_admin_panel(config):
     with colB:
         if st.button("🧹 Clear Cached Data", key="btn_clear_cache"):
             try:
-                load_app_data.clear()
+                cache_clear(load_app_data)
                 st.success("✅ Cache cleared.")
             except Exception as e:
                 st.warning(f"ℹ️ Cache clear note: {e}")
@@ -877,21 +944,21 @@ def show_admin_panel(config):
                     st.write(f"Rows (approx): ~{rows:,}")
                 except Exception:
                     pass
-                st.dataframe(df_info, use_container_width=True)
+                df_show(df_info, use_container_width=True)
             except Exception as e:
                 st.warning(f"Tidak bisa membaca CSV: {e}")
         else:
             st.info("File data belum ada.")
 
     if st.button("🔄 Reload Page", key="btn_reload_page"):
-        st.rerun()
+        rerun()
 
 # ================= UPLOAD =================
-def suggest_default_sheets(sheet_names: list[str]) -> list[str]:
+def suggest_default_sheets(sheet_names: List[str]) -> List[str]:
     picks = [s for s in sheet_names if any(k in s.lower() for k in ["data","transaksi","raw","detail"])]
     return picks or sheet_names[:1]
 
-def read_selected_sheets(uploaded_file, selected_sheets: list[str]) -> pd.DataFrame:
+def read_selected_sheets(uploaded_file, selected_sheets: List[str]) -> pd.DataFrame:
     xls = pd.ExcelFile(uploaded_file)
     frames = []
     for name in selected_sheets:
@@ -900,7 +967,7 @@ def read_selected_sheets(uploaded_file, selected_sheets: list[str]) -> pd.DataFr
         frames.append(normalize_headers(df))
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
-def deduplicate_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+def deduplicate_rows(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     df = df.copy()
     subset = [c for c in ["outlet_name","tanggal","harga","type"] if c in df.columns] or [c for c in ["outlet_name","harga"] if c in df.columns]
     before_rows = len(df)
@@ -932,7 +999,7 @@ def show_upload_data(config: Config):
             try:
                 st.caption("Preview 10 baris pertama dari sheet pertama terpilih")
                 prev = pd.read_excel(xls, sheet_name=selected_sheets[0], nrows=10)
-                st.dataframe(prev, use_container_width=True)
+                df_show(prev, use_container_width=True)
             except Exception:
                 pass
 
@@ -943,16 +1010,16 @@ def show_upload_data(config: Config):
             # Mapping manual
             st.subheader("🧭 Column Mapping")
             auto_map = apply_column_mapping_auto(full_df_raw)
-            col_outlet  = st.selectbox("Kolom Outlet → outlet_name", ["<None>"]+list(full_df_raw.columns),
-                                       index=(list(full_df_raw.columns).index(auto_map.get("outlet_name",""))+1) if auto_map.get("outlet_name") in full_df_raw.columns else 0)
-            col_harga   = st.selectbox("Kolom Harga → harga", ["<None>"]+list(full_df_raw.columns),
-                                       index=(list(full_df_raw.columns).index(auto_map.get("harga",""))+1) if auto_map.get("harga") in full_df_raw.columns else 0)
-            col_tanggal = st.selectbox("Kolom Tanggal → tanggal (opsional)", ["<None>"]+list(full_df_raw.columns),
-                                       index=(list(full_df_raw.columns).index(auto_map.get("tanggal",""))+1) if auto_map.get("tanggal") in full_df_raw.columns else 0)
-            col_area    = st.selectbox("Kolom Area → area (opsional)", ["<None>"]+list(full_df_raw.columns),
-                                       index=(list(full_df_raw.columns).index(auto_map.get("area",""))+1) if auto_map.get("area") in full_df_raw.columns else 0)
-            col_type    = st.selectbox("Kolom Jenis/Type (Foto/Unlock/Print) → type", ["<None>"]+list(full_df_raw.columns),
-                                       index=(list(full_df_raw.columns).index(auto_map.get("type",""))+1) if auto_map.get("type") in full_df_raw.columns else 0)
+            col_list = list(full_df_raw.columns)
+
+            def _idx(colname):
+                return (col_list.index(colname)+1) if (colname in col_list) else 0
+
+            col_outlet  = st.selectbox("Kolom Outlet → outlet_name", ["<None>"]+col_list, index=_idx(auto_map.get("outlet_name","")))
+            col_harga   = st.selectbox("Kolom Harga → harga", ["<None>"]+col_list, index=_idx(auto_map.get("harga","")))
+            col_tanggal = st.selectbox("Kolom Tanggal → tanggal (opsional)", ["<None>"]+col_list, index=_idx(auto_map.get("tanggal","")))
+            col_area    = st.selectbox("Kolom Area → area (opsional)", ["<None>"]+col_list, index=_idx(auto_map.get("area","")))
+            col_type    = st.selectbox("Kolom Jenis/Type (Foto/Unlock/Print) → type", ["<None>"]+col_list, index=_idx(auto_map.get("type","")))
 
             if col_outlet == "<None>" or col_harga == "<None>":
                 st.error("❌ Wajib pilih kolom Outlet dan Harga."); return
@@ -981,55 +1048,55 @@ def show_upload_data(config: Config):
             if "type" in cleaned.columns:
                 st.caption("Distribusi nilai kolom Type (untuk derive Foto/Unlock/Print):")
                 vc = cleaned["type"].astype(str).str.strip().str.lower().value_counts().head(15)
-                st.dataframe(vc.to_frame("count"), use_container_width=True)
+                df_show(vc.to_frame("count"), use_container_width=True)
 
             # Dedup
             tmp_for_dedup = cleaned.copy()
             deduped, dd_audit = deduplicate_rows(tmp_for_dedup)
 
             st.subheader("🧮 Ringkasan Excel RAW (setelah mapping, cleaning & dedup)")
-            st.write(f"- Rows sebelum dedup: **{dd_audit['rows_before']:,}**")
-            st.write(f"- Rows sesudah dedup: **{dd_audit['rows_after']:,}**  (hapus **{dd_audit['dup_removed']:,}** duplikat)")
-            st.write(f"- Total Harga sesudah dedup: **{Config().format_currency(dd_audit['sum_after'])}**")
-            st.write(f"- Key dedup: **{', '.join(dd_audit['subset']) or '(none)'}**")
+            st.write("- Rows sebelum dedup: **{:,}**".format(dd_audit['rows_before']))
+            st.write("- Rows sesudah dedup: **{:,}**  (hapus **{:,}** duplikat)".format(dd_audit['rows_after'], dd_audit['dup_removed']))
+            st.write("- Total Harga sesudah dedup: **{}**".format(Config().format_currency(dd_audit['sum_after'])))
+            st.write("- Key dedup: **{}**".format(', '.join(dd_audit['subset']) or '(none)'))
 
             # Agregasi
             processed_df, derive_audit = aggregate_monthly(deduped, config, fallback_period=fallback_period)
 
             st.subheader("🧪 Derive Audit (dari kolom Type)")
-            st.write(f"- Match Foto  : **{derive_audit.get('match_foto',0):,}** rows")
-            st.write(f"- Match Unlock: **{derive_audit.get('match_unlock',0):,}** rows")
-            st.write(f"- Match Print : **{derive_audit.get('match_print',0):,}** rows")
+            st.write("- Match Foto  : **{:,}** rows".format(derive_audit.get('match_foto',0)))
+            st.write("- Match Unlock: **{:,}** rows".format(derive_audit.get('match_unlock',0)))
+            st.write("- Match Print : **{:,}** rows".format(derive_audit.get('match_print',0)))
 
             st.subheader("🔎 Preview Hasil Agregasi")
             show_cols = ["periode","outlet_name","area","total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate"]
-            st.dataframe(processed_df[show_cols].head(25), use_container_width=True)
+            df_show(processed_df[show_cols].head(25), use_container_width=True)
 
             st.subheader("🧾 Audit — Perbandingan Total (Excel vs Agregasi)")
             total_raw = float(dd_audit['sum_after'])
             total_aggr = float(processed_df["total_revenue"].sum())
-            st.write(f"- Total Harga **Excel RAW (DEDUP & SCALE)**: **{Config().format_currency(total_raw)}**")
-            st.write(f"- Total Revenue **Agregasi file ini**: **{Config().format_currency(total_aggr)}**")
-            st.write(f"- Selisih (Agregasi - Raw): **{Config().format_currency(total_aggr - total_raw)}**")
+            st.write("- Total Harga **Excel RAW (DEDUP & SCALE)**: **{}**".format(Config().format_currency(total_raw)))
+            st.write("- Total Revenue **Agregasi file ini**: **{}**".format(Config().format_currency(total_aggr)))
+            st.write("- Selisih (Agregasi - Raw): **{}**".format(Config().format_currency(total_aggr - total_raw)))
 
             if st.button("🚀 Save (Overwrite periode terpilih)"):
                 with st.spinner("Menyimpan (overwrite by period)..."):
                     merged, ow = save_overwrite_periods(processed_df, DATA_CSV_PATH)
                     per_uploaded = ow["periods_overwritten"]
                     before_total = ow["before_total"]; after_total = ow["after_total"]
-                    try: load_app_data.clear()
+                    try: cache_clear(load_app_data)
                     except Exception: pass
                     st.success("✅ Data berhasil di-overwrite berdasarkan periode!")
                     st.subheader("🧾 Audit — Overwrite by Period")
-                    st.write(f"- Periode di-overwrite: **{', '.join(per_uploaded)}**")
-                    st.write(f"- Total di CSV (sebelum overwrite): **{Config().format_currency(before_total)}**")
-                    st.write(f"- Total di CSV (sesudah overwrite): **{Config().format_currency(after_total)}**")
-                    st.info(f"Periode tersedia sekarang: **{', '.join(ow['remaining_periods'])}**")
+                    st.write("- Periode di-overwrite: **{}**".format(', '.join(per_uploaded)))
+                    st.write("- Total di CSV (sebelum overwrite): **{}**".format(Config().format_currency(before_total)))
+                    st.write("- Total di CSV (sesudah overwrite): **{}**".format(Config().format_currency(after_total)))
+                    st.info("Periode tersedia sekarang: **{}**".format(', '.join(ow['remaining_periods'])))
                     csv_subset = merged[merged["periode"].isin(per_uploaded)]
                     csv_total_for_periods = float(csv_subset["total_revenue"].sum())
-                    st.write(f"- Total di CSV (periode file ini): **{Config().format_currency(csv_total_for_periods)}**")
-                    st.write(f"- Selisih (CSV - Agregasi file ini): **{Config().format_currency(csv_total_for_periods - total_aggr)}**")
-                    st.rerun()
+                    st.write("- Total di CSV (periode file ini): **{}**".format(Config().format_currency(csv_total_for_periods)))
+                    st.write("- Selisih (CSV - Agregasi file ini): **{}**".format(Config().format_currency(csv_total_for_periods - total_aggr)))
+                    rerun()
 
         except Exception as e:
             st.error(f"❌ Error reading/processing file: {e}")
