@@ -1,4 +1,4 @@
-# app.py — Difotoin Dashboard (Trend 12 bulan + kolom Rata-rata) — Server-Compat (Streamlit/Python lama)
+# app.py — Difotoin Dashboard (Trend 12 bulan + kolom Rata-rata) — Server-Compat (Streamlit/Python lama) — Mutation-safe
 
 import io
 import os
@@ -22,6 +22,7 @@ HAS_COLUMN_CONFIG = hasattr(st, "column_config")
 HAS_CAPTION = hasattr(st, "caption")
 
 def cache_data(func=None, **kwargs):
+    # gunakan st.cache_data jika ada; fallback ke st.cache (tanpa allow_output_mutation)
     deco = st.cache_data if HAS_CACHE_DATA else st.cache
     return deco(func) if func else deco(**kwargs)
 
@@ -183,6 +184,7 @@ def check_login():
 # ================= LOAD =================
 @cache_data
 def load_app_data():
+    # Penting: jangan copy/ubah di sini — biarkan objek cache tetap
     processor = DataProcessor()
     return processor.load_data()
 
@@ -587,8 +589,12 @@ def main():
     processor = DataProcessor()
     viz = Visualizations(config)
 
+    # >>> Fix utama: copy(deep=True) AGAR TIDAK memodifikasi objek hasil cache
     df = load_app_data()
-    if "area" in df.columns:
+    if isinstance(df, pd.DataFrame):
+        df = df.copy(deep=True)  # <-- penting untuk hilangkan CachedObjectMutationWarning
+
+    if not df.empty and "area" in df.columns:
         df["area"] = df["area"].astype(str).replace({"nan": ""})
 
     st.sidebar.title("📸 Difotoin Dashboard")
@@ -614,7 +620,9 @@ def main():
         selected_kategori = st.sidebar.selectbox("Kategori Tempat", kategoris)
         tipes = ["Semua"] + safe_unique_str(df, "tipe_tempat")
         selected_tipe = st.sidebar.selectbox("Tipe Tempat", tipes)
-        filtered_df = processor.filter_data(df, selected_area, selected_kategori, selected_tipe, current_period) if hasattr(processor, "filter_data") else df
+        # gunakan salinan untuk semua transformasi
+        df_for_filter = df.copy(deep=True)
+        filtered_df = processor.filter_data(df_for_filter, selected_area, selected_kategori, selected_tipe, current_period) if hasattr(processor, "filter_data") else df_for_filter
     else:
         filtered_df = df
 
@@ -640,7 +648,7 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
     if df.empty:
         st.error("❌ Data tidak tersedia. Silakan upload data terlebih dahulu."); return
 
-    m_df = df.copy()
+    m_df = df.copy(deep=True)
     for col in ["total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate"]:
         if col in m_df.columns:
             m_df[col] = pd.to_numeric(m_df[col], errors="coerce").fillna(0)
@@ -701,13 +709,14 @@ def show_outlet_crud(df, config, processor):
     st.title("🗃️ CRUD Data Outlet & Master Data")
     outlet_mapping = processor.load_outlet_mapping() if hasattr(processor, "load_outlet_mapping") else pd.DataFrame()
     if outlet_mapping.empty and not df.empty:
-        outlets = df['outlet_name'].unique()
+        base = df.copy(deep=True)
+        outlets = base['outlet_name'].unique()
         outlet_mapping = pd.DataFrame({
             'outlet_name': outlets,
-            'area': df.groupby('outlet_name')['area'].first().values if "area" in df.columns else "",
-            'kategori_tempat': df.groupby('outlet_name')['kategori_tempat'].first().values if "kategori_tempat" in df.columns else "Tidak Terkategorisasi",
-            'sub_kategori_tempat': df.groupby('outlet_name')['sub_kategori_tempat'].first().values if "sub_kategori_tempat" in df.columns else "Tidak Terkategorisasi",
-            'tipe_tempat': df.groupby('outlet_name')['tipe_tempat'].first().values if "tipe_tempat" in df.columns else "Indoor"
+            'area': base.groupby('outlet_name')['area'].first().values if "area" in base.columns else "",
+            'kategori_tempat': base.groupby('outlet_name')['kategori_tempat'].first().values if "kategori_tempat" in base.columns else "Tidak Terkategorisasi",
+            'sub_kategori_tempat': base.groupby('outlet_name')['sub_kategori_tempat'].first().values if "sub_kategori_tempat" in base.columns else "Tidak Terkategorisasi",
+            'tipe_tempat': base.groupby('outlet_name')['tipe_tempat'].first().values if "tipe_tempat" in base.columns else "Indoor"
         })
     tab1, tab2, tab3 = st.tabs(["🏪 Outlet Management", "📋 Master Data Kategori", "🗺️ Master Data Area"])
     with tab1:
@@ -805,52 +814,54 @@ def show_trend_analysis(df, config, processor, viz):
     st.subheader("🏠 Indoor vs Outdoor Analysis"); st.plotly_chart(viz.create_indoor_outdoor_comparison(df), use_container_width=True)
     st.subheader("🔥 Performance Heatmap"); st.plotly_chart(viz.create_heatmap(df), use_container_width=True)
     c1, c2 = st.columns(2)
-    with c1: st.subheader("📋 Summary by Area"); df_show(processor.aggregate_by_area(df), use_container_width=True)
-    with c2: st.subheader("📋 Summary by Category"); df_show(processor.aggregate_by_kategori(df), use_container_width=True)
+    with c1: st.subheader("📋 Summary by Area"); df_show(processor.aggregate_by_area(df.copy(deep=True)), use_container_width=True)
+    with c2: st.subheader("📋 Summary by Category"); df_show(processor.aggregate_by_kategori(df.copy(deep=True)), use_container_width=True)
 
 def show_conversion_analysis(df, config, processor, viz):
     st.title("🔄 Analisis Konversi & Awareness")
     if df.empty: st.error("❌ Data tidak tersedia."); return
+    base = df.copy(deep=True)
     c1, c2, c3 = st.columns(3)
-    with c1: st.metric("📸➡️🖨️ Foto to Print", f"{df['conversion_rate'].mean():.1f}%")
+    with c1: st.metric("📸➡️🖨️ Foto to Print", f"{base['conversion_rate'].mean():.1f}%")
     with c2:
-        unlock_sum = pd.to_numeric(df.get('unlock_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
-        print_sum  = pd.to_numeric(df.get('print_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
+        unlock_sum = pd.to_numeric(base.get('unlock_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
+        print_sum  = pd.to_numeric(base.get('print_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
         rate = (print_sum/unlock_sum*100) if unlock_sum>0 else 0
         st.metric("🔓➡️🖨️ Unlock to Print", f"{rate:.1f}%")
     with c3:
-        foto_sum = pd.to_numeric(df.get('foto_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
-        print_sum = pd.to_numeric(df.get('print_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
+        foto_sum = pd.to_numeric(base.get('foto_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
+        print_sum = pd.to_numeric(base.get('print_qty', pd.Series(dtype=int)), errors="coerce").fillna(0).sum()
         over = (print_sum/foto_sum*100) if foto_sum>0 else 0
         st.metric("🎯 Overall Conversion", f"{over:.1f}%")
-    st.subheader("🔄 Conversion Funnel"); st.plotly_chart(viz.create_conversion_funnel(df), use_container_width=True)
+    st.subheader("🔄 Conversion Funnel"); st.plotly_chart(viz.create_conversion_funnel(base), use_container_width=True)
     st.subheader("📊 Conversion Rate by Outlet")
     a,b = st.columns(2)
     with a:
         st.write("**🟢 High Conversion Outlets (>25%)**")
-        hi = df[df['conversion_rate']>25].sort_values('conversion_rate', ascending=False)
+        hi = base[base['conversion_rate']>25].sort_values('conversion_rate', ascending=False)
         df_show(hi[['outlet_name','conversion_rate','total_revenue']], use_container_width=True) if not hi.empty else st.info("No outlets with >25% conversion rate")
     with b:
         st.write("**🔴 Low Conversion Outlets (<15%)**")
-        lo = df[df['conversion_rate']<15].sort_values('conversion_rate', ascending=True)
+        lo = base[base['conversion_rate']<15].sort_values('conversion_rate', ascending=True)
         df_show(lo[['outlet_name','conversion_rate','total_revenue']], use_container_width=True) if not lo.empty else st.info("No outlets with <15% conversion rate")
     st.subheader("📢 Awareness Analysis")
-    seg = df[(df['foto_qty']>df['foto_qty'].median()) & (df['conversion_rate']<df['conversion_rate'].median())]
+    seg = base[(base['foto_qty']>base['foto_qty'].median()) & (base['conversion_rate']<base['conversion_rate'].median())]
     if not seg.empty:
         st.write("**⚠️ High Awareness, Low Conversion (Need Promotion)**")
         df_show(seg[['outlet_name','foto_qty','conversion_rate','total_revenue']], use_container_width=True)
-    st.subheader("📈 Conversion Trends"); st.plotly_chart(viz.create_trend_chart(df, 'conversion_rate'), use_container_width=True)
+    st.subheader("📈 Conversion Trends"); st.plotly_chart(viz.create_trend_chart(base, 'conversion_rate'), use_container_width=True)
 
 def show_outlet_ranking(df, config, processor):
     st.title("🏆 Ranking Outlet")
     if df.empty: st.error("❌ Data tidak tersedia."); return
-    cnt = df['outlet_status'].value_counts()
+    base = df.copy(deep=True)
+    cnt = base['outlet_status'].value_counts()
     a,b,c = st.columns(3)
     with a: st.metric("🟢 Keeper", cnt.get('Keeper',0))
     with b: st.metric("🟡 Optimasi", cnt.get('Optimasi',0))
     with c: st.metric("🔴 Relocate", cnt.get('Relocate',0))
     st.subheader("📊 Complete Outlet Ranking")
-    ranked = df.sort_values('total_revenue', ascending=False).reset_index(drop=True)
+    ranked = base.sort_values('total_revenue', ascending=False).reset_index(drop=True)
     ranked['rank'] = range(1,len(ranked)+1)
     disp = ranked[['rank','outlet_name','area','kategori_tempat','total_revenue','conversion_rate','outlet_status']].copy()
     disp['total_revenue'] = disp['total_revenue'].apply(lambda x: Config().format_currency(x))
@@ -859,27 +870,28 @@ def show_outlet_ranking(df, config, processor):
     st.subheader("📋 Analysis by Status")
     t1,t2,t3 = st.tabs(["🟢 Keeper","🟡 Optimasi","🔴 Relocate"])
     with t1:
-        k = df[df['outlet_status']=="Keeper"]
+        k = base[base['outlet_status']=="Keeper"]
         df_show(k[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not k.empty else st.info("No outlets in Keeper status")
     with t2:
-        o = df[df['outlet_status']=="Optimasi"]
+        o = base[base['outlet_status']=="Optimasi"]
         df_show(o[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not o.empty else st.info("No outlets in Optimasi status")
     with t3:
-        r = df[df['outlet_status']=="Relocate"]
+        r = base[base['outlet_status']=="Relocate"]
         df_show(r[['outlet_name','area','total_revenue','conversion_rate']], use_container_width=True) if not r.empty else st.info("No outlets in Relocate status")
 
 def show_period_comparison(df, config, processor, viz, current_period, compare_period):
     st.title("📅 Perbandingan Periode")
     if df.empty: st.error("❌ Data tidak tersedia."); return
+    base = df.copy(deep=True)
     if current_period and compare_period:
-        cur = df[df['periode']==current_period]; prev = df[df['periode']==compare_period]
+        cur = base[base['periode']==current_period]; prev = base[base['periode']==compare_period]
         gm = calculate_growth_metrics(cur, prev)
         st.subheader("📈 Growth Metrics")
         c1,c2,c3 = st.columns(3)
         with c1: st.metric("Revenue Growth", f"{gm.get('revenue_growth',0):+.1f}%", delta=f"{gm.get('revenue_growth',0):+.1f}%")
         with c2: st.metric("Photo Growth", f"{gm.get('photo_growth',0):+.1f}%", delta=f"{gm.get('photo_growth',0):+.1f}%")
         with c3: st.metric("Conversion Change", f"{gm.get('conversion_change',0):+.1f}pp", delta=f"{gm.get('conversion_change',0):+.1f}pp")
-        st.subheader("📈 Trend Analysis"); st.plotly_chart(viz.create_trend_chart(df, 'total_revenue'), use_container_width=True)
+        st.subheader("📈 Trend Analysis"); st.plotly_chart(viz.create_trend_chart(base, 'total_revenue'), use_container_width=True)
     else:
         st.info("Pilih kedua periode di sidebar untuk membandingkan.")
 
@@ -1034,7 +1046,7 @@ def show_upload_data(config: Config):
 
             cleaned = full_df_raw.rename(columns=mapping).copy()
 
-            # Scale harga (no 'horizontal' arg untuk kompatibilitas)
+            # Scale harga
             st.subheader("💵 Harga Scale (kalau total 10×)")
             scale_option = st.radio("Pilih scale harga:", ["x1 (normal)","÷10","÷100","÷1000"], index=0)
             scale_value = {"x1 (normal)":1.0,"÷10":0.1,"÷100":0.01,"÷1000":0.001}[scale_option]
