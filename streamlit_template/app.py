@@ -1,4 +1,4 @@
-# app.py — Difotoin Dashboard (Trend 12 bulan + kolom Rata-rata) — Server-Compat (Streamlit lama, Python 3.6)
+# app.py — Difotoin Dashboard (Trend 12 bulan + kolom Rata-rata) — Server-Compat (Streamlit/Python lama)
 
 import io
 import os
@@ -9,16 +9,18 @@ import numpy as np
 from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
-from typing import List, Tuple, Dict, Optional  # 3.6-compatible typing
+from typing import List, Tuple, Dict, Optional
 
 from data_processor import DataProcessor
 from visualizations import Visualizations
 from utils import *
 from config import Config
 
-# ================= COMPAT LAYER (untuk Streamlit lama / Python 3.6) =================
+# ============== COMPAT LAYER (Streamlit lama / Python 3.6) ==============
 HAS_CACHE_DATA = hasattr(st, "cache_data")
 HAS_COLUMN_CONFIG = hasattr(st, "column_config")
+HAS_CAPTION = hasattr(st, "caption")
+
 def cache_data(func=None, **kwargs):
     deco = st.cache_data if HAS_CACHE_DATA else st.cache
     return deco(func) if func else deco(**kwargs)
@@ -54,10 +56,18 @@ def df_show(df_obj, use_container_width=True, hide_index=True, column_config=Non
         except Exception:
             st.write(df_obj)
 
+def s_caption(text: str):
+    try:
+        if HAS_CAPTION:
+            st.caption(text)
+        else:
+            st.markdown(f"<small>{text}</small>", unsafe_allow_html=True)
+    except Exception:
+        st.markdown(f"<small>{text}</small>", unsafe_allow_html=True)
+
 def cache_clear(func):
     try:
-        func.clear()
-        return
+        func.clear(); return
     except Exception:
         pass
     for name in ("cache_data", "experimental_memo", "legacy_caching", "caching"):
@@ -66,8 +76,7 @@ def cache_clear(func):
             clear = getattr(mod, "clear" if name in ("cache_data", "experimental_memo") else "clear_cache", None)
             if callable(clear):
                 try:
-                    clear()
-                    return
+                    clear(); return
                 except Exception:
                     pass
 
@@ -445,16 +454,14 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
     df_show(styled, use_container_width=True, hide_index=True, column_config=column_config)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ================= OMSET TREND TABLE (12 bulan, kiri=Current, + Rata-rata + server-side sorting) =================
+# ================= OMSET TREND TABLE (12 bulan + Rata-rata + server-side sorting) =================
 def _sort_periods_str(periods: List[str]) -> List[str]:
-    s = pd.Series(periods, dtype="string")
+    s = pd.Series(periods, dtype=object)  # compat pandas lama
     dt = pd.to_datetime(s, format="%Y-%m", errors="coerce")
-    helper = pd.DataFrame({"p": s, "dt": dt})
-    helper = helper.sort_values(by=["dt","p"], na_position="last")
+    helper = pd.DataFrame({"p": s, "dt": dt}).sort_values(by=["dt","p"], na_position="last")
     return helper["p"].astype(str).tolist()
 
 def _list_last_n_periods(anchor_period: str, n: int) -> List[str]:
-    """Return [anchor, anchor-1, ..., anchor-(n-1)] in 'YYYY-MM'."""
     try:
         y, m = map(int, anchor_period.split("-"))
     except Exception:
@@ -472,34 +479,26 @@ def _list_last_n_periods(anchor_period: str, n: int) -> List[str]:
 def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, config: Config, current_period: Optional[str], months: int = 12):
     st.subheader("📆 Tren Omset Outlet (12 Bulan)")
     if df_filtered.empty or "outlet_name" not in df_filtered.columns or "periode" not in df_full.columns:
-        st.info("Data tidak cukup untuk menampilkan tren omset.")
-        return
+        st.info("Data tidak cukup untuk menampilkan tren omset."); return
 
     visible_outlets = df_filtered["outlet_name"].dropna().astype(str).unique().tolist()
     trend_df = df_full[df_full["outlet_name"].astype(str).isin(visible_outlets)].copy()
     if trend_df.empty:
-        st.info("Tidak ada data tren untuk outlet terpilih.")
-        return
+        st.info("Tidak ada data tren untuk outlet terpilih."); return
 
     trend_df["total_revenue"] = pd.to_numeric(trend_df.get("total_revenue", 0), errors="coerce").fillna(0.0)
 
-    # Anchor = current_period (fallback ke latest)
-    if current_period and isinstance(current_period, str):
-        anchor = current_period
-    else:
-        allp = _sort_periods_str([str(x) for x in trend_df["periode"].dropna().unique().tolist()])
-        if not allp:
-            st.info("Periode kosong.")
-            return
-        anchor = allp[-1]
+    anchor = current_period if (current_period and isinstance(current_period, str)) else (
+        _sort_periods_str([str(x) for x in trend_df["periode"].dropna().unique().tolist()])[-1]
+        if trend_df["periode"].notna().any() else None
+    )
+    if not anchor:
+        st.info("Periode kosong."); return
 
-    # Urutan kolom: kiri=anchor (terbaru), ke kanan makin lama
     periods_window = _list_last_n_periods(anchor, months)
     if not periods_window:
-        st.info("Gagal menentukan window periode.")
-        return
+        st.info("Gagal menentukan window periode."); return
 
-    # Pivot dan reindex
     pivot = (
         trend_df.pivot_table(
             index="outlet_name",
@@ -511,46 +510,30 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
         .sort_index()
     )
 
-    value_cols = periods_window  # [current, current-1, ..., current-11]
+    value_cols = periods_window
 
-    # === Rata-rata: 12 bulan TERMASUK current, hanya nilai >0; jika tidak ada → 0.0 ===
     def _avg_real_row(row: pd.Series) -> float:
         vals = [float(v) for v in row.tolist() if (pd.notna(v) and float(v) > 0.0)]
         return float(np.mean(vals)) if len(vals) > 0 else 0.0
 
     avg_real = pivot.apply(_avg_real_row, axis=1)
-
-    # === Tampilan: NaN -> 0.0 untuk semua kolom bulan ===
     display_pivot = pivot.fillna(0.0)
 
-    # Susun DataFrame untuk display
     display_df = display_pivot.reset_index().rename(columns={"outlet_name": "Outlet"})
     display_df.insert(1, "Rata-rata", avg_real.values)
 
-    # ---------- Server-side Sorting Controls ----------
     st.info("🔽 Sorting Tren Omset")
     sc1, sc2 = st.columns([2, 1])
     with sc1:
-        sort_by = st.selectbox(
-            "Urutkan berdasarkan",
-            ["Rata-rata", "Outlet"],
-            index=0,
-            key="trend_sort_by"
-        )
+        sort_by = st.selectbox("Urutkan berdasarkan", ["Rata-rata", "Outlet"], index=0, key="trend_sort_by")
     with sc2:
-        sort_order = st.selectbox(
-            "Urutan",
-            ["Descending (High to Low)", "Ascending (Low to High)"],
-            index=0,
-            key="trend_sort_order"
-        )
+        sort_order = st.selectbox("Urutan", ["Descending (High to Low)", "Ascending (Low to High)"], index=0, key="trend_sort_order")
     ascending = (sort_order == "Ascending (Low to High)")
     if sort_by == "Outlet":
         display_df_sorted = display_df.sort_values(by="Outlet", ascending=ascending, kind="mergesort")
     else:
         display_df_sorted = display_df.sort_values(by="Rata-rata", ascending=ascending, kind="mergesort")
 
-    # ---------- Styling (warna naik/turun per bulan) ----------
     def _growth_colors(row: pd.Series):
         vals = row[value_cols]
         cells = []
@@ -571,7 +554,8 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
 
     def _fmt_currency(x, _cfg=config):
         try:
-            return _cfg.format_currency(float(0.0 if (x is None or (isinstance(x, float) and (np.isnan(x) or np.isinf(x)))) else x))
+            v = 0.0 if (x is None or (isinstance(x, float) and (np.isnan(x) or np.isinf(x)))) else float(x)
+            return _cfg.format_currency(v)
         except Exception:
             return _cfg.format_currency(0.0)
 
@@ -592,16 +576,12 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
         }
 
     df_show(styled, use_container_width=True, hide_index=True, column_config=column_config)
-    try:
-        st.caption("Nilai kosong ditampilkan sebagai 0. Rata-rata dihitung dari 12 bulan tampil (termasuk current), hanya omset > 0 yang dihitung. Hijau=naik vs bulan lalu; Merah=turun.")
-    except Exception:
-        st.write("_Nilai kosong ditampilkan sebagai 0. Rata-rata dihitung dari 12 bulan tampil (termasuk current), hanya omset > 0 yang dihitung._")
+    s_caption("Nilai kosong ditampilkan sebagai 0. Rata-rata dihitung dari 12 bulan tampil (termasuk current), hanya omset > 0 yang dihitung. Hijau=naik vs bulan lalu; Merah=turun.")
 
 # ================= PAGES =================
 def main():
     if not check_login():
-        show_login_page()
-        return
+        show_login_page(); return
 
     config = Config()
     processor = DataProcessor()
@@ -658,8 +638,7 @@ def main():
 def show_main_dashboard(df, config, processor, viz, current_period, compare_period, full_df):
     st.markdown('<h1 class="main-header">📸 Difotoin Sales Dashboard</h1>', unsafe_allow_html=True)
     if df.empty:
-        st.error("❌ Data tidak tersedia. Silakan upload data terlebih dahulu.")
-        return
+        st.error("❌ Data tidak tersedia. Silakan upload data terlebih dahulu."); return
 
     m_df = df.copy()
     for col in ["total_revenue","foto_qty","unlock_qty","print_qty","conversion_rate"]:
@@ -776,7 +755,7 @@ def show_outlet_crud(df, config, processor):
             st.subheader("🗑️ Delete Outlet")
             if not outlet_mapping.empty:
                 outlet_to_delete = st.selectbox("Select Outlet to Delete", outlet_mapping['outlet_name'].tolist())
-                if outlet_to_delete and st.button("🗑️ Confirm Delete", type="secondary"):
+                if outlet_to_delete and st.button("🗑️ Confirm Delete"):
                     outlet_mapping = outlet_mapping[outlet_mapping['outlet_name']!=outlet_to_delete]
                     outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
                     st.success("✅ Outlet deleted successfully!"); rerun()
@@ -1021,7 +1000,7 @@ def show_upload_data(config: Config):
                 st.warning("Pilih minimal satu sheet."); return
 
             try:
-                st.caption("Preview 10 baris pertama dari sheet pertama terpilih")
+                s_caption("Preview 10 baris pertama dari sheet pertama terpilih")
                 prev = pd.read_excel(xls, sheet_name=selected_sheets[0], nrows=10)
                 df_show(prev, use_container_width=True)
             except Exception:
@@ -1045,7 +1024,6 @@ def show_upload_data(config: Config):
             col_area    = st.selectbox("Kolom Area → area (opsional)", ["<None>"]+col_list, index=_idx(auto_map.get("area","")))
             col_type    = st.selectbox("Kolom Jenis/Type (Foto/Unlock/Print) → type", ["<None>"]+col_list, index=_idx(auto_map.get("type","")))
 
-            # <<< FIXED: gunakan 'or' (bukan 'atau') >>>
             if col_outlet == "<None>" or col_harga == "<None>":
                 st.error("❌ Wajib pilih kolom Outlet dan Harga."); return
 
@@ -1056,9 +1034,9 @@ def show_upload_data(config: Config):
 
             cleaned = full_df_raw.rename(columns=mapping).copy()
 
-            # Scale harga
+            # Scale harga (no 'horizontal' arg untuk kompatibilitas)
             st.subheader("💵 Harga Scale (kalau total 10×)")
-            scale_option = st.radio("Pilih scale harga:", ["x1 (normal)","÷10","÷100","÷1000"], index=0, horizontal=True)
+            scale_option = st.radio("Pilih scale harga:", ["x1 (normal)","÷10","÷100","÷1000"], index=0)
             scale_value = {"x1 (normal)":1.0,"÷10":0.1,"÷100":0.01,"÷1000":0.001}[scale_option]
             cleaned["harga"] = to_numeric_clean(cleaned["harga"]) * scale_value
 
@@ -1071,7 +1049,7 @@ def show_upload_data(config: Config):
 
             # DIAG: Distribusi type
             if "type" in cleaned.columns:
-                st.caption("Distribusi nilai kolom Type (untuk derive Foto/Unlock/Print):")
+                s_caption("Distribusi nilai kolom Type (untuk derive Foto/Unlock/Print):")
                 vc = cleaned["type"].astype(str).str.strip().str.lower().value_counts().head(15)
                 df_show(vc.to_frame("count"), use_container_width=True)
 
