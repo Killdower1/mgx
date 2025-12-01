@@ -1,4 +1,5 @@
-# app.py — Difotoin Dashboard (Trend 12 bulan + kolom Rata-rata) — Server-Compat (Streamlit/Python lama) — Mutation-safe
+# path: app.py — Difotoin Dashboard (Trend 12 bulan + kolom Rata-rata) — Server-Compat (Streamlit/Python lama) — Mutation-safe
+# NOTE: Patched to force openpyxl for .xlsx and xlrd only for .xls
 
 import io
 import os
@@ -22,7 +23,6 @@ HAS_COLUMN_CONFIG = hasattr(st, "column_config")
 HAS_CAPTION = hasattr(st, "caption")
 
 def cache_data(func=None, **kwargs):
-    # gunakan st.cache_data jika ada; fallback ke st.cache (tanpa allow_output_mutation)
     deco = st.cache_data if HAS_CACHE_DATA else st.cache
     return deco(func) if func else deco(**kwargs)
 
@@ -184,7 +184,6 @@ def check_login():
 # ================= LOAD =================
 @cache_data
 def load_app_data():
-    # Penting: jangan copy/ubah di sini — biarkan objek cache tetap
     processor = DataProcessor()
     return processor.load_data()
 
@@ -458,7 +457,7 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
 
 # ================= OMSET TREND TABLE (12 bulan + Rata-rata + server-side sorting) =================
 def _sort_periods_str(periods: List[str]) -> List[str]:
-    s = pd.Series(periods, dtype=object)  # compat pandas lama
+    s = pd.Series(periods, dtype=object)
     dt = pd.to_datetime(s, format="%Y-%m", errors="coerce")
     helper = pd.DataFrame({"p": s, "dt": dt}).sort_values(by=["dt","p"], na_position="last")
     return helper["p"].astype(str).tolist()
@@ -589,10 +588,9 @@ def main():
     processor = DataProcessor()
     viz = Visualizations(config)
 
-    # >>> Fix utama: copy(deep=True) AGAR TIDAK memodifikasi objek hasil cache
     df = load_app_data()
     if isinstance(df, pd.DataFrame):
-        df = df.copy(deep=True)  # <-- penting untuk hilangkan CachedObjectMutationWarning
+        df = df.copy(deep=True)
 
     if not df.empty and "area" in df.columns:
         df["area"] = df["area"].astype(str).replace({"nan": ""})
@@ -620,7 +618,6 @@ def main():
         selected_kategori = st.sidebar.selectbox("Kategori Tempat", kategoris)
         tipes = ["Semua"] + safe_unique_str(df, "tipe_tempat")
         selected_tipe = st.sidebar.selectbox("Tipe Tempat", tipes)
-        # gunakan salinan untuk semua transformasi
         df_for_filter = df.copy(deep=True)
         filtered_df = processor.filter_data(df_for_filter, selected_area, selected_kategori, selected_tipe, current_period) if hasattr(processor, "filter_data") else df_for_filter
     else:
@@ -969,16 +966,33 @@ def show_admin_panel(config):
         rerun()
 
 # ================= UPLOAD =================
+
+def excel_engine_from_filename(filename: str) -> str:
+    """
+    Why: pastikan .xlsx → openpyxl, .xls → xlrd (pandas lama default ke xlrd untuk semuanya).
+    """
+    ext = os.path.splitext(str(filename).lower())[1]
+    if ext == ".xlsx":
+        return "openpyxl"
+    if ext == ".xls":
+        return "xlrd"
+    raise ValueError(f"Format file '{ext}' tidak didukung. Gunakan .xlsx atau .xls.")
+
 def suggest_default_sheets(sheet_names: List[str]) -> List[str]:
     picks = [s for s in sheet_names if any(k in s.lower() for k in ["data","transaksi","raw","detail"])]
     return picks or sheet_names[:1]
 
-def read_selected_sheets(uploaded_file, selected_sheets: List[str]) -> pd.DataFrame:
-    xls = pd.ExcelFile(uploaded_file)
+def read_selected_sheets(file_bytes: bytes, selected_sheets: List[str], engine: str) -> pd.DataFrame:
+    """
+    Why: gunakan engine eksplisit untuk menghindari error xlrd saat .xlsx.
+    """
+    buf = io.BytesIO(file_bytes)
+    xls = pd.ExcelFile(buf, engine=engine)
     frames = []
     for name in selected_sheets:
-        df = pd.read_excel(xls, sheet_name=name)
-        if df is None or df.empty: continue
+        df = pd.read_excel(xls, sheet_name=name, engine=engine)
+        if df is None or df.empty: 
+            continue
         frames.append(normalize_headers(df))
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
@@ -1004,21 +1018,31 @@ def show_upload_data(config: Config):
 
     if uploaded_file is not None:
         try:
-            xls = pd.ExcelFile(uploaded_file)
+            engine = excel_engine_from_filename(uploaded_file.name)
+            file_bytes = uploaded_file.getvalue()
+            buf = io.BytesIO(file_bytes)
+
+            # -- Sheet picker
+            xls = pd.ExcelFile(buf, engine=engine)
             st.subheader("📑 Pilih Sheet")
             default_sheets = suggest_default_sheets(xls.sheet_names)
             selected_sheets = st.multiselect("Gunakan sheet berikut:", xls.sheet_names, default=default_sheets)
             if not selected_sheets:
                 st.warning("Pilih minimal satu sheet."); return
 
+            # -- Preview
             try:
                 s_caption("Preview 10 baris pertama dari sheet pertama terpilih")
-                prev = pd.read_excel(xls, sheet_name=selected_sheets[0], nrows=10)
+                prev = pd.read_excel(io.BytesIO(file_bytes), sheet_name=selected_sheets[0], nrows=10, engine=engine)
                 df_show(prev, use_container_width=True)
+            except ImportError as ie:
+                st.error(f"❌ Dependensi pembaca Excel belum terpasang untuk '{engine}'. Install paket yang sesuai (e.g. `pip install openpyxl`). Detail: {ie}")
+                return
             except Exception:
                 pass
 
-            full_df_raw = read_selected_sheets(uploaded_file, selected_sheets)
+            # -- Read all selected sheets with explicit engine
+            full_df_raw = read_selected_sheets(file_bytes, selected_sheets, engine)
             if full_df_raw.empty:
                 st.error("❌ Sheet terpilih kosong."); return
 
@@ -1113,6 +1137,9 @@ def show_upload_data(config: Config):
                     st.write("- Selisih (CSV - Agregasi file ini): **{}**".format(Config().format_currency(csv_total_for_periods - total_aggr)))
                     rerun()
 
+        except ImportError as ie:
+            # Why: direct message kalau dependency engine belum terinstall
+            st.error(f"❌ Dependency untuk membaca Excel belum terpasang. Install sesuai engine: {ie}")
         except Exception as e:
             st.error(f"❌ Error reading/processing file: {e}")
 
