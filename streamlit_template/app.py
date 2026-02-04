@@ -244,6 +244,40 @@ def to_numeric_clean(series: pd.Series) -> pd.Series:
     s = s.str.replace(",", ".", regex=False)
     return pd.to_numeric(s, errors="coerce").fillna(0.0)
 
+# ================= EXPORT EXCEL (OMSET TREND) =================
+from io import BytesIO
+
+def _export_trend_excel(df_display_sorted: pd.DataFrame, value_cols: List[str]):
+    """
+    Export tren omset ke Excel sebagai ANGKA MURNI (int),
+    tanpa 'Rp' dan tanpa separator ribuan.
+    """
+    export_df = df_display_sorted.copy()
+
+    cols = ["Rata-rata"] + list(value_cols)
+    for col in cols:
+        if col in export_df.columns:
+            export_df[col] = (
+                export_df[col]
+                .astype(str)
+                .str.replace(r"[^0-9]", "", regex=True)
+                .replace("", "0")
+                .astype(int)
+            )
+
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        export_df.to_excel(writer, index=False, sheet_name="Tren Omset")
+    buffer.seek(0)
+
+    st.download_button(
+        "⬇️ Download Excel (Angka Murni)",
+        data=buffer,
+        file_name="tren_omset_outlet_12_bulan.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
 # ======== Derive foto/unlock/print from 'type' with synonyms ========
 FOTO_RE = re.compile(r"\b(foto|photo|photos|capture|shoot)\b", re.I)
 UNLOCK_RE = re.compile(r"\b(unlock|qr|scan)\b", re.I)
@@ -578,6 +612,10 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
 
     df_show(styled, use_container_width=True, hide_index=True, column_config=column_config)
     s_caption("Nilai kosong ditampilkan sebagai 0. Rata-rata dihitung dari 12 bulan tampil (termasuk current), hanya omset > 0 yang dihitung. Hijau=naik vs bulan lalu; Merah=turun.")
+
+    # ===== DOWNLOAD EXCEL (ANGKA MURNI) =====
+    st.markdown("### 📥 Download Data")
+    _export_trend_excel(display_df_sorted, value_cols)
 
 # ================= PAGES =================
 def main():
@@ -966,7 +1004,6 @@ def show_admin_panel(config):
         rerun()
 
 # ================= UPLOAD =================
-
 def excel_engine_from_filename(filename: str) -> str:
     """
     Why: pastikan .xlsx → openpyxl, .xls → xlrd (pandas lama default ke xlrd untuk semuanya).
@@ -991,7 +1028,7 @@ def read_selected_sheets(file_bytes: bytes, selected_sheets: List[str], engine: 
     frames = []
     for name in selected_sheets:
         df = pd.read_excel(xls, sheet_name=name, engine=engine)
-        if df is None or df.empty: 
+        if df is None or df.empty:
             continue
         frames.append(normalize_headers(df))
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
@@ -1138,7 +1175,6 @@ def show_upload_data(config: Config):
                     rerun()
 
         except ImportError as ie:
-            # Why: direct message kalau dependency engine belum terinstall
             st.error(f"❌ Dependency untuk membaca Excel belum terpasang. Install sesuai engine: {ie}")
         except Exception as e:
             st.error(f"❌ Error reading/processing file: {e}")

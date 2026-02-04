@@ -1,4 +1,4 @@
-#!C:\Users\octadimas\Documents\GitHub\mgx\streamlit_template\.venv\Scripts\python.exe
+#!C:\Users\difotoin vacation\Documents\GitHub\mgx\streamlit_template\.venv\Scripts\python.exe
 
 ##############################################################################
 #
