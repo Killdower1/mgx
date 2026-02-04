@@ -247,16 +247,13 @@ def to_numeric_clean(series: pd.Series) -> pd.Series:
 # ================= EXPORT EXCEL (OMSET TREND) =================
 from io import BytesIO
 
-def _export_trend_excel(df_display_sorted: pd.DataFrame, value_cols: List[str]):
-    """
-    Export tren omset ke Excel sebagai ANGKA MURNI (int),
-    tanpa 'Rp' dan tanpa separator ribuan.
-    """
+
+def _export_trend_excel(df_display_sorted, value_cols):
     export_df = df_display_sorted.copy()
 
-    cols = ["Rata-rata"] + list(value_cols)
-    for col in cols:
+    for col in ["Rata-rata"] + value_cols:
         if col in export_df.columns:
+            # ambil angka murni
             export_df[col] = (
                 export_df[col]
                 .astype(str)
@@ -264,6 +261,9 @@ def _export_trend_excel(df_display_sorted: pd.DataFrame, value_cols: List[str]):
                 .replace("", "0")
                 .astype(int)
             )
+
+            # FIX: kurangin 1 digit nol (10x -> normal)
+            export_df[col] = (export_df[col] // 10).astype(int)
 
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
