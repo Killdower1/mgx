@@ -1,20 +1,26 @@
 import json
 import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+CONFIG_DIR = BASE_DIR / "config"
+DATA_CSV_PATH = DATA_DIR / "difotoin_dashboard_data.csv"
+OUTLET_MAPPING_PATH = DATA_DIR / "difotoin_outlet_mapping.csv"
 
 class Config:
     def __init__(self):
-        self.config_path = "config/"
+        self.config_path = CONFIG_DIR
         self.config_file = "config.json"
         
-        if not os.path.exists(self.config_path):
-            os.makedirs(self.config_path)
+        self.config_path.mkdir(parents=True, exist_ok=True)
         
         self.config = self.load_config()
     
     def load_config(self):
         """Load configuration from file"""
         try:
-            with open(f"{self.config_path}{self.config_file}", 'r') as f:
+            with open(self.config_path / self.config_file, 'r') as f:
                 return json.load(f)
         except FileNotFoundError:
             # Create default config
@@ -43,7 +49,7 @@ class Config:
     
     def save_config_to_file(self, config):
         """Save config to file"""
-        with open(f"{self.config_path}{self.config_file}", 'w') as f:
+        with open(self.config_path / self.config_file, 'w') as f:
             json.dump(config, f, indent=2)
     
     def get_threshold(self, threshold_type):

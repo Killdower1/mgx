@@ -1,18 +1,18 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
-import os
+
+from config import DATA_DIR, DATA_CSV_PATH, OUTLET_MAPPING_PATH
 
 class DataProcessor:
     def __init__(self):
-        self.data_path = "data/"
-        if not os.path.exists(self.data_path):
-            os.makedirs(self.data_path)
+        self.data_path = DATA_DIR
+        self.data_path.mkdir(parents=True, exist_ok=True)
     
     def load_data(self):
         """Load main dashboard data"""
         try:
-            df = pd.read_csv(f"{self.data_path}difotoin_dashboard_data.csv")
+            df = pd.read_csv(DATA_CSV_PATH)
             return df
         except FileNotFoundError:
             # Return sample data if no data exists
@@ -72,13 +72,13 @@ class DataProcessor:
         
         df = pd.DataFrame(data)
         # Save sample data
-        df.to_csv(f"{self.data_path}difotoin_dashboard_data.csv", index=False)
+        df.to_csv(DATA_CSV_PATH, index=False)
         return df
     
     def load_outlet_mapping(self):
         """Load outlet mapping data"""
         try:
-            return pd.read_csv(f"{self.data_path}difotoin_outlet_mapping.csv")
+            return pd.read_csv(OUTLET_MAPPING_PATH)
         except FileNotFoundError:
             return pd.DataFrame()
     

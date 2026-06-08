@@ -15,7 +15,7 @@ from typing import List, Tuple, Dict, Optional
 from data_processor import DataProcessor
 from visualizations import Visualizations
 from utils import *
-from config import Config
+from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH
 
 # ============== COMPAT LAYER (Streamlit lama / Python 3.6) ==============
 HAS_CACHE_DATA = hasattr(st, "cache_data")
@@ -116,9 +116,8 @@ SUB_KATEGORI_TEMPAT = [
     "Tidak Terkategorisasi","Lainnya"
 ]
 
-VALID_EMAIL = "octadimas@gmail.com"
-VALID_PASSWORD = "dowerdower1"
-DATA_CSV_PATH = "data/difotoin_dashboard_data.csv"
+VALID_EMAIL = os.getenv("DIFOTOIN_ADMIN_EMAIL", "admin@difotoin.local")
+VALID_PASSWORD = os.getenv("DIFOTOIN_ADMIN_PASSWORD", "")
 
 # ================= STYLES =================
 st.markdown("""
@@ -158,7 +157,9 @@ def show_login_page():
         password = st.text_input("Password", type="password", placeholder="Enter your password", key="login_pass")
         submitted = st.form_submit_button("🔐 Login")
         if submitted:
-            if email == VALID_EMAIL and password == VALID_PASSWORD:
+            if not VALID_PASSWORD:
+                st.error("Admin password belum diset. Isi env var DIFOTOIN_ADMIN_PASSWORD sebelum menjalankan dashboard.")
+            elif email == VALID_EMAIL and password == VALID_PASSWORD:
                 st.session_state["logged_in"] = True
                 st.session_state["user_email"] = email
                 st.success("✅ Login successful! Redirecting…")
@@ -166,7 +167,7 @@ def show_login_page():
             else:
                 st.error("❌ Invalid email or password. Please try again.")
     st.markdown("---")
-    st.info("💡 **Demo Credentials:**\n- Email: octadimas@gmail.com\n- Password: dowerdower1")
+    st.info("Set login lewat environment variable: DIFOTOIN_ADMIN_EMAIL dan DIFOTOIN_ADMIN_PASSWORD.")
 
 def show_logout_button():
     st.sidebar.markdown("---")
@@ -237,8 +238,12 @@ def apply_column_mapping_auto(df: pd.DataFrame) -> dict:
     return used
 
 def to_numeric_clean(series: pd.Series) -> pd.Series:
+    if pd.api.types.is_numeric_dtype(series):
+        return pd.to_numeric(series, errors="coerce").fillna(0.0)
+
     s = series.astype(str).str.strip()
     s = s.str.replace(r"^\((.*)\)$", r"-\1", regex=True)
+    s = s.str.replace(r"\.0+$", "", regex=True)
     s = s.str.replace(r"[^\d\-,\.]", "", regex=True)
     s = s.str.replace(".", "", regex=False)
     s = s.str.replace(",", ".", regex=False)
@@ -775,7 +780,7 @@ def show_outlet_crud(df, config, processor):
                                                 'kategori_tempat':[new_kategori],'sub_kategori_tempat':[new_sub_kategori],
                                                 'tipe_tempat':[new_tipe]})
                         outlet_mapping = pd.concat([outlet_mapping, new_row], ignore_index=True)
-                        outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
+                        outlet_mapping.to_csv(OUTLET_MAPPING_PATH, index=False)
                         st.success("✅ Outlet added successfully!"); rerun()
         with s3:
             st.subheader("✏️ Edit Outlet")
@@ -791,7 +796,7 @@ def show_outlet_crud(df, config, processor):
                         edit_tipe = st.selectbox("Tipe Tempat", pilihan_tipe, index=pilihan_tipe.index(row['tipe_tempat']) if row['tipe_tempat'] in pilihan_tipe else 0)
                         if st.form_submit_button("Update Outlet"):
                             outlet_mapping.loc[outlet_mapping['outlet_name']==outlet_to_edit, ['area','kategori_tempat','sub_kategori_tempat','tipe_tempat']] = [edit_area, edit_kat, edit_sub, edit_tipe]
-                            outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
+                            outlet_mapping.to_csv(OUTLET_MAPPING_PATH, index=False)
                             st.success("✅ Outlet updated successfully!"); rerun()
             else:
                 st.info("No outlets available to edit")
@@ -801,7 +806,7 @@ def show_outlet_crud(df, config, processor):
                 outlet_to_delete = st.selectbox("Select Outlet to Delete", outlet_mapping['outlet_name'].tolist())
                 if outlet_to_delete and st.button("🗑️ Confirm Delete"):
                     outlet_mapping = outlet_mapping[outlet_mapping['outlet_name']!=outlet_to_delete]
-                    outlet_mapping.to_csv("data/difotoin_outlet_mapping.csv", index=False)
+                    outlet_mapping.to_csv(OUTLET_MAPPING_PATH, index=False)
                     st.success("✅ Outlet deleted successfully!"); rerun()
             else:
                 st.info("No outlets available to delete")
@@ -983,7 +988,7 @@ def show_admin_panel(config):
     except Exception:
         pass
 
-    data_path = "data/difotoin_dashboard_data.csv"
+    data_path = DATA_CSV_PATH
     with st.expander("📄 Data File Info (opsional)"):
         if os.path.exists(data_path):
             try:
@@ -1108,7 +1113,7 @@ def show_upload_data(config: Config):
             cleaned = full_df_raw.rename(columns=mapping).copy()
 
             # Scale harga
-            st.subheader("💵 Harga Scale (kalau total 10×)")
+            st.subheader("Harga Scale")
             scale_option = st.radio("Pilih scale harga:", ["x1 (normal)","÷10","÷100","÷1000"], index=0)
             scale_value = {"x1 (normal)":1.0,"÷10":0.1,"÷100":0.01,"÷1000":0.001}[scale_option]
             cleaned["harga"] = to_numeric_clean(cleaned["harga"]) * scale_value

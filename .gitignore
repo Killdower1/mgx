@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Streamlit and local secrets
+.streamlit/secrets.toml
+streamlit_template/.streamlit/secrets.toml
+streamlit_template/config/config.json
+streamlit_template/package-lock.json
+
+# Local MGX/generated workspace artifacts
+.MGXEnv.json
+.timeline.json
+.MGXTools/
+.mgx/
+streamlit_template/.mgx/
+
+# Runtime exports and ad-hoc uploads
+uploads/*.xlsx
+uploads/*.xls
+*.tmp
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
