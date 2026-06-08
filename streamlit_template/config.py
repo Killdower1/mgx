@@ -7,6 +7,7 @@ DATA_DIR = BASE_DIR / "data"
 CONFIG_DIR = BASE_DIR / "config"
 DATA_CSV_PATH = DATA_DIR / "difotoin_dashboard_data.csv"
 OUTLET_MAPPING_PATH = DATA_DIR / "difotoin_outlet_mapping.csv"
+USERS_PATH = CONFIG_DIR / "users.json"
 
 class Config:
     def __init__(self):

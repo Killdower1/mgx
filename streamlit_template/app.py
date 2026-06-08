@@ -2,8 +2,11 @@
 # NOTE: Patched to force openpyxl for .xlsx and xlrd only for .xls
 
 import io
+import json
 import os
 import re
+import hashlib
+import secrets
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -15,7 +18,7 @@ from typing import List, Tuple, Dict, Optional
 from data_processor import DataProcessor
 from visualizations import Visualizations
 from utils import *
-from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH
+from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH, USERS_PATH
 
 # ============== COMPAT LAYER (Streamlit lama / Python 3.6) ==============
 HAS_CACHE_DATA = hasattr(st, "cache_data")
@@ -146,9 +149,49 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ================= AUTH =================
+def _normalize_email(email: str) -> str:
+    return str(email or "").strip().lower()
+
+def _hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
+    salt = salt or secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", str(password).encode("utf-8"), salt.encode("utf-8"), 120000)
+    return salt, digest.hex()
+
+def _verify_password(password: str, salt: str, password_hash: str) -> bool:
+    if not password or not salt or not password_hash:
+        return False
+    _, digest = _hash_password(password, salt)
+    return secrets.compare_digest(digest, str(password_hash))
+
+def load_users() -> List[dict]:
+    try:
+        with open(USERS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        users = data.get("users", []) if isinstance(data, dict) else []
+        return users if isinstance(users, list) else []
+    except FileNotFoundError:
+        return []
+    except Exception:
+        return []
+
+def save_users(users: List[dict]) -> None:
+    USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(USERS_PATH, "w", encoding="utf-8") as f:
+        json.dump({"users": users}, f, indent=2)
+
+def authenticate_user(email: str, password: str) -> Optional[dict]:
+    email_norm = _normalize_email(email)
+    for user in load_users():
+        if _normalize_email(user.get("email")) == email_norm and _verify_password(password, user.get("salt", ""), user.get("password_hash", "")):
+            return user
+    if VALID_PASSWORD and email_norm == _normalize_email(VALID_EMAIL) and password == VALID_PASSWORD:
+        return {"name": "Admin", "email": VALID_EMAIL, "source": "env"}
+    return None
+
 def _init_auth_state():
     st.session_state.setdefault("logged_in", False)
     st.session_state.setdefault("user_email", None)
+    st.session_state.setdefault("user_name", None)
 
 def show_login_page():
     st.markdown('<h1 class="main-header">📸 Difotoin Dashboard</h1>', unsafe_allow_html=True)
@@ -157,26 +200,28 @@ def show_login_page():
         password = st.text_input("Password", type="password", placeholder="Enter your password", key="login_pass")
         submitted = st.form_submit_button("🔐 Login")
         if submitted:
-            if not VALID_PASSWORD:
-                st.error("Admin password belum diset. Isi env var DIFOTOIN_ADMIN_PASSWORD sebelum menjalankan dashboard.")
-            elif email == VALID_EMAIL and password == VALID_PASSWORD:
+            user = authenticate_user(email, password)
+            if user:
                 st.session_state["logged_in"] = True
-                st.session_state["user_email"] = email
-                st.success("✅ Login successful! Redirecting…")
+                st.session_state["user_email"] = user.get("email", email)
+                st.session_state["user_name"] = user.get("name", "")
+                st.success("Login successful! Redirecting...")
                 rerun()
             else:
-                st.error("❌ Invalid email or password. Please try again.")
+                st.error("Invalid email or password. Please try again.")
     st.markdown("---")
-    st.info("Set login lewat environment variable: DIFOTOIN_ADMIN_EMAIL dan DIFOTOIN_ADMIN_PASSWORD.")
+    st.info("Login memakai akun dari Admin Panel. Env var launcher tetap bisa dipakai sebagai admin fallback.")
 
 def show_logout_button():
     st.sidebar.markdown("---")
     if st.sidebar.button("🚪 Logout", key="btn_logout"):
         st.session_state["logged_in"] = False
         st.session_state["user_email"] = None
+        st.session_state["user_name"] = None
         rerun()
     if st.session_state.get("user_email"):
-        st.sidebar.markdown(f"👤 **Logged in as:**\n{st.session_state['user_email']}")
+        label = st.session_state.get("user_name") or st.session_state["user_email"]
+        st.sidebar.markdown(f"Logged in as:\n{label}\n\n{st.session_state['user_email']}")
 
 def check_login():
     _init_auth_state()
@@ -1103,10 +1148,96 @@ def show_period_comparison(df, config, processor, viz, current_period, compare_p
         st.info("Pilih kedua periode di sidebar untuk membandingkan.")
 
 # =============== ADMIN PANEL ===============
+def show_user_access_panel():
+    st.subheader("User Access")
+    users = load_users()
+
+    if users:
+        display = pd.DataFrame([{
+            "name": u.get("name", ""),
+            "email": u.get("email", ""),
+            "created_at": u.get("created_at", ""),
+        } for u in users])
+        df_show(display, use_container_width=True, hide_index=True)
+    else:
+        st.info("Belum ada akun lokal. Login masih bisa memakai akun fallback dari launcher/env var.")
+
+    tab_add, tab_reset, tab_delete = st.tabs(["Add Account", "Reset Password", "Delete Account"])
+
+    with tab_add:
+        with st.form("user_add_form"):
+            name = st.text_input("Nama")
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            confirm = st.text_input("Confirm Password", type="password")
+            submitted = st.form_submit_button("Create Account")
+            if submitted:
+                email_norm = _normalize_email(email)
+                if not name.strip() or not email_norm or not password:
+                    st.error("Nama, email, dan password wajib diisi.")
+                elif password != confirm:
+                    st.error("Password dan confirmation tidak sama.")
+                elif any(_normalize_email(u.get("email")) == email_norm for u in users):
+                    st.error("Email sudah terdaftar.")
+                else:
+                    salt, password_hash = _hash_password(password)
+                    users.append({
+                        "name": name.strip(),
+                        "email": email_norm,
+                        "salt": salt,
+                        "password_hash": password_hash,
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    })
+                    save_users(users)
+                    st.success("Akun berhasil dibuat.")
+                    rerun()
+
+    with tab_reset:
+        if users:
+            email_to_reset = st.selectbox("Pilih akun", [u.get("email", "") for u in users], key="user_reset_email")
+            with st.form("user_reset_form"):
+                new_password = st.text_input("Password baru", type="password")
+                confirm_password = st.text_input("Confirm Password baru", type="password")
+                if st.form_submit_button("Update Password"):
+                    if not new_password:
+                        st.error("Password baru wajib diisi.")
+                    elif new_password != confirm_password:
+                        st.error("Password dan confirmation tidak sama.")
+                    else:
+                        salt, password_hash = _hash_password(new_password)
+                        for user in users:
+                            if user.get("email") == email_to_reset:
+                                user["salt"] = salt
+                                user["password_hash"] = password_hash
+                                user["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        save_users(users)
+                        st.success("Password berhasil diupdate.")
+                        rerun()
+        else:
+            st.info("Belum ada akun untuk di-reset.")
+
+    with tab_delete:
+        if users:
+            emails = [u.get("email", "") for u in users]
+            emails_to_delete = st.multiselect("Pilih akun yang mau dihapus", emails)
+            if emails_to_delete:
+                st.warning(f"{len(emails_to_delete)} akun akan dihapus.")
+                if st.button("Confirm Delete Account", key="user_delete_btn"):
+                    users = [u for u in users if u.get("email", "") not in emails_to_delete]
+                    save_users(users)
+                    st.success("Akun berhasil dihapus.")
+                    rerun()
+        else:
+            st.info("Belum ada akun untuk dihapus.")
+
+
 def show_admin_panel(config):
     import os
     from datetime import datetime as _dt
     st.title("⚙️ Admin Panel")
+
+    show_user_access_panel()
+    st.markdown("---")
 
     st.subheader("🎯 Threshold Configuration")
     keeper_now = config.get_threshold("keeper_minimum")

@@ -77,6 +77,8 @@ Kolom utama CSV dashboard:
 - Artefak lokal besar/sensitif dikeluarkan dari Git index tanpa menghapus file lokal.
 - Parser harga upload diperbaiki agar angka Excel seperti `35000.0` tidak berubah menjadi `350000`.
 - Menu CRUD outlet diperbarui menjadi inline table editor dengan search, filter, dropdown field, add outlet, master data view, dan delete multi-select.
+- Admin Panel ditambah User Access untuk membuat akun lokal berisi nama, email, dan password hash.
+- Paket deploy server ditambahkan: `requirements.txt`, `install.sh`, `ecosystem.config.js`, `nginx.conf`, dan root `README.md`.
 
 ## Cara Menjalankan Lokal
 
