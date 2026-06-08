@@ -458,7 +458,7 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
         if val == 'Optimasi': return 'color:#f59e0b;font-weight:bold'
         if val == 'Relocate': return 'color:#ef4444;font-weight:bold'
         return ''
-    styled = display_df.style.applymap(style_status, subset=["Status"])
+    styled = display_df.style.map(style_status, subset=["Status"])
 
     def color_by_delta(series, delta_series):
         d = delta_series.reindex(series.index).fillna(0)

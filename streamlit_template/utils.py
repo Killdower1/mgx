@@ -67,32 +67,29 @@ def generate_insights(df, config):
     """Generate key insights from data"""
     if df.empty:
         return ["No data available for analysis"]
-    
+
     insights = []
-    
-    # Revenue insights
+
     total_revenue = df['total_revenue'].sum()
-    avg_revenue = df['total_revenue'].mean()
     insights.append(f"💰 Total revenue: {config.format_currency(total_revenue)} across {len(df)} outlets")
-    
-    # Status distribution insights
+
     status_counts = df['outlet_status'].value_counts()
     keeper_pct = (status_counts.get('Keeper', 0) / len(df)) * 100
     insights.append(f"🏆 {keeper_pct:.1f}% outlets are in Keeper status")
-    
-    # Conversion insights
+
     avg_conversion = df['conversion_rate'].mean()
     high_conversion = df[df['conversion_rate'] > avg_conversion * 1.2]
     if not high_conversion.empty:
         insights.append(f"📈 {len(high_conversion)} outlets have above-average conversion rates")
-    
-    # Area insights
-    top_area = df.groupby('area')['total_revenue'].sum().idxmax()
-    insights.append(f"🗺️ {top_area} is the highest performing area")
-    
-    # Performance insights
+
+    if 'area' in df.columns:
+        area_revenue = df.groupby('area')['total_revenue'].sum()
+        if not area_revenue.empty:
+            top_area = area_revenue.idxmax()
+            insights.append(f"🗺️ {top_area} is the highest performing area")
+
     low_performers = df[df['outlet_status'] == 'Relocate']
     if not low_performers.empty:
         insights.append(f"⚠️ {len(low_performers)} outlets need attention (Relocate status)")
-    
+
     return insights
