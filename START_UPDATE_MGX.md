@@ -76,6 +76,7 @@ Kolom utama CSV dashboard:
 - `.gitignore` root dibuat untuk Python, Streamlit secrets, MGX artifacts, venv, cache, dan upload Excel lokal.
 - Artefak lokal besar/sensitif dikeluarkan dari Git index tanpa menghapus file lokal.
 - Parser harga upload diperbaiki agar angka Excel seperti `35000.0` tidak berubah menjadi `350000`.
+- Menu CRUD outlet diperbarui menjadi inline table editor dengan search, filter, dropdown field, add outlet, master data view, dan delete multi-select.
 
 ## Cara Menjalankan Lokal
 

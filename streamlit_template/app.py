@@ -677,7 +677,7 @@ def main():
     elif page == "📅 Perbandingan Periode":
         show_period_comparison(filtered_df, config, processor, viz, current_period, compare_period)
     elif page == "🗃️ CRUD Data Outlet":
-        show_outlet_crud(df, config, processor)
+        show_outlet_crud_v2(df, config, processor)
     elif page == "⚙️ Admin Panel":
         show_admin_panel(config)
     elif page == "📤 Upload Data":
@@ -845,6 +845,173 @@ def show_outlet_crud(df, config, processor):
                         INDONESIA_AREAS.append(na); INDONESIA_AREAS.sort(); st.success(f"✅ Area '{na}' berhasil ditambahkan!"); rerun()
                     else: st.error("❌ Area sudah ada atau kosong!")
             st.info("📊 Total Area: {}".format(len(INDONESIA_AREAS)))
+
+def show_outlet_crud_v2(df, config, processor):
+    st.title("Outlet Management")
+
+    required_cols = ["outlet_name", "area", "kategori_tempat", "sub_kategori_tempat", "tipe_tempat"]
+    outlet_mapping = processor.load_outlet_mapping() if hasattr(processor, "load_outlet_mapping") else pd.DataFrame()
+
+    if outlet_mapping.empty and not df.empty:
+        base = df.copy(deep=True)
+        outlets = base["outlet_name"].dropna().astype(str).unique()
+        outlet_mapping = pd.DataFrame({
+            "outlet_name": outlets,
+            "area": base.groupby("outlet_name")["area"].first().reindex(outlets).fillna("").values if "area" in base.columns else "",
+            "kategori_tempat": base.groupby("outlet_name")["kategori_tempat"].first().reindex(outlets).fillna("Tidak Terkategorisasi").values if "kategori_tempat" in base.columns else "Tidak Terkategorisasi",
+            "sub_kategori_tempat": base.groupby("outlet_name")["sub_kategori_tempat"].first().reindex(outlets).fillna("Tidak Terkategorisasi").values if "sub_kategori_tempat" in base.columns else "Tidak Terkategorisasi",
+            "tipe_tempat": base.groupby("outlet_name")["tipe_tempat"].first().reindex(outlets).fillna("Indoor").values if "tipe_tempat" in base.columns else "Indoor",
+        })
+
+    for col in required_cols:
+        if col not in outlet_mapping.columns:
+            outlet_mapping[col] = ""
+    outlet_mapping = outlet_mapping[required_cols].copy()
+    for col in required_cols:
+        outlet_mapping[col] = outlet_mapping[col].fillna("").astype(str)
+
+    tab_edit, tab_add, tab_master, tab_delete = st.tabs(["Edit Outlet", "Add Outlet", "Master Data", "Delete"])
+
+    with tab_edit:
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            st.metric("Total Outlet", f"{len(outlet_mapping):,}")
+        with m2:
+            st.metric("Area", f"{outlet_mapping['area'].replace('', np.nan).nunique():,}")
+        with m3:
+            st.metric("Tipe", f"{outlet_mapping['tipe_tempat'].replace('', np.nan).nunique():,}")
+
+        f1, f2, f3, f4 = st.columns([2.2, 1.2, 1.2, 1.2])
+        with f1:
+            search = st.text_input("Search outlet", placeholder="Ketik nama outlet...", key="crud_v2_search")
+        with f2:
+            area_filter = st.selectbox("Area", ["Semua"] + safe_unique_str(outlet_mapping, "area"), key="crud_v2_area")
+        with f3:
+            kategori_filter = st.selectbox("Kategori", ["Semua"] + safe_unique_str(outlet_mapping, "kategori_tempat"), key="crud_v2_kategori")
+        with f4:
+            tipe_filter = st.selectbox("Tipe", ["Semua"] + safe_unique_str(outlet_mapping, "tipe_tempat"), key="crud_v2_tipe")
+
+        visible = outlet_mapping.copy()
+        if search:
+            visible = visible[visible["outlet_name"].str.contains(search, case=False, na=False)]
+        if area_filter != "Semua":
+            visible = visible[visible["area"] == area_filter]
+        if kategori_filter != "Semua":
+            visible = visible[visible["kategori_tempat"] == kategori_filter]
+        if tipe_filter != "Semua":
+            visible = visible[visible["tipe_tempat"] == tipe_filter]
+
+        st.caption("Edit area, kategori, sub kategori, dan tipe langsung di tabel. Outlet name dikunci agar identitas outlet tidak berubah tanpa sengaja.")
+
+        if visible.empty:
+            st.info("Tidak ada outlet yang cocok dengan filter.")
+        else:
+            editor_config = None
+            if HAS_COLUMN_CONFIG:
+                area_options = sorted(set(INDONESIA_AREAS) | set(safe_unique_str(outlet_mapping, "area")))
+                kategori_options = sorted(set(KATEGORI_TEMPAT) | set(safe_unique_str(outlet_mapping, "kategori_tempat")))
+                sub_options = sorted(set(SUB_KATEGORI_TEMPAT) | set(safe_unique_str(outlet_mapping, "sub_kategori_tempat")))
+                tipe_options = sorted(set(["Indoor", "Outdoor", "Semi-Outdoor"]) | set(safe_unique_str(outlet_mapping, "tipe_tempat")))
+                try:
+                    editor_config = {
+                        "outlet_name": st.column_config.TextColumn("Outlet", width="large"),
+                        "area": st.column_config.SelectboxColumn("Area", options=area_options, width="medium"),
+                        "kategori_tempat": st.column_config.SelectboxColumn("Kategori", options=kategori_options, width="medium"),
+                        "sub_kategori_tempat": st.column_config.SelectboxColumn("Sub Kategori", options=sub_options, width="medium"),
+                        "tipe_tempat": st.column_config.SelectboxColumn("Tipe", options=tipe_options, width="small"),
+                    }
+                except Exception:
+                    editor_config = None
+
+            if hasattr(st, "data_editor"):
+                edited_visible = st.data_editor(
+                    visible.reset_index(drop=True),
+                    use_container_width=True,
+                    hide_index=True,
+                    num_rows="fixed",
+                    disabled=["outlet_name"],
+                    column_config=editor_config,
+                    key="crud_v2_editor",
+                )
+            else:
+                edited_visible = visible.copy()
+                df_show(visible, use_container_width=True, hide_index=True, column_config=editor_config)
+                st.warning("Versi Streamlit ini belum mendukung edit langsung di tabel.")
+
+            c_save, c_info = st.columns([1, 4])
+            with c_save:
+                if st.button("Save Changes", type="primary", key="crud_v2_save"):
+                    edited_visible = pd.DataFrame(edited_visible)[required_cols].copy()
+                    edited_visible["outlet_name"] = edited_visible["outlet_name"].astype(str).str.strip()
+                    if edited_visible["outlet_name"].eq("").any():
+                        st.error("Outlet name tidak boleh kosong.")
+                    elif edited_visible["outlet_name"].duplicated().any():
+                        st.error("Ada outlet name duplikat di hasil edit.")
+                    else:
+                        merged = outlet_mapping.set_index("outlet_name")
+                        merged.update(edited_visible.set_index("outlet_name"))
+                        merged = merged.reset_index()[required_cols].sort_values("outlet_name").reset_index(drop=True)
+                        merged.to_csv(OUTLET_MAPPING_PATH, index=False)
+                        st.success("Outlet mapping berhasil disimpan.")
+                        rerun()
+            with c_info:
+                st.caption(f"Menampilkan {len(visible):,} dari {len(outlet_mapping):,} outlet.")
+
+    with tab_add:
+        st.subheader("Add New Outlet")
+        with st.form("crud_v2_add_form"):
+            new_name = st.text_input("Outlet Name")
+            c1, c2 = st.columns(2)
+            with c1:
+                new_area = st.selectbox("Area", INDONESIA_AREAS)
+                new_sub = st.selectbox("Sub Kategori", SUB_KATEGORI_TEMPAT)
+            with c2:
+                new_kategori = st.selectbox("Kategori", KATEGORI_TEMPAT)
+                new_tipe = st.selectbox("Tipe", ["Indoor", "Outdoor", "Semi-Outdoor"])
+            if st.form_submit_button("Add Outlet"):
+                new_name = new_name.strip()
+                if not new_name:
+                    st.error("Outlet name wajib diisi.")
+                elif new_name in outlet_mapping["outlet_name"].values:
+                    st.error("Outlet sudah ada.")
+                else:
+                    new_row = pd.DataFrame([{
+                        "outlet_name": new_name,
+                        "area": new_area,
+                        "kategori_tempat": new_kategori,
+                        "sub_kategori_tempat": new_sub,
+                        "tipe_tempat": new_tipe,
+                    }])
+                    updated = pd.concat([outlet_mapping, new_row], ignore_index=True)
+                    updated = updated[required_cols].sort_values("outlet_name").reset_index(drop=True)
+                    updated.to_csv(OUTLET_MAPPING_PATH, index=False)
+                    st.success("Outlet berhasil ditambahkan.")
+                    rerun()
+
+    with tab_master:
+        st.subheader("Master Data")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("**Area**")
+            df_show(pd.DataFrame({"Area": INDONESIA_AREAS}), use_container_width=True, hide_index=True)
+        with c2:
+            st.markdown("**Kategori**")
+            df_show(pd.DataFrame({"Kategori": KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
+        with c3:
+            st.markdown("**Sub Kategori**")
+            df_show(pd.DataFrame({"Sub Kategori": SUB_KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
+
+    with tab_delete:
+        st.subheader("Delete Outlet")
+        outlets_to_delete = st.multiselect("Pilih outlet", outlet_mapping["outlet_name"].tolist())
+        if outlets_to_delete:
+            st.warning(f"{len(outlets_to_delete)} outlet akan dihapus dari mapping.")
+            if st.button("Confirm Delete", key="crud_v2_delete"):
+                updated = outlet_mapping[~outlet_mapping["outlet_name"].isin(outlets_to_delete)].copy()
+                updated.to_csv(OUTLET_MAPPING_PATH, index=False)
+                st.success("Outlet berhasil dihapus.")
+                rerun()
+
 
 def show_trend_analysis(df, config, processor, viz):
     st.title("📊 Analisis Trend Penjualan")
