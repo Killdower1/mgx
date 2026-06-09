@@ -595,6 +595,43 @@ Permission error:
 sudo chown -R killdower:killdower /var/www/difotoin-dashboard
 ```
 
+Error `npm` bentrok dengan `nodejs` di AlmaLinux:
+
+```text
+package npm ... requires nodejs ... cannot install both nodejs...
+```
+
+Artinya server sudah punya `nodejs` dari NodeSource, tapi `dnf` mencoba install `npm` dari AppStream. Cek dulu:
+
+```bash
+node -v
+npm -v
+```
+
+Kalau `npm -v` sudah keluar versi, ulang installer:
+
+```bash
+./install.sh
+```
+
+Kalau `npm` belum ada, coba:
+
+```bash
+sudo dnf install -y npm --allowerasing
+```
+
+atau:
+
+```bash
+sudo dnf install -y npm --nobest
+```
+
+Lalu ulang:
+
+```bash
+./install.sh
+```
+
 Lupa password akun aplikasi:
 
 1. Login pakai admin fallback dari `ecosystem.config.js`.

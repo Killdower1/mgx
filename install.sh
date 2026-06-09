@@ -9,10 +9,22 @@ VENV_DIR="$PY_APP_DIR/.venv"
 echo "==> Installing OS packages"
 if command -v dnf >/dev/null 2>&1; then
   sudo dnf install -y epel-release || true
-  sudo dnf install -y python3 python3-pip nginx curl git nodejs npm policycoreutils-python-utils firewalld
+  sudo dnf install -y python3 python3-pip nginx curl git policycoreutils-python-utils firewalld
+  if ! command -v node >/dev/null 2>&1; then
+    sudo dnf install -y nodejs
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    sudo dnf install -y npm --allowerasing || sudo dnf install -y npm --nobest || true
+  fi
 elif command -v yum >/dev/null 2>&1; then
   sudo yum install -y epel-release || true
-  sudo yum install -y python3 python3-pip nginx curl git nodejs npm policycoreutils-python-utils firewalld
+  sudo yum install -y python3 python3-pip nginx curl git policycoreutils-python-utils firewalld
+  if ! command -v node >/dev/null 2>&1; then
+    sudo yum install -y nodejs
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    sudo yum install -y npm || true
+  fi
 elif command -v apt-get >/dev/null 2>&1; then
   sudo apt-get update
   sudo apt-get install -y python3 python3-venv python3-pip nginx curl git nodejs npm
