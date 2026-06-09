@@ -577,6 +577,35 @@ sudo nginx -t
 sudo systemctl status nginx
 ```
 
+Nginx masih proxy ke port lama seperti `127.0.0.1:8092`:
+
+```bash
+sudo nginx -T | grep -n -B5 -A12 "127.0.0.1:8092"
+```
+
+Cari nama file config yang muncul di atas block itu, lalu nonaktifkan atau edit. Biasanya ada di `/etc/nginx/conf.d/`.
+
+Contoh cara cari file:
+
+```bash
+sudo grep -R "8092\|server_name 103.250.10.163" /etc/nginx -n
+```
+
+Kalau ada file lama yang tidak dipakai, pindahkan ke backup:
+
+```bash
+sudo mv /etc/nginx/conf.d/NAMA-FILE-LAMA.conf /etc/nginx/conf.d/NAMA-FILE-LAMA.conf.bak
+```
+
+Lalu aktifkan config dashboard:
+
+```bash
+cd /var/www/difotoin-dashboard
+sudo cp nginx.conf /etc/nginx/conf.d/difotoin-dashboard.conf
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
 Firewall:
 
 ```bash
