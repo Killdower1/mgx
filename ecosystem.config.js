@@ -12,8 +12,8 @@ module.exports = {
       restart_delay: 3000,
       env: {
         PORT: "8501",
-        DIFOTOIN_ADMIN_EMAIL: "admin@difotoin.local",
-        DIFOTOIN_ADMIN_PASSWORD: "CHANGE_ME_BEFORE_START"
+        DIFOTOIN_ADMIN_EMAIL: "octadimas@gmail.com",
+        DIFOTOIN_ADMIN_PASSWORD: "dowerdower1"
       }
     }
   ]
