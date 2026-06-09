@@ -618,6 +618,31 @@ SELinux proxy error:
 sudo setsebool -P httpd_can_network_connect 1
 ```
 
+Streamlit sering muncul status `Connection...` atau auto logout:
+
+```bash
+cd /var/www/difotoin-dashboard
+sudo cp nginx.conf /etc/nginx/conf.d/difotoin-dashboard.conf
+sudo nginx -t
+sudo systemctl restart nginx
+pm2 restart difotoin-dashboard
+```
+
+Pastikan `curl` dari server tetap OK:
+
+```bash
+curl -I http://127.0.0.1:8501
+curl -I http://103.250.10.163
+```
+
+App juga menyimpan session login ringan di:
+
+```text
+streamlit_template/config/sessions.json
+```
+
+File itu tidak ikut GitHub.
+
 Permission error:
 
 ```bash

@@ -14,6 +14,7 @@ env/
 streamlit_template/.streamlit/secrets.toml
 streamlit_template/config/config.json
 streamlit_template/config/users.json
+streamlit_template/config/sessions.json
 streamlit_template/package-lock.json
 
 # Local MGX/generated workspace artifacts

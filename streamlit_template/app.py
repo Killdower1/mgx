@@ -7,6 +7,7 @@ import os
 import re
 import hashlib
 import secrets
+import time
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -18,7 +19,7 @@ from typing import List, Tuple, Dict, Optional
 from data_processor import DataProcessor
 from visualizations import Visualizations
 from utils import *
-from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH, USERS_PATH
+from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH, USERS_PATH, AUTH_SESSIONS_PATH
 
 # ============== COMPAT LAYER (Streamlit lama / Python 3.6) ==============
 HAS_CACHE_DATA = hasattr(st, "cache_data")
@@ -121,6 +122,7 @@ SUB_KATEGORI_TEMPAT = [
 
 VALID_EMAIL = os.getenv("DIFOTOIN_ADMIN_EMAIL", "admin@difotoin.local")
 VALID_PASSWORD = os.getenv("DIFOTOIN_ADMIN_PASSWORD", "")
+AUTH_SESSION_TTL_SECONDS = int(os.getenv("DIFOTOIN_AUTH_SESSION_TTL_SECONDS", str(7 * 24 * 60 * 60)))
 
 # ================= STYLES =================
 st.markdown("""
@@ -179,6 +181,93 @@ def save_users(users: List[dict]) -> None:
     with open(USERS_PATH, "w", encoding="utf-8") as f:
         json.dump({"users": users}, f, indent=2)
 
+def load_auth_sessions() -> Dict[str, dict]:
+    try:
+        with open(AUTH_SESSIONS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        sessions = data.get("sessions", {}) if isinstance(data, dict) else {}
+        return sessions if isinstance(sessions, dict) else {}
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        return {}
+
+def save_auth_sessions(sessions: Dict[str, dict]) -> None:
+    AUTH_SESSIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    now = int(time.time())
+    clean = {
+        token: session for token, session in sessions.items()
+        if int(session.get("expires_at", 0)) > now
+    }
+    with open(AUTH_SESSIONS_PATH, "w", encoding="utf-8") as f:
+        json.dump({"sessions": clean}, f, indent=2)
+
+def create_auth_session(user: dict) -> str:
+    sessions = load_auth_sessions()
+    token = secrets.token_urlsafe(32)
+    sessions[token] = {
+        "email": user.get("email", ""),
+        "name": user.get("name", ""),
+        "expires_at": int(time.time()) + AUTH_SESSION_TTL_SECONDS,
+    }
+    save_auth_sessions(sessions)
+    return token
+
+def get_auth_session(token: str) -> Optional[dict]:
+    if not token:
+        return None
+    sessions = load_auth_sessions()
+    session = sessions.get(token)
+    if not session:
+        return None
+    if int(session.get("expires_at", 0)) <= int(time.time()):
+        sessions.pop(token, None)
+        save_auth_sessions(sessions)
+        return None
+    return session
+
+def revoke_auth_session(token: str) -> None:
+    if not token:
+        return
+    sessions = load_auth_sessions()
+    if token in sessions:
+        sessions.pop(token, None)
+        save_auth_sessions(sessions)
+
+def _get_query_param(key: str) -> str:
+    try:
+        value = st.query_params.get(key, "")
+        return value[0] if isinstance(value, list) else str(value or "")
+    except Exception:
+        try:
+            values = st.experimental_get_query_params().get(key, [""])
+            return values[0] if values else ""
+        except Exception:
+            return ""
+
+def _set_query_param(key: str, value: str) -> None:
+    try:
+        st.query_params[key] = value
+    except Exception:
+        try:
+            current = st.experimental_get_query_params()
+            current[key] = value
+            st.experimental_set_query_params(**current)
+        except Exception:
+            pass
+
+def _clear_query_param(key: str) -> None:
+    try:
+        if key in st.query_params:
+            del st.query_params[key]
+    except Exception:
+        try:
+            current = st.experimental_get_query_params()
+            current.pop(key, None)
+            st.experimental_set_query_params(**current)
+        except Exception:
+            pass
+
 def authenticate_user(email: str, password: str) -> Optional[dict]:
     email_norm = _normalize_email(email)
     for user in load_users():
@@ -192,6 +281,12 @@ def _init_auth_state():
     st.session_state.setdefault("logged_in", False)
     st.session_state.setdefault("user_email", None)
     st.session_state.setdefault("user_name", None)
+    if not st.session_state.get("logged_in"):
+        session = get_auth_session(_get_query_param("auth"))
+        if session:
+            st.session_state["logged_in"] = True
+            st.session_state["user_email"] = session.get("email")
+            st.session_state["user_name"] = session.get("name", "")
 
 def show_login_page():
     st.markdown('<h1 class="main-header">📸 Difotoin Dashboard</h1>', unsafe_allow_html=True)
@@ -205,6 +300,7 @@ def show_login_page():
                 st.session_state["logged_in"] = True
                 st.session_state["user_email"] = user.get("email", email)
                 st.session_state["user_name"] = user.get("name", "")
+                _set_query_param("auth", create_auth_session(user))
                 st.success("Login successful! Redirecting...")
                 rerun()
             else:
@@ -215,6 +311,8 @@ def show_login_page():
 def show_logout_button():
     st.sidebar.markdown("---")
     if st.sidebar.button("🚪 Logout", key="btn_logout"):
+        revoke_auth_session(_get_query_param("auth"))
+        _clear_query_param("auth")
         st.session_state["logged_in"] = False
         st.session_state["user_email"] = None
         st.session_state["user_name"] = None
