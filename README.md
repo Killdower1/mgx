@@ -1,20 +1,18 @@
-# Difotoin Dashboard - Panduan Setup Pribadi
+# Difotoin Dashboard - Panduan Deploy Pribadi
 
-Panduan ini dibuat sebagai catatan operasional untuk setup, upload ke GitHub, deploy ke server, dan maintenance dashboard Difotoin.
+Panduan ini disesuaikan untuk server lo sekarang:
 
-Dashboard ini dibuat dengan Streamlit untuk memantau performa outlet Difotoin:
+```text
+OS      : AlmaLinux v8.x
+User    : killdower
+Public IP: 103.250.10.163
+App     : Difotoin Dashboard / Streamlit
+Port app: 8501
+```
 
-- Omzet per outlet dan periode.
-- Foto, unlock, print.
-- Conversion rate.
-- Ranking outlet.
-- CRUD outlet.
-- Upload data transaksi bulanan.
-- User access untuk membuat akun login.
+Dashboard ini dipakai untuk monitoring outlet Difotoin: omzet, foto, unlock, print, conversion, ranking outlet, CRUD outlet, upload data transaksi bulanan, dan user access.
 
-## 1. Struktur Project
-
-File penting di root repo:
+## 1. File Penting
 
 ```text
 mgx/
@@ -24,7 +22,6 @@ mgx/
   ecosystem.config.js
   nginx.conf
   START_UPDATE_MGX.md
-  Run Difotoin Dashboard.exe
   streamlit_template/
     app.py
     config.py
@@ -35,27 +32,15 @@ mgx/
     config/
 ```
 
-Fungsi file:
+Fungsi file deploy:
 
-- `README.md`: panduan setup ini.
-- `requirements.txt`: dependency Python untuk server.
-- `install.sh`: script install awal di server Linux/Ubuntu.
-- `ecosystem.config.js`: konfigurasi PM2 supaya dashboard terus hidup.
-- `nginx.conf`: contoh konfigurasi Nginx untuk reverse proxy.
-- `Run Difotoin Dashboard.exe`: launcher lokal Windows.
-- `streamlit_template/app.py`: aplikasi utama.
-- `streamlit_template/data/`: data dashboard.
-- `streamlit_template/config/`: config runtime lokal/server.
+- `requirements.txt`: dependency Python.
+- `install.sh`: installer server, sudah support AlmaLinux/RHEL dan Ubuntu.
+- `ecosystem.config.js`: konfigurasi PM2 untuk menjalankan Streamlit.
+- `nginx.conf`: reverse proxy dari port 80 ke Streamlit `127.0.0.1:8501`.
+- `streamlit_template/config/users.json`: akun login lokal, tidak ikut GitHub.
 
-File yang sengaja tidak masuk GitHub:
-
-- `streamlit_template/config/users.json`
-- `streamlit_template/config/config.json`
-- `.env`
-- `.venv/`
-- file Excel upload mentah
-
-## 2. Cara Jalanin Di Laptop Windows
+## 2. Jalanin Lokal Di Windows
 
 Cara paling gampang:
 
@@ -63,27 +48,21 @@ Cara paling gampang:
 2. Double-click `Run Difotoin Dashboard.exe`.
 3. Isi email dan password.
 4. Tunggu status launcher sampai `ready`.
-5. Browser akan buka `http://localhost:8501`.
-6. Login pakai email dan password yang tadi diisi.
+5. Browser buka `http://localhost:8501`.
+6. Login pakai email/password yang tadi diisi.
 
-Kalau mau jalanin manual lewat PowerShell:
+Manual via PowerShell:
 
 ```powershell
 cd C:\Users\octadimas\Documents\GitHub\mgx
+python -m pip install -r requirements.txt
 $env:DIFOTOIN_ADMIN_EMAIL="octadimas@gmail.com"
 $env:DIFOTOIN_ADMIN_PASSWORD="password-local"
 cd streamlit_template
 python -m streamlit run app.py
 ```
 
-Kalau dependency belum ada:
-
-```powershell
-cd C:\Users\octadimas\Documents\GitHub\mgx
-python -m pip install -r requirements.txt
-```
-
-## 3. Sebelum Commit Ke GitHub
+## 3. Sebelum Push Ke GitHub
 
 Cek status:
 
@@ -91,56 +70,44 @@ Cek status:
 git status
 ```
 
-Cek file yang berubah:
+Cek ringkasan perubahan:
 
 ```bash
 git diff --stat
 ```
 
-Pastikan tidak ada file sensitif ikut commit:
+Pastikan file ini tidak ikut commit:
 
-- Password asli.
 - `.env`
-- `users.json`
-- `.venv`
-- file Excel mentah.
+- `.venv/`
+- `streamlit_template/config/users.json`
+- `streamlit_template/config/config.json`
+- file Excel mentah
+- password asli di `ecosystem.config.js`
 
-Kalau semua aman, commit:
+Commit:
 
 ```bash
 git add .
 git commit -m "prepare difotoin dashboard deployment"
 ```
 
-Push ke GitHub:
+Push:
 
 ```bash
 git push origin main
 ```
 
-Kalau branch bukan `main`, cek branch:
+Kalau branch bukan `main`:
 
 ```bash
 git branch
-```
-
-Lalu push sesuai branch:
-
-```bash
 git push origin nama-branch
 ```
 
-## 4. Setup Repo GitHub Dari Nol
+## 4. Connect Project Lokal Ke GitHub
 
-Kalau repo belum ada di GitHub:
-
-1. Buka GitHub.
-2. Create new repository.
-3. Isi nama repo, misalnya `difotoin-dashboard`.
-4. Jangan centang initialize README kalau project lokal sudah ada.
-5. Copy remote URL GitHub.
-
-Hubungkan folder lokal ke GitHub:
+Kalau repo GitHub belum tersambung:
 
 ```bash
 git remote add origin https://github.com/USERNAME/REPO.git
@@ -148,97 +115,135 @@ git branch -M main
 git push -u origin main
 ```
 
-Kalau remote sudah ada tapi mau cek:
+Cek remote:
 
 ```bash
 git remote -v
 ```
 
-Kalau remote salah:
+Ganti remote kalau salah:
 
 ```bash
 git remote set-url origin https://github.com/USERNAME/REPO.git
 ```
 
-## 5. Setup Server Baru
+## 5. Login Ke Server AlmaLinux
 
-Asumsi server memakai Ubuntu.
-
-Login ke server:
+Dari terminal laptop:
 
 ```bash
-ssh username@IP_SERVER
+ssh killdower@103.250.10.163
 ```
+
+Kalau SSH pertama kali minta konfirmasi:
+
+```text
+Are you sure you want to continue connecting?
+```
+
+Ketik:
+
+```bash
+yes
+```
+
+## 6. Persiapan Server AlmaLinux
 
 Update server:
 
 ```bash
-sudo apt-get update
-sudo apt-get upgrade -y
+sudo dnf update -y
 ```
 
 Install Git:
 
 ```bash
-sudo apt-get install -y git
+sudo dnf install -y git
+```
+
+Buat folder app:
+
+```bash
+sudo mkdir -p /var/www
+sudo chown -R killdower:killdower /var/www
+cd /var/www
 ```
 
 Clone repo:
 
 ```bash
-cd /var/www
-sudo git clone https://github.com/USERNAME/REPO.git difotoin-dashboard
-sudo chown -R $USER:$USER difotoin-dashboard
+git clone https://github.com/USERNAME/REPO.git difotoin-dashboard
 cd difotoin-dashboard
 ```
 
-Jalankan installer:
+Ganti `USERNAME/REPO` sesuai repo GitHub lo.
+
+## 7. Install Dependency Server
+
+Dari folder repo di server:
+
+```bash
+cd /var/www/difotoin-dashboard
+chmod +x install.sh
+./install.sh
+```
+
+Script ini akan install:
+
+- Python 3.
+- Pip.
+- Virtualenv/venv.
+- Nginx.
+- Curl.
+- Git.
+- Node.js.
+- npm.
+- PM2.
+
+Kalau `install.sh` gagal karena permission:
 
 ```bash
 chmod +x install.sh
 ./install.sh
 ```
 
-Script ini akan setup:
+Kalau `dnf` minta password, isi password user server.
 
-- Python 3.
-- Python venv.
-- Pip dependency.
-- Nginx.
-- Node.js dan npm.
-- PM2.
+## 8. Set Admin Login Pertama
 
-## 6. Set Credential Admin Fallback
-
-Edit `ecosystem.config.js`:
+Edit PM2 config:
 
 ```bash
 nano ecosystem.config.js
 ```
 
-Ganti bagian ini:
+Cari:
 
 ```js
 DIFOTOIN_ADMIN_EMAIL: "admin@difotoin.local",
 DIFOTOIN_ADMIN_PASSWORD: "CHANGE_ME_BEFORE_START"
 ```
 
-Menjadi email dan password admin sementara:
+Ganti ke email dan password sementara yang kuat:
 
 ```js
 DIFOTOIN_ADMIN_EMAIL: "email-admin@domain.com",
 DIFOTOIN_ADMIN_PASSWORD: "password-kuat"
 ```
 
-Credential ini dipakai untuk login pertama. Setelah masuk dashboard, bikin akun permanen dari:
+Simpan di nano:
 
 ```text
-Admin Panel > User Access
+CTRL + O
+ENTER
+CTRL + X
 ```
 
-## 7. Start App Dengan PM2
+Catatan: jangan commit password asli ke GitHub. Password ini hanya diedit langsung di server.
 
-Dari root repo di server:
+## 9. Start Dashboard Dengan PM2
+
+Start app:
 
 ```bash
 pm2 start ecosystem.config.js
@@ -256,18 +261,18 @@ Cek log:
 pm2 logs difotoin-dashboard
 ```
 
-Simpan proses supaya hidup lagi setelah reboot:
+Simpan PM2 supaya hidup lagi setelah reboot:
 
 ```bash
 pm2 save
-pm2 startup
+pm2 startup systemd -u killdower --hp /home/killdower
 ```
 
-Perintah `pm2 startup` biasanya menampilkan command tambahan. Copy dan jalankan command yang muncul.
+Command `pm2 startup` biasanya akan menampilkan command tambahan dengan `sudo env ...`. Copy command itu lalu jalankan.
 
-## 8. Tes App Di Server
+## 10. Tes Streamlit Dari Server
 
-Cek dari server:
+Tes app lokal server:
 
 ```bash
 curl http://127.0.0.1:8501
@@ -275,52 +280,105 @@ curl http://127.0.0.1:8501
 
 Kalau keluar HTML, app sudah hidup.
 
-Kalau belum hidup, cek:
+Kalau gagal:
 
 ```bash
 pm2 logs difotoin-dashboard
 ```
 
-## 9. Setup Nginx
+## 11. Setup Nginx Di AlmaLinux
 
-Copy config Nginx:
+Di AlmaLinux, config Nginx biasanya pakai:
 
-```bash
-sudo cp nginx.conf /etc/nginx/sites-available/difotoin-dashboard
+```text
+/etc/nginx/conf.d/
 ```
 
-Enable config:
+Copy config:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/difotoin-dashboard /etc/nginx/sites-enabled/difotoin-dashboard
+sudo cp nginx.conf /etc/nginx/conf.d/difotoin-dashboard.conf
 ```
 
-Tes Nginx:
+Tes config:
 
 ```bash
 sudo nginx -t
 ```
 
-Reload Nginx:
+Enable dan start Nginx:
 
 ```bash
-sudo systemctl reload nginx
+sudo systemctl enable nginx
+sudo systemctl restart nginx
 ```
+
+## 12. Buka Firewall AlmaLinux
+
+Cek firewalld:
+
+```bash
+sudo systemctl status firewalld
+```
+
+Kalau firewalld aktif, buka HTTP dan HTTPS:
+
+```bash
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --reload
+```
+
+Kalau cuma mau test port Streamlit langsung:
+
+```bash
+sudo firewall-cmd --permanent --add-port=8501/tcp
+sudo firewall-cmd --reload
+```
+
+Tapi untuk production, lebih bagus akses publik lewat Nginx port 80/443, bukan langsung port 8501.
+
+## 13. SELinux AlmaLinux
+
+AlmaLinux biasanya pakai SELinux. Supaya Nginx boleh proxy ke Streamlit:
+
+```bash
+sudo setsebool -P httpd_can_network_connect 1
+```
+
+Kalau command `setsebool` tidak ada:
+
+```bash
+sudo dnf install -y policycoreutils-python-utils
+sudo setsebool -P httpd_can_network_connect 1
+```
+
+## 14. Test Dari Browser
 
 Buka:
 
 ```text
-http://IP_SERVER
+http://103.250.10.163
 ```
 
-## 10. Setup Domain
+Kalau belum bisa:
 
-Di DNS provider domain, buat record:
+```bash
+pm2 status
+pm2 logs difotoin-dashboard
+sudo nginx -t
+sudo systemctl status nginx
+sudo firewall-cmd --list-all
+```
+
+## 15. Setup Domain
+
+Di DNS provider, buat record:
 
 ```text
-Type: A
-Name: dashboard
-Value: IP_SERVER
+Type : A
+Name : dashboard
+Value: 103.250.10.163
 ```
 
 Contoh domain:
@@ -332,7 +390,7 @@ dashboard.difotoin.id
 Edit Nginx config:
 
 ```bash
-sudo nano /etc/nginx/sites-available/difotoin-dashboard
+sudo nano /etc/nginx/conf.d/difotoin-dashboard.conf
 ```
 
 Ganti:
@@ -347,19 +405,20 @@ Menjadi:
 server_name dashboard.difotoin.id;
 ```
 
-Tes dan reload:
+Reload:
 
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## 11. Setup HTTPS SSL
+## 16. Setup HTTPS SSL Di AlmaLinux
 
 Install Certbot:
 
 ```bash
-sudo apt-get install -y certbot python3-certbot-nginx
+sudo dnf install -y epel-release
+sudo dnf install -y certbot python3-certbot-nginx
 ```
 
 Generate SSL:
@@ -368,37 +427,33 @@ Generate SSL:
 sudo certbot --nginx -d dashboard.difotoin.id
 ```
 
-Ikuti instruksi Certbot.
-
-Tes auto renew:
+Tes auto-renew:
 
 ```bash
 sudo certbot renew --dry-run
 ```
 
-## 12. Login Dan Buat Akun
+## 17. Login Dan Buat Akun Aplikasi
 
-Login pertama pakai credential fallback dari `ecosystem.config.js`.
+Login pertama pakai admin fallback dari `ecosystem.config.js`.
 
 Setelah masuk:
 
 1. Buka `Admin Panel`.
-2. Cari section `User Access`.
-3. Klik tab `Add Account`.
+2. Buka section `User Access`.
+3. Klik `Add Account`.
 4. Isi nama, email, password.
 5. Klik `Create Account`.
 
-Setelah akun dibuat, login berikutnya bisa pakai akun itu.
-
-Data akun disimpan di server:
+Akun disimpan di:
 
 ```text
 streamlit_template/config/users.json
 ```
 
-Password tidak disimpan mentah, tapi dalam bentuk hash.
+Password disimpan sebagai hash, bukan plain text.
 
-## 13. Upload Data Bulanan
+## 18. Upload Data Bulanan
 
 Masuk ke halaman:
 
@@ -406,39 +461,44 @@ Masuk ke halaman:
 Upload Data
 ```
 
-Alur aman:
+Alur:
 
 1. Upload file Excel transaksi.
-2. Pilih sheet yang benar.
-3. Pastikan mapping kolom:
+2. Pilih sheet.
+3. Mapping kolom:
    - Outlet ke `outlet_name`
    - Harga ke `harga`
    - Tanggal ke `tanggal`
    - Tipe ke `type`
-4. Pastikan periode format `YYYY-MM`.
+4. Pastikan periode `YYYY-MM`.
 5. Biarkan `Harga Scale` di `x1 (normal)`.
-6. Cek audit total raw vs agregasi.
-7. Kalau total sudah benar, klik save.
+6. Cek audit total.
+7. Save jika total sudah benar.
 
-Catatan penting:
+Catatan:
 
-- Save upload akan overwrite data untuk periode yang sama.
-- Kalau upload September lagi, data September lama diganti.
-- Parser harga sudah dibenerin, jadi angka seperti `35000.0` tetap jadi `35000`.
-- Tidak perlu pilih `divide by 10` kecuali file sumber benar-benar beda format.
+- Upload periode yang sama akan overwrite data lama di periode itu.
+- Parser harga sudah dibenerin; `35000.0` tetap jadi `35000`.
+- Tidak perlu pilih `divide by 10` kecuali file sumber memang beda format.
 
-## 14. Update Aplikasi Dari GitHub Ke Server
+## 19. Update App Dari GitHub Ke Server
 
-Masuk ke server:
+Masuk server:
 
 ```bash
-ssh username@IP_SERVER
+ssh killdower@103.250.10.163
 ```
 
-Masuk folder project:
+Masuk folder app:
 
 ```bash
 cd /var/www/difotoin-dashboard
+```
+
+Backup dulu sebelum pull:
+
+```bash
+tar -czf backup-difotoin-$(date +%Y-%m-%d-%H%M).tar.gz streamlit_template/data streamlit_template/config
 ```
 
 Pull update:
@@ -459,51 +519,52 @@ Restart app:
 pm2 restart difotoin-dashboard
 ```
 
-Cek log:
+Cek:
 
 ```bash
 pm2 logs difotoin-dashboard
 ```
 
-## 15. Backup Data Server
+## 20. Backup Data Server
 
-Minimal backup folder:
+Backup folder penting:
 
 ```text
 streamlit_template/data/
 streamlit_template/config/
 ```
 
-Backup manual:
+Command backup:
 
 ```bash
 cd /var/www/difotoin-dashboard
-tar -czf backup-difotoin-$(date +%Y-%m-%d).tar.gz streamlit_template/data streamlit_template/config
+tar -czf backup-difotoin-$(date +%Y-%m-%d-%H%M).tar.gz streamlit_template/data streamlit_template/config
 ```
 
-Download backup ke laptop:
+Download ke laptop:
 
 ```bash
-scp username@IP_SERVER:/var/www/difotoin-dashboard/backup-difotoin-YYYY-MM-DD.tar.gz .
+scp killdower@103.250.10.163:/var/www/difotoin-dashboard/backup-difotoin-YYYY-MM-DD-HHMM.tar.gz .
 ```
 
-Restore backup:
+Restore:
 
 ```bash
-tar -xzf backup-difotoin-YYYY-MM-DD.tar.gz
+cd /var/www/difotoin-dashboard
+tar -xzf backup-difotoin-YYYY-MM-DD-HHMM.tar.gz
 pm2 restart difotoin-dashboard
 ```
 
-## 16. Troubleshooting
+## 21. Troubleshooting Cepat
 
-App tidak bisa dibuka:
+App mati:
 
 ```bash
 pm2 status
 pm2 logs difotoin-dashboard
 ```
 
-Port 8501 tidak hidup:
+Streamlit tidak respon:
 
 ```bash
 curl http://127.0.0.1:8501
@@ -516,61 +577,39 @@ sudo nginx -t
 sudo systemctl status nginx
 ```
 
-Domain belum masuk:
+Firewall:
 
 ```bash
-ping dashboard.difotoin.id
+sudo firewall-cmd --list-all
+```
+
+SELinux proxy error:
+
+```bash
+sudo setsebool -P httpd_can_network_connect 1
 ```
 
 Permission error:
 
 ```bash
-sudo chown -R $USER:$USER /var/www/difotoin-dashboard
+sudo chown -R killdower:killdower /var/www/difotoin-dashboard
 ```
 
-Dependency error:
-
-```bash
-cd /var/www/difotoin-dashboard
-./install.sh
-pm2 restart difotoin-dashboard
-```
-
-Lupa password akun lokal:
+Lupa password akun aplikasi:
 
 1. Login pakai admin fallback dari `ecosystem.config.js`.
 2. Buka `Admin Panel > User Access`.
 3. Reset password akun.
 
-Kalau admin fallback juga lupa, edit `ecosystem.config.js`, ganti password fallback, lalu:
+Lupa password fallback:
 
 ```bash
+cd /var/www/difotoin-dashboard
+nano ecosystem.config.js
 pm2 restart difotoin-dashboard
 ```
 
-## 17. Checklist Deploy Cepat
-
-Checklist dari laptop:
-
-- Commit perubahan terbaru.
-- Push ke GitHub.
-- Pastikan tidak ada secret ikut commit.
-
-Checklist di server:
-
-- Clone repo.
-- Jalankan `./install.sh`.
-- Edit credential di `ecosystem.config.js`.
-- Jalankan `pm2 start ecosystem.config.js`.
-- Jalankan `pm2 save`.
-- Setup Nginx.
-- Setup domain.
-- Setup SSL.
-- Login dashboard.
-- Buat akun utama di `Admin Panel > User Access`.
-- Upload atau cek data.
-
-## 18. Command Ringkas
+## 22. Command Ringkas
 
 Start:
 
@@ -605,5 +644,27 @@ sudo nginx -t && sudo systemctl reload nginx
 Update app:
 
 ```bash
-git pull origin main && ./install.sh && pm2 restart difotoin-dashboard
+cd /var/www/difotoin-dashboard
+git pull origin main
+./install.sh
+pm2 restart difotoin-dashboard
 ```
+
+## 23. Checklist Deploy Server Ini
+
+- Push update terbaru ke GitHub.
+- SSH ke `killdower@103.250.10.163`.
+- Clone repo ke `/var/www/difotoin-dashboard`.
+- Jalankan `./install.sh`.
+- Edit `ecosystem.config.js` di server, isi admin fallback.
+- Jalankan `pm2 start ecosystem.config.js`.
+- Jalankan `pm2 save`.
+- Jalankan `pm2 startup systemd -u killdower --hp /home/killdower`.
+- Copy Nginx config ke `/etc/nginx/conf.d/difotoin-dashboard.conf`.
+- Jalankan `sudo setsebool -P httpd_can_network_connect 1`.
+- Buka firewall HTTP/HTTPS.
+- Test `http://103.250.10.163`.
+- Setup domain.
+- Setup SSL.
+- Login dashboard.
+- Buat akun utama di `Admin Panel > User Access`.
