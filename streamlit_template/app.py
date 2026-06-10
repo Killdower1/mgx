@@ -110,14 +110,14 @@ INDONESIA_AREAS = [
 KATEGORI_TEMPAT = [
     "Mall","Wisata","Restoran","Hotel","Komunitas","Sekolah","Universitas","Rumah Sakit",
     "Perkantoran","Apartemen","Cafe","Gym","Salon","Spa","Bioskop","Taman","Museum",
-    "Galeri","Event Space","Co-working Space","Lainnya"
+    "Galeri","Event Space","Co-working Space","Transportasi","Lainnya"
 ]
 SUB_KATEGORI_TEMPAT = [
-    "Food Court","Department Store","Supermarket","Boutique","Electronics Store","Bookstore",
-    "Pantai","Gunung","Danau","Taman Nasional","Candi","Kebun Binatang","Waterpark",
+    "Food Court","Shopping Center","Department Store","Supermarket","Boutique","Electronics Store","Bookstore",
+    "Pantai","Gunung","Danau","Taman Nasional","Taman/Wisata Alam","Candi","Kebun Binatang","Waterpark",
     "Fine Dining","Fast Food","Street Food","Bakery","Coffee Shop","Bar","Lounge",
-    "Budget Hotel","Luxury Hotel","Resort","Homestay","Guest House","Hostel",
-    "Tidak Terkategorisasi","Lainnya"
+    "Budget Hotel","Luxury Hotel","Resort","Resort/Hotel","Homestay","Guest House","Hostel",
+    "Community Space","Creative Space","Airport","Tidak Terkategorisasi","Lainnya"
 ]
 
 VALID_EMAIL = os.getenv("DIFOTOIN_ADMIN_EMAIL", "admin@difotoin.local")
@@ -833,7 +833,7 @@ def main():
 
     page = st.sidebar.selectbox(
         "Pilih Halaman",
-        ["🏠 Dashboard Utama","📊 Analisis Trend","🔄 Analisis Konversi",
+        ["🏠 Dashboard Utama","📊 Analisis Trend","AI Decision","🔄 Analisis Konversi",
          "🏆 Ranking Outlet","📅 Perbandingan Periode","🗃️ CRUD Data Outlet","⚙️ Admin Panel","📤 Upload Data"]
     )
 
@@ -861,6 +861,8 @@ def main():
         show_main_dashboard(filtered_df, config, processor, viz, current_period, compare_period, full_df=filtered_full_df)
     elif page == "📊 Analisis Trend":
         show_trend_analysis_v2(filtered_df, config, processor, viz)
+    elif page == "AI Decision":
+        show_ai_decision_center(filtered_full_df, config)
     elif page == "🔄 Analisis Konversi":
         show_conversion_analysis(filtered_df, config, processor, viz)
     elif page == "🏆 Ranking Outlet":
@@ -1043,6 +1045,114 @@ def show_outlet_crud(df, config, processor):
                     else: st.error("❌ Area sudah ada atau kosong!")
             st.info("📊 Total Area: {}".format(len(INDONESIA_AREAS)))
 
+def suggest_outlet_metadata(outlet_name: str, current_row: Optional[dict] = None) -> dict:
+    name = str(outlet_name or "").strip()
+    text = name.lower()
+    row = current_row or {}
+
+    def has_any(words):
+        return any(word in text for word in words)
+
+    area_rules = [
+        ("Jakarta", ["jakarta", "pik", "ancol", "senayan", "sarinah", "tmii", "jgc", "monas", "mandiri", "jis", "central park", "neo soho", "ashta", "pantjoran", "kota intan", "lapangan banteng", "taman literasi"]),
+        ("Bali", ["bali", "kuta", "sanur", "gwk", "ubud", "bedugul", "ngurah rai", "beachwalk", "discovery mall", "dewata", "denpasar"]),
+        ("Yogyakarta", ["jogja", "yogya", "malioboro", "heha", "obelix", "tugu jogja", "sleman"]),
+        ("Bogor", ["bogor", "puncak", "sentul", "daong", "kopi tubing", "nicole", "kembali ke alam"]),
+        ("Bekasi", ["bekasi", "deltamas", "cikarang"]),
+        ("Tangerang", ["tangerang", "alam sutera", "flavor bliss", "lippo village"]),
+        ("Samarinda", ["samarinda", "citra niaga"]),
+        ("Semarang", ["semarang", "ambarawa"]),
+        ("Batam", ["batam", "batamu"]),
+        ("Malang", ["malang"]),
+        ("Bandung", ["bandung", "castello"]),
+    ]
+
+    area = str(row.get("area", "") or "").strip()
+    area_reason = "pakai data existing"
+    area_conf = 55
+    if not area or area.lower() in ["none", "nan", "lainnya"]:
+        for candidate, keywords in area_rules:
+            if has_any(keywords):
+                area = candidate
+                area_reason = "nama outlet mengandung keyword lokasi"
+                area_conf = 82
+                break
+    if not area:
+        area = "Lainnya"
+        area_reason = "lokasi belum kebaca dari nama"
+        area_conf = 35
+
+    kategori = "Lainnya"
+    sub = "Lainnya"
+    tipe = "Indoor"
+    cat_conf = 45
+    cat_reason = "fallback umum"
+
+    if has_any(["mall", "aeon", "living world", "neo soho", "city plaza", "sarinah", "beachwalk", "discovery mall", "bali icon", "central park", "ashta"]):
+        kategori, sub, tipe, cat_conf = "Mall", "Shopping Center", "Indoor", 86
+        cat_reason = "terdeteksi shopping center/mall"
+    elif has_any(["hotel", "resort", "sheraton", "aryaduta", "alana", "ayodya", "villa", "vacation hotel"]):
+        kategori, sub, tipe, cat_conf = "Hotel", "Resort/Hotel", "Indoor", 84
+        cat_reason = "terdeteksi hotel/resort"
+    elif has_any(["kopi", "koffie", "coffee", "cafe", "kopitiam", "burger", "buerger", "resto", "restaurant", "pantjoran"]):
+        kategori, sub, tipe, cat_conf = "Restoran", "Coffee Shop", "Indoor", 80
+        cat_reason = "terdeteksi cafe/restoran"
+    elif has_any(["pantai", "beach", "kuta", "sanur", "sea view", "waterfront"]):
+        kategori, sub, tipe, cat_conf = "Wisata", "Pantai", "Outdoor", 82
+        cat_reason = "terdeteksi destinasi pantai/outdoor"
+    elif has_any(["museum", "galeri", "mandiri"]):
+        kategori, sub, tipe, cat_conf = "Museum", "Lainnya", "Indoor", 78
+        cat_reason = "terdeteksi museum/galeri"
+    elif has_any(["taman", "tmii", "ancol", "gwk", "heha", "obelix", "zoo", "kebun raya", "waterfall", "sky", "benteng", "puncak", "wisata", "park"]):
+        kategori, sub, tipe, cat_conf = "Wisata", "Taman/Wisata Alam", "Outdoor", 78
+        cat_reason = "terdeteksi objek wisata/taman"
+    elif has_any(["event", "festival", "run", "gathering", "wedding", "ideas", "nextdev", "kompasianival", "bduck", "suzuki", "kpk", "bfn"]):
+        kategori, sub, tipe, cat_conf = "Event Space", "Lainnya", "Semi-Outdoor", 76
+        cat_reason = "terdeteksi event/aktivasi"
+    elif has_any(["universitas", "university", "unj", "ui "]):
+        kategori, sub, tipe, cat_conf = "Universitas", "Lainnya", "Indoor", 76
+        cat_reason = "terdeteksi kampus"
+    elif has_any(["sekolah", "school", "sph", "pelita harapan"]):
+        kategori, sub, tipe, cat_conf = "Sekolah", "Lainnya", "Indoor", 76
+        cat_reason = "terdeteksi sekolah"
+    elif has_any(["airport", "bandara", "arrival", "ngurah rai"]):
+        kategori, sub, tipe, cat_conf = "Transportasi", "Airport", "Indoor", 68
+        cat_reason = "terdeteksi transport hub"
+    elif has_any(["space", "creative", "cowork", "co-work"]):
+        kategori, sub, tipe, cat_conf = "Komunitas", "Creative Space", "Indoor", 70
+        cat_reason = "terdeteksi community/creative space"
+
+    if kategori not in KATEGORI_TEMPAT:
+        kategori = "Lainnya"
+    if sub not in SUB_KATEGORI_TEMPAT:
+        sub = "Lainnya"
+    if tipe not in ["Indoor", "Outdoor", "Semi-Outdoor"]:
+        tipe = "Indoor"
+
+    existing_area = str(row.get("area", "") or "").strip()
+    existing_kat = str(row.get("kategori_tempat", "") or "").strip()
+    existing_sub = str(row.get("sub_kategori_tempat", "") or "").strip()
+    existing_tipe = str(row.get("tipe_tempat", "") or "").strip()
+    needs_update = (
+        not existing_area or existing_area.lower() in ["none", "nan", "lainnya"] or
+        existing_kat in ["", "Tidak Terkategorisasi"] or
+        existing_sub in ["", "Tidak Terkategorisasi"] or
+        existing_tipe in ["", "Tidak Terkategorisasi"]
+    )
+
+    confidence = int(round((area_conf + cat_conf) / 2))
+    return {
+        "outlet_name": name,
+        "suggested_area": area,
+        "suggested_kategori_tempat": kategori,
+        "suggested_sub_kategori_tempat": sub,
+        "suggested_tipe_tempat": tipe,
+        "confidence": confidence,
+        "reason": "{}; {}".format(area_reason, cat_reason),
+        "needs_update": needs_update,
+    }
+
+
 def show_outlet_crud_v2(df, config, processor):
     st.title("Outlet Management")
 
@@ -1103,7 +1213,7 @@ def show_outlet_crud_v2(df, config, processor):
                 except Exception: pass
                 st.info("{} outlet dari database transaksi otomatis ditambahkan ke CRUD mapping.".format(len(new_rows)))
 
-    tab_edit, tab_add, tab_master, tab_delete = st.tabs(["Edit Outlet", "Add Outlet", "Master Data", "Delete"])
+    tab_edit, tab_add, tab_ai, tab_master, tab_delete = st.tabs(["Edit Outlet", "Add Outlet", "AI Suggest", "Master Data", "Delete"])
 
     with tab_edit:
         m1, m2, m3 = st.columns(3)
@@ -1225,6 +1335,101 @@ def show_outlet_crud_v2(df, config, processor):
                     st.success("Outlet berhasil ditambahkan.")
                     rerun()
 
+    with tab_ai:
+        st.subheader("AI Suggest Outlet Mapping")
+        st.caption("AI lokal membaca nama outlet untuk menebak area, kategori, sub kategori, dan tipe. Lo tetap bisa edit hasilnya sebelum apply.")
+
+        ai_source = outlet_mapping.copy()
+        ai_source["needs_ai"] = ai_source.apply(
+            lambda r: suggest_outlet_metadata(r.get("outlet_name", ""), r.to_dict()).get("needs_update", False),
+            axis=1,
+        )
+        only_needs = st.checkbox("Tampilkan yang belum lengkap saja", value=True, key="crud_ai_only_needs")
+        min_conf = st.slider("Minimum confidence", min_value=0, max_value=100, value=55, step=5, key="crud_ai_min_conf")
+
+        suggestions = []
+        for _, row in ai_source.iterrows():
+            suggestion = suggest_outlet_metadata(row.get("outlet_name", ""), row.to_dict())
+            if only_needs and not suggestion["needs_update"]:
+                continue
+            if int(suggestion["confidence"]) < int(min_conf):
+                continue
+            suggestions.append({
+                "apply": False,
+                "outlet_name": suggestion["outlet_name"],
+                "current_area": row.get("area", ""),
+                "current_kategori": row.get("kategori_tempat", ""),
+                "suggested_area": suggestion["suggested_area"],
+                "suggested_kategori_tempat": suggestion["suggested_kategori_tempat"],
+                "suggested_sub_kategori_tempat": suggestion["suggested_sub_kategori_tempat"],
+                "suggested_tipe_tempat": suggestion["suggested_tipe_tempat"],
+                "confidence": suggestion["confidence"],
+                "reason": suggestion["reason"],
+            })
+
+        if not suggestions:
+            st.info("Tidak ada outlet yang cocok dengan filter AI Suggest.")
+        else:
+            suggestion_df = pd.DataFrame(suggestions)
+            st.info("{} rekomendasi ditemukan. Centang `apply`, edit hasil rekomendasi kalau perlu, lalu klik Apply.".format(len(suggestion_df)))
+
+            ai_config = None
+            if HAS_COLUMN_CONFIG:
+                try:
+                    ai_config = {
+                        "apply": st.column_config.CheckboxColumn("Apply", width="small"),
+                        "outlet_name": st.column_config.TextColumn("Outlet", width="large"),
+                        "current_area": st.column_config.TextColumn("Area Saat Ini", width="medium"),
+                        "current_kategori": st.column_config.TextColumn("Kategori Saat Ini", width="medium"),
+                        "suggested_area": st.column_config.SelectboxColumn("Area AI", options=sorted(set(INDONESIA_AREAS) | set(safe_unique_str(outlet_mapping, "area")) | {"Lainnya"}), width="medium"),
+                        "suggested_kategori_tempat": st.column_config.SelectboxColumn("Kategori AI", options=sorted(set(KATEGORI_TEMPAT) | {"Lainnya"}), width="medium"),
+                        "suggested_sub_kategori_tempat": st.column_config.SelectboxColumn("Sub Kategori AI", options=sorted(set(SUB_KATEGORI_TEMPAT) | {"Lainnya"}), width="medium"),
+                        "suggested_tipe_tempat": st.column_config.SelectboxColumn("Tipe AI", options=["Indoor", "Outdoor", "Semi-Outdoor"], width="small"),
+                        "confidence": st.column_config.NumberColumn("Confidence", min_value=0, max_value=100, width="small"),
+                        "reason": st.column_config.TextColumn("Reason", width="large"),
+                    }
+                except Exception:
+                    ai_config = None
+
+            if hasattr(st, "data_editor"):
+                edited_suggestion = st.data_editor(
+                    suggestion_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    num_rows="fixed",
+                    disabled=["outlet_name", "current_area", "current_kategori", "confidence", "reason"],
+                    column_config=ai_config,
+                    key="crud_ai_suggest_editor",
+                )
+            else:
+                edited_suggestion = suggestion_df.copy()
+                df_show(suggestion_df, use_container_width=True, hide_index=True)
+                st.warning("Versi Streamlit ini belum mendukung edit langsung di tabel AI Suggest.")
+
+            selected_ai = pd.DataFrame(edited_suggestion)
+            selected_ai = selected_ai[selected_ai["apply"] == True].copy()
+            if not selected_ai.empty:
+                st.warning("{} outlet akan diupdate dari rekomendasi AI.".format(len(selected_ai)))
+                confirm_ai = st.text_input("Ketik APPLY untuk menyimpan rekomendasi AI", key="crud_ai_confirm")
+                if st.button("Apply AI Suggestions", type="primary", key="crud_ai_apply"):
+                    if confirm_ai != "APPLY":
+                        st.error("Konfirmasi belum benar. Ketik APPLY untuk menyimpan.")
+                        return
+                    updated = outlet_mapping.set_index("outlet_name")
+                    for _, row in selected_ai.iterrows():
+                        name = str(row["outlet_name"])
+                        if name in updated.index:
+                            updated.loc[name, "area"] = str(row["suggested_area"])
+                            updated.loc[name, "kategori_tempat"] = str(row["suggested_kategori_tempat"])
+                            updated.loc[name, "sub_kategori_tempat"] = str(row["suggested_sub_kategori_tempat"])
+                            updated.loc[name, "tipe_tempat"] = str(row["suggested_tipe_tempat"])
+                    updated = updated.reset_index()[required_cols].sort_values("outlet_name").reset_index(drop=True)
+                    updated.to_csv(OUTLET_MAPPING_PATH, index=False)
+                    try: cache_clear(load_app_data)
+                    except Exception: pass
+                    st.success("Rekomendasi AI berhasil disimpan. Cek lagi di tab Edit Outlet kalau mau koreksi manual.")
+                    rerun()
+
     with tab_master:
         st.subheader("Master Data")
         c1, c2, c3 = st.columns(3)
@@ -1294,6 +1499,312 @@ def show_outlet_crud_v2(df, config, processor):
                 rerun()
 
 
+def build_ai_trend_insights(base: pd.DataFrame, periods: List[str], config: Config) -> Dict[str, object]:
+    """Generate local AI-style analysis from the selected trend data."""
+    if base.empty or not periods:
+        return {
+            "summary": ["Data pada range periode ini belum cukup untuk dianalisis."],
+            "findings": [],
+            "actions": ["Coba perluas range periode atau cek filter sidebar."],
+            "decisions": [],
+            "risks": [],
+            "experiments": [],
+            "priority_outlets": pd.DataFrame(),
+        }
+
+    latest_period = periods[-1]
+    previous_period = periods[-2] if len(periods) > 1 else None
+    latest_df = base[base["periode"].astype(str) == latest_period].copy()
+    previous_df = base[base["periode"].astype(str) == previous_period].copy() if previous_period else pd.DataFrame()
+
+    def sum_col(frame, col):
+        return float(pd.to_numeric(frame.get(col, pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+
+    def pct_change(now, prev):
+        return ((now - prev) / prev * 100) if prev > 0 else None
+
+    def fmt_pct(value):
+        return "-" if value is None or pd.isna(value) else f"{value:+.1f}%"
+
+    monthly = (
+        base.groupby("periode", as_index=False)
+        .agg(
+            total_revenue=("total_revenue", "sum"),
+            foto_qty=("foto_qty", "sum"),
+            print_qty=("print_qty", "sum"),
+            outlet_count=("outlet_name", "nunique"),
+        )
+    )
+    monthly["conversion_rate"] = np.where(monthly["foto_qty"] > 0, monthly["print_qty"] / monthly["foto_qty"] * 100, 0)
+    monthly["periode"] = pd.Categorical(monthly["periode"].astype(str), categories=periods, ordered=True)
+    monthly = monthly.sort_values("periode")
+    monthly["revenue_change"] = monthly["total_revenue"].diff()
+    monthly["conversion_change"] = monthly["conversion_rate"].diff()
+
+    latest_revenue = sum_col(latest_df, "total_revenue")
+    previous_revenue = sum_col(previous_df, "total_revenue")
+    revenue_delta = pct_change(latest_revenue, previous_revenue)
+    avg_monthly = float(monthly["total_revenue"].mean()) if not monthly.empty else 0.0
+    best_month = monthly.sort_values("total_revenue", ascending=False).head(1)
+    weakest_month = monthly.sort_values("total_revenue", ascending=True).head(1)
+
+    all_outlets = set(base["outlet_name"].dropna().astype(str).str.strip())
+    latest_outlets = set(latest_df["outlet_name"].dropna().astype(str).str.strip())
+    inactive_count = len(all_outlets - latest_outlets)
+
+    area_summary = pd.DataFrame()
+    if "area" in base.columns:
+        area_summary = (
+            base.groupby("area", as_index=False)
+            .agg(total_revenue=("total_revenue", "sum"), outlet_count=("outlet_name", "nunique"))
+        )
+        area_summary["revenue_per_outlet"] = area_summary["total_revenue"] / area_summary["outlet_count"].replace(0, np.nan)
+        area_summary = area_summary.sort_values("total_revenue", ascending=False)
+
+    category_summary = pd.DataFrame()
+    if "kategori_tempat" in base.columns:
+        category_summary = (
+            base.groupby("kategori_tempat", as_index=False)
+            .agg(total_revenue=("total_revenue", "sum"), outlet_count=("outlet_name", "nunique"))
+            .sort_values("total_revenue", ascending=False)
+        )
+
+    top_area = area_summary.head(1).iloc[0] if not area_summary.empty else None
+    low_area = area_summary[area_summary["total_revenue"] > 0].tail(1).iloc[0] if not area_summary.empty and (area_summary["total_revenue"] > 0).any() else None
+    top_category = category_summary.head(1).iloc[0] if not category_summary.empty else None
+
+    outlet_period = (
+        base.groupby(["outlet_name", "periode"], as_index=False)
+        .agg(
+            total_revenue=("total_revenue", "sum"),
+            foto_qty=("foto_qty", "sum"),
+            print_qty=("print_qty", "sum"),
+        )
+    )
+    outlet_pivot = outlet_period.pivot_table(index="outlet_name", columns="periode", values="total_revenue", aggfunc="sum", fill_value=0)
+    movers = pd.DataFrame()
+    if latest_period in outlet_pivot.columns:
+        movers = pd.DataFrame({"outlet_name": outlet_pivot.index, "latest_revenue": outlet_pivot[latest_period].values})
+        if previous_period and previous_period in outlet_pivot.columns:
+            movers["previous_revenue"] = outlet_pivot[previous_period].values
+        else:
+            movers["previous_revenue"] = 0.0
+        movers["growth_value"] = movers["latest_revenue"] - movers["previous_revenue"]
+        movers = movers.sort_values("growth_value", ascending=False)
+
+    outlet_summary = (
+        base.groupby("outlet_name", as_index=False)
+        .agg(
+            total_revenue=("total_revenue", "sum"),
+            avg_revenue=("total_revenue", "mean"),
+            foto_qty=("foto_qty", "sum"),
+            print_qty=("print_qty", "sum"),
+            active_months=("periode", "nunique"),
+        )
+    )
+    outlet_summary["conversion_rate"] = np.where(outlet_summary["foto_qty"] > 0, outlet_summary["print_qty"] / outlet_summary["foto_qty"] * 100, 0)
+    outlet_summary["revenue_per_active_month"] = outlet_summary["total_revenue"] / outlet_summary["active_months"].replace(0, np.nan)
+    outlet_summary["status_ai"] = "Monitor"
+    outlet_summary.loc[(outlet_summary["total_revenue"] > 0) & (outlet_summary["conversion_rate"] < 12), "status_ai"] = "Traffic ada, conversion rendah"
+    outlet_summary.loc[(outlet_summary["revenue_per_active_month"] >= outlet_summary["revenue_per_active_month"].quantile(0.80)), "status_ai"] = "Scale / benchmark"
+    outlet_summary.loc[outlet_summary["active_months"] <= max(1, len(periods) // 4), "status_ai"] = "Seasonal / belum stabil"
+    priority_outlets = outlet_summary.sort_values(
+        ["total_revenue", "conversion_rate", "active_months"],
+        ascending=[False, True, False],
+    ).head(12).copy()
+
+    summary = [
+        "Range analisis: {} sampai {} dengan {} periode data.".format(periods[0], periods[-1], len(periods)),
+        "Omzet periode terakhir {} adalah {}, dibanding periode sebelumnya: {}.".format(
+            latest_period,
+            config.format_currency(latest_revenue),
+            fmt_pct(revenue_delta),
+        ),
+        "Rata-rata omzet bulanan pada range ini sekitar {}.".format(config.format_currency(avg_monthly)),
+    ]
+
+    if not best_month.empty and not weakest_month.empty:
+        summary.append(
+            "Bulan terkuat adalah {} ({}) dan bulan terlemah adalah {} ({}).".format(
+                str(best_month.iloc[0]["periode"]),
+                config.format_currency(float(best_month.iloc[0]["total_revenue"])),
+                str(weakest_month.iloc[0]["periode"]),
+                config.format_currency(float(weakest_month.iloc[0]["total_revenue"])),
+            )
+        )
+
+    findings = []
+    if top_area is not None:
+        findings.append("Area terbesar adalah {} dengan kontribusi omzet {} dari {} outlet.".format(
+            top_area["area"], config.format_currency(float(top_area["total_revenue"])), int(top_area["outlet_count"])
+        ))
+    if low_area is not None and top_area is not None and low_area["area"] != top_area["area"]:
+        findings.append("Area yang perlu dicek lebih lanjut: {} karena omzetnya paling rendah di antara area yang masih menghasilkan.".format(low_area["area"]))
+    if top_category is not None:
+        findings.append("Kategori paling kuat saat ini adalah {} dengan omzet {}.".format(
+            top_category["kategori_tempat"], config.format_currency(float(top_category["total_revenue"]))
+        ))
+    if inactive_count > 0:
+        findings.append("{} outlet tidak aktif pada periode terakhir di range ini. Ini perlu dipisahkan dari outlet aktif agar ranking lebih fair.".format(inactive_count))
+    if not movers.empty:
+        top_up = movers.head(1).iloc[0]
+        top_down = movers.tail(1).iloc[0]
+        findings.append("Outlet dengan kenaikan nominal terbesar: {} ({}) dibanding periode sebelumnya.".format(
+            top_up["outlet_name"], config.format_currency(float(top_up["growth_value"]))
+        ))
+        if float(top_down["growth_value"]) < 0:
+            findings.append("Outlet dengan penurunan terdalam: {} ({}) dibanding periode sebelumnya.".format(
+                top_down["outlet_name"], config.format_currency(float(top_down["growth_value"]))
+            ))
+
+    actions = []
+    if revenue_delta is not None and revenue_delta < -10:
+        actions.append("Prioritaskan audit outlet yang turun pada periode terakhir, terutama penyebab traffic, conversion, dan stok/operasional.")
+    elif revenue_delta is not None and revenue_delta > 10:
+        actions.append("Duplikasi pola dari outlet/area yang naik: cek promo, placement, timing event, dan operator yang bertugas.")
+    else:
+        actions.append("Karena omzet relatif stabil, fokuskan eksperimen pada outlet dengan conversion rendah tetapi traffic foto tinggi.")
+    if inactive_count > 0:
+        actions.append("Buat label operasional untuk outlet tidak aktif: seasonal/event selesai, pending buka, atau perlu follow-up partner.")
+    if top_area is not None:
+        actions.append("Gunakan area {} sebagai benchmark untuk area lain, tapi bandingkan dengan range periode yang sama agar tidak bias outlet lama.".format(top_area["area"]))
+    actions.append("Untuk keputusan ekspansi, pakai metrik omzet per outlet dan conversion, bukan total omzet saja.")
+
+    decisions = []
+    risks = []
+    experiments = []
+    recent_months = monthly.tail(min(3, len(monthly)))
+    recent_revenue_slope = float(recent_months["revenue_change"].fillna(0).sum()) if not recent_months.empty else 0.0
+    recent_conv_slope = float(recent_months["conversion_change"].fillna(0).sum()) if not recent_months.empty else 0.0
+
+    if revenue_delta is not None and revenue_delta > 15 and recent_revenue_slope > 0:
+        decisions.append("Mode keputusan: offense. Ada momentum naik, pilih 3-5 outlet/area terbaik untuk jadi benchmark SOP dan dorong scale.")
+    elif revenue_delta is not None and revenue_delta < -15:
+        decisions.append("Mode keputusan: defense. Tahan ekspansi yang belum urgent, audit outlet turun, dan cari penyebab drop bulan terakhir.")
+    else:
+        decisions.append("Mode keputusan: selective growth. Jangan pukul rata; pilih outlet dengan omzet stabil dan conversion sehat untuk ekspansi kecil.")
+
+    if inactive_count > max(5, len(all_outlets) * 0.25):
+        risks.append("Banyak outlet tidak aktif di periode terakhir. Ranking total bisa bias kalau outlet event/seasonal tidak dipisahkan.")
+    if recent_conv_slope < -2:
+        risks.append("Conversion beberapa bulan terakhir melemah. Ada risiko traffic bagus tidak berubah jadi print/revenue.")
+    if top_area is not None and len(area_summary) > 1:
+        top_share = float(top_area["total_revenue"]) / float(area_summary["total_revenue"].sum()) if float(area_summary["total_revenue"].sum()) > 0 else 0
+        if top_share > 0.45:
+            risks.append("Omzet terlalu terkonsentrasi di satu area. Kalau area utama turun, total bisnis ikut rentan.")
+    if not risks:
+        risks.append("Tidak ada risiko ekstrem dari range ini, tapi tetap cek outlet baru/event karena datanya belum stabil.")
+
+    experiments.append("Pilih 5 outlet omzet tinggi tetapi conversion di bawah median, lalu test script upsell/operator selama 2 minggu.")
+    experiments.append("Bandingkan outlet indoor vs outdoor pada range yang sama untuk menentukan placement dan jam operasional terbaik.")
+    experiments.append("Untuk outlet event/seasonal, pisahkan target KPI dari outlet permanen agar keputusan tidak bias.")
+
+    return {
+        "summary": summary,
+        "findings": findings,
+        "actions": actions,
+        "decisions": decisions,
+        "risks": risks,
+        "experiments": experiments,
+        "priority_outlets": priority_outlets,
+    }
+
+
+def render_ai_insights(insights: Dict[str, object], config: Config):
+    st.markdown("**Decision Brief**")
+    for item in insights.get("decisions", []):
+        st.success(item)
+
+    st.markdown("**Executive Summary**")
+    for item in insights.get("summary", []):
+        st.markdown(f"- {item}")
+
+    st.markdown("**Temuan Penting**")
+    findings = insights.get("findings", [])
+    if findings:
+        for item in findings:
+            st.markdown(f"- {item}")
+    else:
+        st.info("Belum ada temuan kuat dari range periode ini.")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Rekomendasi Aksi**")
+        for idx, item in enumerate(insights.get("actions", []), start=1):
+            st.markdown(f"{idx}. {item}")
+    with c2:
+        st.markdown("**Risiko yang Perlu Dijaga**")
+        for item in insights.get("risks", []):
+            st.warning(item)
+
+    st.markdown("**Eksperimen yang Bisa Dicoba**")
+    for idx, item in enumerate(insights.get("experiments", []), start=1):
+        st.markdown(f"{idx}. {item}")
+
+    priority_outlets = insights.get("priority_outlets", pd.DataFrame())
+    if isinstance(priority_outlets, pd.DataFrame) and not priority_outlets.empty:
+        st.markdown("**Outlet Prioritas untuk Dibahas**")
+        priority_display = priority_outlets.copy()
+        for col in ["total_revenue", "avg_revenue", "revenue_per_active_month"]:
+            if col in priority_display.columns:
+                priority_display[col] = priority_display[col].fillna(0).apply(config.format_currency)
+        if "conversion_rate" in priority_display.columns:
+            priority_display["conversion_rate"] = priority_display["conversion_rate"].apply(lambda x: f"{x:.1f}%")
+        priority_display = priority_display.rename(columns={
+            "outlet_name": "Outlet",
+            "total_revenue": "Total Omzet",
+            "avg_revenue": "Avg Omzet",
+            "foto_qty": "Foto",
+            "print_qty": "Print",
+            "active_months": "Bulan Aktif",
+            "conversion_rate": "Conversion",
+            "revenue_per_active_month": "Omzet / Bulan Aktif",
+            "status_ai": "AI Label",
+        })
+        df_show(priority_display, use_container_width=True, hide_index=True)
+
+
+def show_ai_decision_center(df: pd.DataFrame, config: Config):
+    st.title("AI Decision")
+    st.caption("Ruang bantu keputusan founder: membaca data, memberi sinyal risiko, dan menyusun prioritas aksi.")
+
+    if df.empty or "periode" not in df.columns:
+        st.error("Data tidak tersedia untuk AI Decision.")
+        return
+
+    base = df.copy(deep=True)
+    for col in ["total_revenue", "foto_qty", "unlock_qty", "print_qty", "conversion_rate"]:
+        if col in base.columns:
+            base[col] = pd.to_numeric(base[col], errors="coerce").fillna(0.0)
+    base["periode"] = base["periode"].astype(str)
+
+    periods = _sort_periods_str(base["periode"].dropna().astype(str).unique().tolist())
+    if not periods:
+        st.error("Data periode tidak tersedia.")
+        return
+
+    default_start_idx = max(0, len(periods) - 12)
+    r1, r2, r3 = st.columns([1, 1, 2])
+    with r1:
+        start_period = st.selectbox("Periode Mulai", periods, index=default_start_idx, key="ai_decision_start")
+    with r2:
+        end_period = st.selectbox("Periode Akhir", periods, index=len(periods) - 1, key="ai_decision_end")
+
+    start_idx = periods.index(start_period)
+    end_idx = periods.index(end_period)
+    if start_idx > end_idx:
+        st.error("Periode mulai tidak boleh lebih baru dari periode akhir.")
+        return
+
+    selected_periods = periods[start_idx:end_idx + 1]
+    base = base[base["periode"].isin(selected_periods)].copy()
+    with r3:
+        st.info("AI membaca {} periode: {} sampai {}.".format(len(selected_periods), start_period, end_period))
+
+    insights = build_ai_trend_insights(base, selected_periods, config)
+    render_ai_insights(insights, config)
+
+
 def show_trend_analysis_v2(df, config, processor, viz):
     st.title("Analisis Trend Penjualan")
     if df.empty:
@@ -1336,6 +1847,7 @@ def show_trend_analysis_v2(df, config, processor, viz):
     previous_period = periods[-2] if len(periods) > 1 else None
     latest_df = base[base["periode"] == latest_period].copy() if latest_period else base.copy()
     previous_df = base[base["periode"] == previous_period].copy() if previous_period else pd.DataFrame()
+    ai_insights = build_ai_trend_insights(base.copy(), periods, config)
 
     def _sum(frame, col):
         return float(pd.to_numeric(frame.get(col, pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
@@ -1376,7 +1888,7 @@ def show_trend_analysis_v2(df, config, processor, viz):
     monthly["periode"] = pd.Categorical(monthly["periode"], categories=periods, ordered=True)
     monthly = monthly.sort_values("periode")
 
-    tab_overview, tab_segments, tab_outlets, tab_heatmap = st.tabs(["Overview", "Area & Category", "Outlet Movers", "Heatmap"])
+    tab_overview, tab_segments, tab_outlets, tab_heatmap, tab_ai = st.tabs(["Overview", "Area & Category", "Outlet Movers", "Heatmap", "AI Insight"])
 
     with tab_overview:
         c1, c2 = st.columns([2, 1])
@@ -1473,6 +1985,11 @@ def show_trend_analysis_v2(df, config, processor, viz):
     with tab_heatmap:
         st.plotly_chart(viz.create_heatmap(base), use_container_width=True)
         st.caption("Heatmap membantu melihat kombinasi area dan kategori yang paling kuat atau perlu diperbaiki.")
+
+    with tab_ai:
+        st.subheader("AI Insight")
+        st.caption("Analisis otomatis dari data dan filter periode yang sedang dipilih. Fokusnya membantu keputusan founder, bukan hanya membaca chart.")
+        render_ai_insights(ai_insights, config)
 
 
 def show_trend_analysis(df, config, processor, viz):

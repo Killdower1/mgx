@@ -86,6 +86,9 @@ Kolom utama CSV dashboard:
 - Dashboard utama sekarang menampilkan semua outlet sesuai filter, termasuk outlet yang tidak aktif di periode terpilih, dan tabel Tren Omset 12 Bulan dipisah antara outlet aktif dan tidak aktif.
 - Delete outlet di CRUD sekarang memakai checklist tabel dan wajib mengetik `DELETE` sebelum menghapus mapping outlet.
 - Halaman Analisis Trend ditambah range periode, default 12 bulan terakhir dari periode data terbaru, agar perbandingan area/outlet lebih fair.
+- Halaman Analisis Trend ditambah tab AI Insight lokal untuk merangkum performa, temuan penting, dan rekomendasi aksi berdasarkan range periode terpilih.
+- AI Insight dirapikan menjadi satu tempat di tab, dibuat lebih tajam dengan decision brief, risiko, eksperimen, outlet prioritas, dan halaman khusus AI Decision.
+- CRUD outlet ditambah tab AI Suggest untuk rekomendasi area, kategori, sub kategori, dan tipe dari nama outlet. Hasil AI bisa diedit manual sebelum di-apply.
 
 ## Cara Menjalankan Lokal
 
