@@ -13,10 +13,41 @@ class DataProcessor:
         """Load main dashboard data"""
         try:
             df = pd.read_csv(DATA_CSV_PATH)
-            return df
+            return self.apply_outlet_mapping(df)
         except FileNotFoundError:
             # Return sample data if no data exists
             return self.create_sample_data()
+
+    def apply_outlet_mapping(self, df):
+        """Apply latest outlet master data to dashboard rows."""
+        if df.empty or "outlet_name" not in df.columns:
+            return df
+
+        mapping = self.load_outlet_mapping()
+        if mapping.empty or "outlet_name" not in mapping.columns:
+            return df
+
+        override_cols = ["area", "kategori_tempat", "sub_kategori_tempat", "tipe_tempat"]
+        available_cols = ["outlet_name"] + [c for c in override_cols if c in mapping.columns]
+        if len(available_cols) == 1:
+            return df
+
+        clean_mapping = mapping[available_cols].copy()
+        clean_mapping["outlet_name"] = clean_mapping["outlet_name"].astype(str).str.strip()
+        clean_mapping = clean_mapping.drop_duplicates("outlet_name", keep="last")
+
+        out = df.copy()
+        out["outlet_name"] = out["outlet_name"].astype(str).str.strip()
+        out = out.merge(clean_mapping, on="outlet_name", how="left", suffixes=("", "_mapping"))
+
+        for col in override_cols:
+            mapped_col = f"{col}_mapping"
+            if mapped_col in out.columns:
+                mapped_values = out[mapped_col].replace("", np.nan)
+                out[col] = mapped_values.combine_first(out[col] if col in out.columns else pd.Series(index=out.index, dtype=object))
+                out = out.drop(columns=[mapped_col])
+
+        return out
     
     def create_sample_data(self):
         """Create sample data for testing"""

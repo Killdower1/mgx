@@ -27,6 +27,7 @@ streamlit_template/.mgx/
 # Runtime exports and ad-hoc uploads
 uploads/*.xlsx
 uploads/*.xls
+streamlit_template/data/*backup_before_delete*.csv
 *.tmp
 *.log
 

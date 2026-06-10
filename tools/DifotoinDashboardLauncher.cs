@@ -35,30 +35,10 @@ public class DifotoinDashboardLauncher
         }
 
         string pythonExe = ResolvePython(appDir);
-        Process server = null;
-
         try
         {
-            ProcessStartInfo psi = new ProcessStartInfo
+            using (StatusForm statusForm = new StatusForm(pythonExe, appDir, login))
             {
-                FileName = pythonExe,
-                Arguments = "-m streamlit run app.py --server.port 8501 --server.headless false",
-                WorkingDirectory = appDir,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-            psi.EnvironmentVariables["DIFOTOIN_ADMIN_EMAIL"] = login.Email;
-            psi.EnvironmentVariables["DIFOTOIN_ADMIN_PASSWORD"] = login.Password;
-
-            server = Process.Start(psi);
-            using (StatusForm statusForm = new StatusForm(server, login))
-            {
-                server.OutputDataReceived += (sender, args) => statusForm.AppendLog(args.Data);
-                server.ErrorDataReceived += (sender, args) => statusForm.AppendLog(args.Data);
-                server.BeginOutputReadLine();
-                server.BeginErrorReadLine();
                 Application.Run(statusForm);
             }
         }
@@ -69,14 +49,6 @@ public class DifotoinDashboardLauncher
                 "Difotoin Dashboard",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
-        }
-        finally
-        {
-            if (server != null && !server.HasExited)
-            {
-                try { server.Kill(); }
-                catch { }
-            }
         }
     }
 
@@ -202,19 +174,23 @@ public class DifotoinDashboardLauncher
 
     private class StatusForm : Form
     {
-        private readonly Process server;
+        private Process server;
+        private readonly string pythonExe;
+        private readonly string appDir;
         private readonly LoginInput login;
         private readonly Label statusLabel;
         private readonly TextBox logBox;
         private readonly Button openButton;
+        private readonly Button restartButton;
         private readonly Button stopButton;
         private readonly Timer timer;
         private bool browserOpened;
         private int elapsedSeconds;
 
-        public StatusForm(Process server, LoginInput login)
+        public StatusForm(string pythonExe, string appDir, LoginInput login)
         {
-            this.server = server;
+            this.pythonExe = pythonExe;
+            this.appDir = appDir;
             this.login = login;
 
             Text = "Difotoin Dashboard Launcher";
@@ -245,10 +221,16 @@ public class DifotoinDashboardLauncher
 
             openButton = new Button();
             openButton.Text = "Open Dashboard";
-            openButton.Location = new Point(365, 374);
+            openButton.Location = new Point(240, 374);
             openButton.Size = new Size(115, 28);
             openButton.Enabled = false;
             openButton.Click += (sender, args) => OpenDashboard();
+
+            restartButton = new Button();
+            restartButton.Text = "Restart Server";
+            restartButton.Location = new Point(365, 374);
+            restartButton.Size = new Size(115, 28);
+            restartButton.Click += (sender, args) => RestartServer();
 
             stopButton = new Button();
             stopButton.Text = "Stop Server";
@@ -257,15 +239,48 @@ public class DifotoinDashboardLauncher
             stopButton.Click += (sender, args) => Close();
 
             Controls.AddRange(new Control[] {
-                statusLabel, infoLabel, logBox, openButton, stopButton
+                statusLabel, infoLabel, logBox, openButton, restartButton, stopButton
             });
 
             timer = new Timer();
             timer.Interval = 1000;
             timer.Tick += CheckServer;
-            timer.Start();
 
             FormClosing += (sender, args) => StopServer();
+            StartServer();
+        }
+
+        private void StartServer()
+        {
+            ProcessStartInfo psi = new ProcessStartInfo
+            {
+                FileName = pythonExe,
+                Arguments = "-m streamlit run app.py --server.port 8501 --server.headless false",
+                WorkingDirectory = appDir,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            psi.EnvironmentVariables["DIFOTOIN_ADMIN_EMAIL"] = login.Email;
+            psi.EnvironmentVariables["DIFOTOIN_ADMIN_PASSWORD"] = login.Password;
+
+            elapsedSeconds = 0;
+            openButton.Enabled = false;
+            statusLabel.Text = "Status: starting server...";
+
+            server = Process.Start(psi);
+            if (server == null)
+            {
+                statusLabel.Text = "Status: failed. Server tidak bisa dijalankan.";
+                return;
+            }
+
+            server.OutputDataReceived += (sender, args) => AppendLog(args.Data);
+            server.ErrorDataReceived += (sender, args) => AppendLog(args.Data);
+            server.BeginOutputReadLine();
+            server.BeginErrorReadLine();
+            timer.Start();
         }
 
         public void AppendLog(string line)
@@ -284,12 +299,12 @@ public class DifotoinDashboardLauncher
         {
             elapsedSeconds++;
 
-            if (server.HasExited)
+            if (server == null || server.HasExited)
             {
                 timer.Stop();
                 statusLabel.Text = "Status: failed. Server berhenti sebelum dashboard ready.";
                 openButton.Enabled = false;
-                AppendLog("Process exited with code: " + server.ExitCode);
+                if (server != null) AppendLog("Process exited with code: " + server.ExitCode);
                 AppendLog("Kalau ada pesan ModuleNotFoundError, jalankan pip install -r requirements.txt di folder streamlit_template.");
                 return;
             }
@@ -306,6 +321,15 @@ public class DifotoinDashboardLauncher
             }
 
             statusLabel.Text = "Status: starting server... " + elapsedSeconds + "s";
+        }
+
+        private void RestartServer()
+        {
+            AppendLog("Restart requested. Stopping server...");
+            StopServer();
+            browserOpened = false;
+            AppendLog("Starting server again...");
+            StartServer();
         }
 
         private bool IsDashboardReady()
@@ -344,6 +368,7 @@ public class DifotoinDashboardLauncher
                 try { server.Kill(); }
                 catch { }
             }
+            server = null;
         }
     }
 }

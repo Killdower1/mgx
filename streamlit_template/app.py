@@ -531,33 +531,61 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
     st.markdown("### 🏪 Outlet Performance Table")
 
     st.markdown('<div class="filter-buttons">', unsafe_allow_html=True)
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1: show_keeper = st.checkbox("🟢 Keeper", value=True, key="filter_keeper")
     with col2: show_optimasi = st.checkbox("🟡 Optimasi", value=True, key="filter_optimasi")
     with col3: show_relocate = st.checkbox("🔴 Relocate", value=True, key="filter_relocate")
-    with col4: show_all = st.checkbox("Show All", value=False, key="filter_all")
+    with col4: show_inactive = st.checkbox("Tidak Aktif", value=True, key="filter_inactive")
+    with col5: show_all = st.checkbox("Show All", value=False, key="filter_all")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    current_df = df[df['periode'] == current_period] if current_period else df
-    if not show_all:
-        keep = []
-        if show_keeper: keep.append("Keeper")
-        if show_optimasi: keep.append("Optimasi")
-        if show_relocate: keep.append("Relocate")
-        if keep: current_df = current_df[current_df['outlet_status'].isin(keep)]
+    src = full_df if isinstance(full_df, pd.DataFrame) and not full_df.empty else df
+    if src.empty or "outlet_name" not in src.columns:
+        st.info("No outlets match the selected filters")
+        st.markdown('</div>', unsafe_allow_html=True); return
+
+    source_df = src.copy(deep=True)
+    source_df["outlet_name"] = source_df["outlet_name"].fillna("").astype(str).str.strip()
+    source_df = source_df[source_df["outlet_name"] != ""]
+    if source_df.empty:
+        st.info("No outlets match the selected filters")
+        st.markdown('</div>', unsafe_allow_html=True); return
+
+    current_src = source_df[source_df["periode"].astype(str) == str(current_period)].copy() if current_period and "periode" in source_df.columns else df.copy(deep=True)
+    if "outlet_name" in current_src.columns:
+        current_src["outlet_name"] = current_src["outlet_name"].fillna("").astype(str).str.strip()
+    current_map = {}
+    if not current_src.empty and "outlet_name" in current_src.columns:
+        current_src["_key"] = current_src["outlet_name"].map(_norm_name)
+        current_map = current_src.drop_duplicates("_key", keep="last").set_index("_key").to_dict(orient="index")
+
+    meta = source_df.drop_duplicates("outlet_name", keep="last").set_index("outlet_name").to_dict(orient="index")
 
     compare_map = {}
     if compare_period:
-        src = full_df if full_df is not None else df
         cmp_df = src[src["periode"] == compare_period].copy()
         if not cmp_df.empty:
             cmp_df["_key"] = cmp_df["outlet_name"].map(_norm_name)
             compare_map = cmp_df.set_index("_key").to_dict(orient="index")
 
     rows = []
-    for _, r in current_df.iterrows():
-        name = r["outlet_name"]; key = _norm_name(name)
-        omset = float(r["total_revenue"]); foto = int(r["foto_qty"]); unlock = int(r["unlock_qty"]); conv = float(r["conversion_rate"])
+    for name in sorted(source_df["outlet_name"].dropna().astype(str).unique().tolist()):
+        key = _norm_name(name)
+        is_active = key in current_map
+        r = current_map.get(key, meta.get(name, {}))
+        omset = float(r.get("total_revenue", 0) or 0) if is_active else 0.0
+        foto = int(r.get("foto_qty", 0) or 0) if is_active else 0
+        unlock = int(r.get("unlock_qty", 0) or 0) if is_active else 0
+        conv = float(r.get("conversion_rate", 0) or 0) if is_active else 0.0
+        status = str(r.get("outlet_status", "")) if is_active else "Tidak Aktif"
+        if not show_all:
+            keep = []
+            if show_keeper: keep.append("Keeper")
+            if show_optimasi: keep.append("Optimasi")
+            if show_relocate: keep.append("Relocate")
+            if show_inactive: keep.append("Tidak Aktif")
+            if status not in keep:
+                continue
         rec = {
             "Outlet": name, "Area": r.get("area",""),
             "_omset_sort": int(omset), "_foto_sort": int(foto), "_unlock_sort": int(unlock), "_conversion_sort": float(conv),
@@ -565,7 +593,7 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
             "Foto": format_number_with_dots(foto), "Foto Compare": "New Outlet",
             "Unlock": format_number_with_dots(unlock), "Unlock Compare": "New Outlet",
             "Conversion": f"{conv:.1f}%", "Conversion Compare": "New Outlet",
-            "Status": r["outlet_status"],
+            "Status": status,
             "_omset_delta": np.nan, "_foto_delta": np.nan, "_unlock_delta": np.nan, "_conv_delta": np.nan
         }
         if compare_period and key in compare_map:
@@ -605,6 +633,7 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
         if val == 'Keeper': return 'color:#10b981;font-weight:bold'
         if val == 'Optimasi': return 'color:#f59e0b;font-weight:bold'
         if val == 'Relocate': return 'color:#ef4444;font-weight:bold'
+        if val == 'Tidak Aktif': return 'color:#94a3b8;font-weight:bold'
         return ''
     styled = display_df.style.map(style_status, subset=["Status"])
 
@@ -661,14 +690,15 @@ def _list_last_n_periods(anchor_period: str, n: int) -> List[str]:
 
 def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, config: Config, current_period: Optional[str], months: int = 12):
     st.subheader("📆 Tren Omset Outlet (12 Bulan)")
-    if df_filtered.empty or "outlet_name" not in df_filtered.columns or "periode" not in df_full.columns:
+    if df_full.empty or "outlet_name" not in df_full.columns or "periode" not in df_full.columns:
         st.info("Data tidak cukup untuk menampilkan tren omset."); return
 
-    visible_outlets = df_filtered["outlet_name"].dropna().astype(str).unique().tolist()
-    trend_df = df_full[df_full["outlet_name"].astype(str).isin(visible_outlets)].copy()
+    visible_outlets = df_full["outlet_name"].dropna().astype(str).str.strip().unique().tolist()
+    trend_df = df_full[df_full["outlet_name"].astype(str).str.strip().isin(visible_outlets)].copy()
     if trend_df.empty:
         st.info("Tidak ada data tren untuk outlet terpilih."); return
 
+    trend_df["outlet_name"] = trend_df["outlet_name"].astype(str).str.strip()
     trend_df["total_revenue"] = pd.to_numeric(trend_df.get("total_revenue", 0), errors="coerce").fillna(0.0)
 
     anchor = current_period if (current_period and isinstance(current_period, str)) else (
@@ -681,6 +711,12 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
     periods_window = _list_last_n_periods(anchor, months)
     if not periods_window:
         st.info("Gagal menentukan window periode."); return
+
+    active_period = current_period if current_period else anchor
+    active_outlets = set(
+        trend_df.loc[trend_df["periode"].astype(str) == str(active_period), "outlet_name"]
+        .dropna().astype(str).str.strip().tolist()
+    )
 
     pivot = (
         trend_df.pivot_table(
@@ -716,6 +752,7 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
         display_df_sorted = display_df.sort_values(by="Outlet", ascending=ascending, kind="mergesort")
     else:
         display_df_sorted = display_df.sort_values(by="Rata-rata", ascending=ascending, kind="mergesort")
+    display_df_sorted["_aktif_current"] = display_df_sorted["Outlet"].astype(str).isin(active_outlets)
 
     def _growth_colors(row: pd.Series):
         vals = row[value_cols]
@@ -745,12 +782,6 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
     fmt_map = {col: _fmt_currency for col in value_cols}
     fmt_map["Rata-rata"] = _fmt_currency
 
-    styled = (
-        display_df_sorted.style
-        .apply(_growth_colors, axis=1, subset=value_cols)
-        .format(fmt_map)
-    )
-
     column_config = None
     if HAS_COLUMN_CONFIG:
         column_config = {
@@ -758,12 +789,27 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
             "Rata-rata": text_col("Rata-rata", width="medium"),
         }
 
-    df_show(styled, use_container_width=True, hide_index=True, column_config=column_config)
+    active_df = display_df_sorted[display_df_sorted["_aktif_current"]].drop(columns=["_aktif_current"])
+    inactive_df = display_df_sorted[~display_df_sorted["_aktif_current"]].drop(columns=["_aktif_current"])
+
+    st.markdown("**Outlet Aktif**")
+    if active_df.empty:
+        st.info("Tidak ada outlet aktif di periode ini.")
+    else:
+        styled_active = active_df.style.apply(_growth_colors, axis=1, subset=value_cols).format(fmt_map)
+        df_show(styled_active, use_container_width=True, hide_index=True, column_config=column_config)
+
+    st.markdown("**Outlet Tidak Aktif di Periode Ini**")
+    if inactive_df.empty:
+        st.info("Tidak ada outlet tidak aktif di periode ini.")
+    else:
+        styled_inactive = inactive_df.style.apply(_growth_colors, axis=1, subset=value_cols).format(fmt_map)
+        df_show(styled_inactive, use_container_width=True, hide_index=True, column_config=column_config)
     s_caption("Nilai kosong ditampilkan sebagai 0. Rata-rata dihitung dari 12 bulan tampil (termasuk current), hanya omset > 0 yang dihitung. Hijau=naik vs bulan lalu; Merah=turun.")
 
     # ===== DOWNLOAD EXCEL (ANGKA MURNI) =====
     st.markdown("### 📥 Download Data")
-    _export_trend_excel(display_df_sorted, value_cols)
+    _export_trend_excel(display_df_sorted.drop(columns=["_aktif_current"]), value_cols)
 
 # ================= PAGES =================
 def main():
@@ -805,14 +851,16 @@ def main():
         tipes = ["Semua"] + safe_unique_str(df, "tipe_tempat")
         selected_tipe = st.sidebar.selectbox("Tipe Tempat", tipes)
         df_for_filter = df.copy(deep=True)
+        filtered_full_df = processor.filter_data(df_for_filter.copy(deep=True), selected_area, selected_kategori, selected_tipe, None) if hasattr(processor, "filter_data") else df_for_filter.copy(deep=True)
         filtered_df = processor.filter_data(df_for_filter, selected_area, selected_kategori, selected_tipe, current_period) if hasattr(processor, "filter_data") else df_for_filter
     else:
         filtered_df = df
+        filtered_full_df = df
 
     if page == "🏠 Dashboard Utama":
-        show_main_dashboard(filtered_df, config, processor, viz, current_period, compare_period, full_df=df)
+        show_main_dashboard(filtered_df, config, processor, viz, current_period, compare_period, full_df=filtered_full_df)
     elif page == "📊 Analisis Trend":
-        show_trend_analysis(filtered_df, config, processor, viz)
+        show_trend_analysis_v2(filtered_df, config, processor, viz)
     elif page == "🔄 Analisis Konversi":
         show_conversion_analysis(filtered_df, config, processor, viz)
     elif page == "🏆 Ranking Outlet":
@@ -851,6 +899,12 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
     st.markdown("---")
 
     create_outlet_table(m_df, current_period, compare_period, full_df=full_df)
+
+    if m_df.empty:
+        st.info("Tidak ada transaksi aktif di periode terpilih untuk filter ini. Outlet historis tetap tampil sebagai Tidak Aktif.")
+        st.markdown("---")
+        show_omset_trend_table(df_filtered=m_df, df_full=full_df, config=config, current_period=current_period, months=12)
+        return
 
     col1, col2 = st.columns([1, 1])
     with col1:
@@ -1012,6 +1066,42 @@ def show_outlet_crud_v2(df, config, processor):
     outlet_mapping = outlet_mapping[required_cols].copy()
     for col in required_cols:
         outlet_mapping[col] = outlet_mapping[col].fillna("").astype(str)
+    outlet_mapping["outlet_name"] = outlet_mapping["outlet_name"].str.strip()
+    outlet_mapping = outlet_mapping[outlet_mapping["outlet_name"] != ""].drop_duplicates("outlet_name", keep="last")
+
+    if not df.empty and "outlet_name" in df.columns:
+        source_outlets = df.copy(deep=True)
+        source_outlets["outlet_name"] = source_outlets["outlet_name"].fillna("").astype(str).str.strip()
+        source_outlets = source_outlets[source_outlets["outlet_name"] != ""]
+        missing_names = sorted(set(source_outlets["outlet_name"]) - set(outlet_mapping["outlet_name"]))
+
+        if missing_names:
+            def first_non_empty(frame, col, default_value=""):
+                if col not in frame.columns:
+                    return default_value
+                values = frame[col].dropna().astype(str).str.strip()
+                values = values[values != ""]
+                return values.iloc[0] if len(values) else default_value
+
+            new_rows = []
+            missing_source = source_outlets[source_outlets["outlet_name"].isin(missing_names)]
+            for outlet_name, outlet_rows in missing_source.groupby("outlet_name", sort=False):
+                new_rows.append({
+                    "outlet_name": outlet_name,
+                    "area": first_non_empty(outlet_rows, "area"),
+                    "kategori_tempat": first_non_empty(outlet_rows, "kategori_tempat", "Tidak Terkategorisasi"),
+                    "sub_kategori_tempat": first_non_empty(outlet_rows, "sub_kategori_tempat", "Tidak Terkategorisasi"),
+                    "tipe_tempat": first_non_empty(outlet_rows, "tipe_tempat", "Indoor"),
+                })
+
+            if new_rows:
+                outlet_mapping = pd.concat([outlet_mapping, pd.DataFrame(new_rows)], ignore_index=True)
+                outlet_mapping = outlet_mapping[required_cols].drop_duplicates("outlet_name", keep="last")
+                outlet_mapping = outlet_mapping.sort_values("outlet_name").reset_index(drop=True)
+                outlet_mapping.to_csv(OUTLET_MAPPING_PATH, index=False)
+                try: cache_clear(load_app_data)
+                except Exception: pass
+                st.info("{} outlet dari database transaksi otomatis ditambahkan ke CRUD mapping.".format(len(new_rows)))
 
     tab_edit, tab_add, tab_master, tab_delete = st.tabs(["Edit Outlet", "Add Outlet", "Master Data", "Delete"])
 
@@ -1095,6 +1185,8 @@ def show_outlet_crud_v2(df, config, processor):
                         merged.update(edited_visible.set_index("outlet_name"))
                         merged = merged.reset_index()[required_cols].sort_values("outlet_name").reset_index(drop=True)
                         merged.to_csv(OUTLET_MAPPING_PATH, index=False)
+                        try: cache_clear(load_app_data)
+                        except Exception: pass
                         st.success("Outlet mapping berhasil disimpan.")
                         rerun()
             with c_info:
@@ -1128,6 +1220,8 @@ def show_outlet_crud_v2(df, config, processor):
                     updated = pd.concat([outlet_mapping, new_row], ignore_index=True)
                     updated = updated[required_cols].sort_values("outlet_name").reset_index(drop=True)
                     updated.to_csv(OUTLET_MAPPING_PATH, index=False)
+                    try: cache_clear(load_app_data)
+                    except Exception: pass
                     st.success("Outlet berhasil ditambahkan.")
                     rerun()
 
@@ -1146,14 +1240,239 @@ def show_outlet_crud_v2(df, config, processor):
 
     with tab_delete:
         st.subheader("Delete Outlet")
-        outlets_to_delete = st.multiselect("Pilih outlet", outlet_mapping["outlet_name"].tolist())
+        st.caption("Centang outlet yang mau dihapus dari mapping CRUD. Data transaksi historis tidak ikut dihapus.")
+
+        delete_source = outlet_mapping.copy().sort_values("outlet_name").reset_index(drop=True)
+        delete_source.insert(0, "delete", False)
+        delete_cols = ["delete", "outlet_name", "area", "kategori_tempat", "tipe_tempat"]
+        delete_source = delete_source[[c for c in delete_cols if c in delete_source.columns]]
+
+        if hasattr(st, "data_editor"):
+            delete_config = None
+            if HAS_COLUMN_CONFIG:
+                try:
+                    delete_config = {
+                        "delete": st.column_config.CheckboxColumn("Delete", width="small"),
+                        "outlet_name": st.column_config.TextColumn("Outlet", width="large"),
+                        "area": st.column_config.TextColumn("Area", width="medium"),
+                        "kategori_tempat": st.column_config.TextColumn("Kategori", width="medium"),
+                        "tipe_tempat": st.column_config.TextColumn("Tipe", width="small"),
+                    }
+                except Exception:
+                    delete_config = None
+            edited_delete = st.data_editor(
+                delete_source,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="fixed",
+                disabled=[c for c in delete_source.columns if c != "delete"],
+                column_config=delete_config,
+                key="crud_v2_delete_editor",
+            )
+            outlets_to_delete = (
+                pd.DataFrame(edited_delete)
+                .loc[lambda x: x["delete"] == True, "outlet_name"]
+                .dropna().astype(str).tolist()
+            )
+        else:
+            df_show(delete_source.drop(columns=["delete"]), use_container_width=True, hide_index=True)
+            st.warning("Versi Streamlit ini belum mendukung checklist tabel. Pakai pilihan manual di bawah.")
+            outlets_to_delete = st.multiselect("Pilih outlet", outlet_mapping["outlet_name"].tolist())
+
         if outlets_to_delete:
-            st.warning(f"{len(outlets_to_delete)} outlet akan dihapus dari mapping.")
-            if st.button("Confirm Delete", key="crud_v2_delete"):
+            st.warning(f"{len(outlets_to_delete)} outlet akan dihapus dari mapping CRUD.")
+            confirm_delete = st.text_input("Ketik DELETE untuk konfirmasi hapus", key="crud_v2_delete_confirm")
+            if st.button("Confirm Delete", key="crud_v2_delete", type="primary"):
+                if confirm_delete != "DELETE":
+                    st.error("Konfirmasi belum benar. Ketik DELETE untuk menghapus.")
+                    return
                 updated = outlet_mapping[~outlet_mapping["outlet_name"].isin(outlets_to_delete)].copy()
                 updated.to_csv(OUTLET_MAPPING_PATH, index=False)
-                st.success("Outlet berhasil dihapus.")
+                try: cache_clear(load_app_data)
+                except Exception: pass
+                st.success("Outlet berhasil dihapus dari mapping CRUD.")
                 rerun()
+
+
+def show_trend_analysis_v2(df, config, processor, viz):
+    st.title("Analisis Trend Penjualan")
+    if df.empty:
+        st.error("Data tidak tersedia.")
+        return
+
+    base = df.copy(deep=True)
+    for col in ["total_revenue", "foto_qty", "unlock_qty", "print_qty", "conversion_rate"]:
+        if col in base.columns:
+            base[col] = pd.to_numeric(base[col], errors="coerce").fillna(0.0)
+    base["periode"] = base["periode"].astype(str)
+
+    periods = _sort_periods_str(base["periode"].dropna().astype(str).unique().tolist()) if "periode" in base.columns else []
+    if not periods:
+        st.error("Data periode tidak tersedia.")
+        return
+
+    default_start_idx = max(0, len(periods) - 12)
+    default_end_idx = len(periods) - 1
+    st.markdown("#### Range Periode Analisis")
+    r1, r2, r3 = st.columns([1, 1, 2])
+    with r1:
+        start_period = st.selectbox("Periode Mulai", periods, index=default_start_idx, key="trend_period_start")
+    with r2:
+        end_period = st.selectbox("Periode Akhir", periods, index=default_end_idx, key="trend_period_end")
+
+    start_idx = periods.index(start_period)
+    end_idx = periods.index(end_period)
+    if start_idx > end_idx:
+        st.error("Periode mulai tidak boleh lebih baru dari periode akhir.")
+        return
+
+    selected_periods = periods[start_idx:end_idx + 1]
+    base = base[base["periode"].isin(selected_periods)].copy()
+    periods = selected_periods
+    with r3:
+        st.info("Analisis memakai {} periode: {} sampai {}.".format(len(periods), start_period, end_period))
+
+    latest_period = periods[-1] if periods else None
+    previous_period = periods[-2] if len(periods) > 1 else None
+    latest_df = base[base["periode"] == latest_period].copy() if latest_period else base.copy()
+    previous_df = base[base["periode"] == previous_period].copy() if previous_period else pd.DataFrame()
+
+    def _sum(frame, col):
+        return float(pd.to_numeric(frame.get(col, pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+
+    def _conversion(frame):
+        foto = _sum(frame, "foto_qty")
+        printed = _sum(frame, "print_qty")
+        return (printed / foto * 100) if foto > 0 else 0.0
+
+    revenue_now = _sum(latest_df, "total_revenue")
+    revenue_prev = _sum(previous_df, "total_revenue")
+    revenue_delta = ((revenue_now - revenue_prev) / revenue_prev * 100) if revenue_prev > 0 else None
+    conv_now = _conversion(latest_df)
+    conv_prev = _conversion(previous_df)
+    conv_delta = conv_now - conv_prev if previous_period else None
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.metric("Periode Terbaru", latest_period or "-")
+    with k2:
+        st.metric("Omzet", config.format_currency(revenue_now), delta=(f"{revenue_delta:+.1f}%" if revenue_delta is not None else None))
+    with k3:
+        st.metric("Outlet Aktif", f"{latest_df['outlet_name'].nunique():,}")
+    with k4:
+        st.metric("Conversion", f"{conv_now:.1f}%", delta=(f"{conv_delta:+.1f}pp" if conv_delta is not None else None))
+
+    monthly = (
+        base.groupby("periode", as_index=False)
+        .agg(
+            total_revenue=("total_revenue", "sum"),
+            foto_qty=("foto_qty", "sum"),
+            unlock_qty=("unlock_qty", "sum"),
+            print_qty=("print_qty", "sum"),
+            outlet_count=("outlet_name", "nunique"),
+        )
+    )
+    monthly["conversion_rate"] = np.where(monthly["foto_qty"] > 0, monthly["print_qty"] / monthly["foto_qty"] * 100, 0)
+    monthly["periode"] = pd.Categorical(monthly["periode"], categories=periods, ordered=True)
+    monthly = monthly.sort_values("periode")
+
+    tab_overview, tab_segments, tab_outlets, tab_heatmap = st.tabs(["Overview", "Area & Category", "Outlet Movers", "Heatmap"])
+
+    with tab_overview:
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            fig = px.line(monthly, x="periode", y="total_revenue", markers=True, title="Monthly Revenue Trend")
+            fig.update_traces(hovertemplate="%{x}<br>Revenue: Rp %{y:,.0f}<extra></extra>")
+            fig.update_layout(height=420, yaxis_title="Revenue", xaxis_title="Periode")
+            st.plotly_chart(fig, use_container_width=True)
+        with c2:
+            fig_conv = px.line(monthly, x="periode", y="conversion_rate", markers=True, title="Conversion Trend")
+            fig_conv.update_traces(hovertemplate="%{x}<br>Conversion: %{y:.1f}%<extra></extra>")
+            fig_conv.update_layout(height=420, yaxis_title="Conversion %", xaxis_title="Periode")
+            st.plotly_chart(fig_conv, use_container_width=True)
+
+        monthly_display = monthly.copy()
+        monthly_display["total_revenue"] = monthly_display["total_revenue"].apply(config.format_currency)
+        monthly_display["conversion_rate"] = monthly_display["conversion_rate"].apply(lambda x: f"{x:.1f}%")
+        df_show(monthly_display.rename(columns={
+            "periode": "Periode",
+            "total_revenue": "Omzet",
+            "foto_qty": "Foto",
+            "unlock_qty": "Unlock",
+            "print_qty": "Print",
+            "outlet_count": "Outlet",
+            "conversion_rate": "Conversion",
+        }), use_container_width=True, hide_index=True)
+
+    with tab_segments:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.plotly_chart(viz.create_area_analysis_chart(base), use_container_width=True)
+        with c2:
+            st.plotly_chart(viz.create_indoor_outdoor_comparison(base), use_container_width=True)
+
+        c3, c4 = st.columns(2)
+        with c3:
+            area_summary = processor.aggregate_by_area(base.copy()).reset_index()
+            if not area_summary.empty:
+                area_summary["revenue_per_outlet"] = area_summary["total_revenue"] / area_summary["outlet_count"].replace(0, np.nan)
+                area_summary["total_revenue"] = area_summary["total_revenue"].apply(config.format_currency)
+                area_summary["revenue_per_outlet"] = area_summary["revenue_per_outlet"].fillna(0).apply(config.format_currency)
+            st.subheader("Summary by Area")
+            df_show(area_summary, use_container_width=True, hide_index=True)
+        with c4:
+            kategori_summary = processor.aggregate_by_kategori(base.copy()).reset_index()
+            if not kategori_summary.empty:
+                kategori_summary["revenue_per_outlet"] = kategori_summary["total_revenue"] / kategori_summary["outlet_count"].replace(0, np.nan)
+                kategori_summary["total_revenue"] = kategori_summary["total_revenue"].apply(config.format_currency)
+                kategori_summary["revenue_per_outlet"] = kategori_summary["revenue_per_outlet"].fillna(0).apply(config.format_currency)
+            st.subheader("Summary by Category")
+            df_show(kategori_summary, use_container_width=True, hide_index=True)
+
+        st.plotly_chart(viz.create_kategori_analysis(base), use_container_width=True)
+
+    with tab_outlets:
+        outlet_period = (
+            base.groupby(["outlet_name", "periode"], as_index=False)
+            .agg(total_revenue=("total_revenue", "sum"), foto_qty=("foto_qty", "sum"), print_qty=("print_qty", "sum"))
+        )
+        outlet_pivot = outlet_period.pivot_table(index="outlet_name", columns="periode", values="total_revenue", aggfunc="sum", fill_value=0)
+        if latest_period and latest_period in outlet_pivot.columns:
+            movers = pd.DataFrame({"outlet_name": outlet_pivot.index, "latest_revenue": outlet_pivot[latest_period].values})
+            if previous_period and previous_period in outlet_pivot.columns:
+                movers["previous_revenue"] = outlet_pivot[previous_period].values
+                movers["growth_value"] = movers["latest_revenue"] - movers["previous_revenue"]
+                movers["growth_pct"] = np.where(movers["previous_revenue"] > 0, movers["growth_value"] / movers["previous_revenue"] * 100, np.nan)
+            else:
+                movers["previous_revenue"] = 0.0
+                movers["growth_value"] = movers["latest_revenue"]
+                movers["growth_pct"] = np.nan
+
+            top_latest = movers.sort_values("latest_revenue", ascending=False).head(15).copy()
+            top_up = movers.sort_values("growth_value", ascending=False).head(10).copy()
+            top_down = movers.sort_values("growth_value", ascending=True).head(10).copy()
+
+            for table in [top_latest, top_up, top_down]:
+                table["latest_revenue"] = table["latest_revenue"].apply(config.format_currency)
+                table["previous_revenue"] = table["previous_revenue"].apply(config.format_currency)
+                table["growth_value"] = table["growth_value"].apply(config.format_currency)
+                table["growth_pct"] = table["growth_pct"].apply(lambda x: "-" if pd.isna(x) else f"{x:+.1f}%")
+
+            c1, c2 = st.columns(2)
+            with c1:
+                st.subheader(f"Top Outlet {latest_period}")
+                df_show(top_latest, use_container_width=True, hide_index=True)
+            with c2:
+                st.subheader("Biggest Growth")
+                df_show(top_up, use_container_width=True, hide_index=True)
+            st.subheader("Needs Attention")
+            df_show(top_down, use_container_width=True, hide_index=True)
+        else:
+            st.info("Data outlet per periode belum cukup untuk menghitung movers.")
+
+    with tab_heatmap:
+        st.plotly_chart(viz.create_heatmap(base), use_container_width=True)
+        st.caption("Heatmap membantu melihat kombinasi area dan kategori yang paling kuat atau perlu diperbaiki.")
 
 
 def show_trend_analysis(df, config, processor, viz):
@@ -1329,12 +1648,111 @@ def show_user_access_panel():
             st.info("Belum ada akun untuk dihapus.")
 
 
+def show_monthly_database_panel(config: Config):
+    st.subheader("Database Bulanan")
+    if not os.path.exists(DATA_CSV_PATH):
+        st.info("File data dashboard belum ada.")
+        return
+
+    try:
+        db = pd.read_csv(DATA_CSV_PATH)
+    except Exception as e:
+        st.error(f"Gagal membaca data dashboard: {e}")
+        return
+
+    if db.empty or "periode" not in db.columns:
+        st.info("Data dashboard kosong atau tidak punya kolom periode.")
+        return
+
+    db["periode"] = db["periode"].astype(str)
+    if "total_revenue" in db.columns:
+        db["total_revenue"] = pd.to_numeric(db["total_revenue"], errors="coerce").fillna(0.0)
+    else:
+        db["total_revenue"] = 0.0
+
+    period_summary = (
+        db.groupby("periode", as_index=False)
+        .agg(
+            rows=("periode", "size"),
+            outlet_count=("outlet_name", "nunique") if "outlet_name" in db.columns else ("periode", "size"),
+            total_revenue=("total_revenue", "sum"),
+        )
+    )
+    period_summary["sort_key"] = pd.to_datetime(period_summary["periode"], format="%Y-%m", errors="coerce")
+    period_summary = period_summary.sort_values(["sort_key", "periode"], na_position="first").drop(columns=["sort_key"])
+
+    display_summary = period_summary.copy()
+    display_summary["total_revenue"] = display_summary["total_revenue"].apply(config.format_currency)
+    df_show(
+        display_summary.rename(columns={
+            "periode": "Periode",
+            "rows": "Rows",
+            "outlet_count": "Outlet",
+            "total_revenue": "Omzet",
+        }),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    periods = period_summary["periode"].astype(str).tolist()
+    selected_periods = st.multiselect("Pilih periode yang mau dihapus", periods, key="delete_db_periods")
+
+    if not selected_periods:
+        st.caption("Pilih satu atau beberapa periode untuk preview dan delete.")
+        return
+
+    selected_df = db[db["periode"].isin(selected_periods)].copy()
+    selected_total = float(selected_df["total_revenue"].sum())
+    st.warning(
+        "Periode terpilih: {} | Rows: {:,} | Omzet: {}".format(
+            ", ".join(selected_periods),
+            len(selected_df),
+            config.format_currency(selected_total),
+        )
+    )
+
+    preview_cols = [c for c in ["periode", "outlet_name", "area", "kategori_tempat", "tipe_tempat", "total_revenue"] if c in selected_df.columns]
+    if preview_cols:
+        preview = selected_df[preview_cols].head(50).copy()
+        if "total_revenue" in preview.columns:
+            preview["total_revenue"] = preview["total_revenue"].apply(config.format_currency)
+        df_show(preview, use_container_width=True, hide_index=True)
+
+    confirm_text = st.text_input("Ketik DELETE untuk konfirmasi hapus", key="delete_db_confirm")
+    if st.button("Delete Selected Periods", key="delete_db_period_btn", type="primary"):
+        if confirm_text != "DELETE":
+            st.error("Konfirmasi belum benar. Ketik DELETE untuk menghapus.")
+            return
+
+        backup_path = DATA_CSV_PATH.with_name(
+            "difotoin_dashboard_data.backup_before_delete_{}.csv".format(datetime.now().strftime("%Y%m%d_%H%M%S"))
+        )
+        try:
+            db.to_csv(backup_path, index=False)
+            remaining = db[~db["periode"].isin(selected_periods)].copy()
+            remaining.to_csv(DATA_CSV_PATH, index=False)
+            try: cache_clear(load_app_data)
+            except Exception: pass
+            st.success(
+                "Berhasil hapus periode {}. Backup tersimpan di {}.".format(
+                    ", ".join(selected_periods),
+                    backup_path.name,
+                )
+            )
+            rerun()
+        except Exception as e:
+            st.error(f"Gagal menghapus periode: {e}")
+
+
 def show_admin_panel(config):
     import os
     from datetime import datetime as _dt
     st.title("⚙️ Admin Panel")
 
     show_user_access_panel()
+    st.markdown("---")
+
+    show_monthly_database_panel(config)
     st.markdown("---")
 
     st.subheader("🎯 Threshold Configuration")

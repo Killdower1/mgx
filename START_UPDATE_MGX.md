@@ -80,6 +80,12 @@ Kolom utama CSV dashboard:
 - Admin Panel ditambah User Access untuk membuat akun lokal berisi nama, email, dan password hash.
 - Paket deploy server ditambahkan: `requirements.txt`, `install.sh`, `ecosystem.config.js`, `nginx.conf`, dan root `README.md`.
 - Login dibuat lebih tahan reconnect dengan session token lokal dan Nginx config diperkuat untuk websocket Streamlit.
+- Data dashboard sekarang otomatis memakai outlet mapping terbaru dari CRUD, dan halaman Trend diperbarui dengan KPI, monthly trend, segment summary, outlet movers, dan heatmap.
+- Admin Panel ditambah Database Bulanan untuk melihat ringkasan per periode dan menghapus data bulanan tertentu dengan backup otomatis.
+- CRUD outlet sekarang otomatis menarik outlet yang ada di database transaksi tetapi belum ada di mapping, termasuk outlet event.
+- Dashboard utama sekarang menampilkan semua outlet sesuai filter, termasuk outlet yang tidak aktif di periode terpilih, dan tabel Tren Omset 12 Bulan dipisah antara outlet aktif dan tidak aktif.
+- Delete outlet di CRUD sekarang memakai checklist tabel dan wajib mengetik `DELETE` sebelum menghapus mapping outlet.
+- Halaman Analisis Trend ditambah range periode, default 12 bulan terakhir dari periode data terbaru, agar perbandingan area/outlet lebih fair.
 
 ## Cara Menjalankan Lokal
 
@@ -89,6 +95,7 @@ Dari Windows tanpa terminal:
 - Isi email dan password admin.
 - Browser akan terbuka ke `http://localhost:8501`.
 - Biarkan window info launcher tetap terbuka selama dashboard dipakai.
+- Klik `Restart Server` di launcher kalau dashboard macet, reconnect terus, atau perlu dinyalakan ulang.
 - Klik `OK` di window launcher kalau ingin mematikan server dashboard.
 
 Dari folder `streamlit_template`:
@@ -114,6 +121,7 @@ streamlit run app.py
 - Pastikan periode memakai format `YYYY-MM`.
 - Saat save, data untuk periode yang sama akan dihapus lalu diganti hasil upload baru.
 - Selalu cek audit total Excel raw vs hasil agregasi sebelum save.
+- Kalau ada periode salah, hapus dari Admin Panel > Database Bulanan. Sistem akan membuat backup CSV otomatis sebelum data dihapus.
 - Jangan commit file Excel mentah dari `uploads/` kecuali memang sengaja dijadikan sample publik.
 
 ## Prioritas Berikutnya
