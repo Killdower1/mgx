@@ -1448,7 +1448,8 @@ def show_outlet_crud_v2(df, config, processor):
         st.caption("Centang outlet yang mau dihapus dari mapping CRUD. Data transaksi historis tidak ikut dihapus.")
 
         delete_source = outlet_mapping.copy().sort_values("outlet_name").reset_index(drop=True)
-        delete_source.insert(0, "delete", False)
+        saved_delete = set(st.session_state.get("crud_v2_delete_selected", []))
+        delete_source.insert(0, "delete", delete_source["outlet_name"].astype(str).isin(saved_delete))
         delete_cols = ["delete", "outlet_name", "area", "kategori_tempat", "tipe_tempat"]
         delete_source = delete_source[[c for c in delete_cols if c in delete_source.columns]]
 
@@ -1474,27 +1475,49 @@ def show_outlet_crud_v2(df, config, processor):
                 column_config=delete_config,
                 key="crud_v2_delete_editor",
             )
-            outlets_to_delete = (
-                pd.DataFrame(edited_delete)
-                .loc[lambda x: x["delete"] == True, "outlet_name"]
-                .dropna().astype(str).tolist()
-            )
+            edited_delete_df = pd.DataFrame(edited_delete)
+            delete_flags = edited_delete_df["delete"].fillna(False).astype(str).str.lower().isin(["true", "1", "yes"])
+            outlets_to_delete = edited_delete_df.loc[delete_flags, "outlet_name"].dropna().astype(str).tolist()
         else:
             df_show(delete_source.drop(columns=["delete"]), use_container_width=True, hide_index=True)
             st.warning("Versi Streamlit ini belum mendukung checklist tabel. Pakai pilihan manual di bawah.")
-            outlets_to_delete = st.multiselect("Pilih outlet", outlet_mapping["outlet_name"].tolist())
+            outlets_to_delete = st.multiselect(
+                "Pilih outlet",
+                outlet_mapping["outlet_name"].tolist(),
+                default=st.session_state.get("crud_v2_delete_selected", []),
+            )
 
-        if outlets_to_delete:
-            st.warning(f"{len(outlets_to_delete)} outlet akan dihapus dari mapping CRUD.")
+        c_set, c_clear = st.columns([1.2, 4])
+        with c_set:
+            if st.button("Lock Selection", key="crud_v2_delete_set"):
+                st.session_state["crud_v2_delete_selected"] = outlets_to_delete
+                st.success("{} outlet dipilih untuk delete.".format(len(outlets_to_delete)))
+        with c_clear:
+            if st.button("Clear Selection", key="crud_v2_delete_clear"):
+                st.session_state["crud_v2_delete_selected"] = []
+                rerun()
+
+        selected_for_delete = st.session_state.get("crud_v2_delete_selected", outlets_to_delete)
+        if outlets_to_delete and outlets_to_delete != selected_for_delete:
+            selected_for_delete = outlets_to_delete
+
+        if selected_for_delete:
+            st.warning(f"{len(selected_for_delete)} outlet akan dihapus dari mapping CRUD.")
+            df_show(
+                outlet_mapping[outlet_mapping["outlet_name"].isin(selected_for_delete)][["outlet_name", "area", "kategori_tempat", "tipe_tempat"]],
+                use_container_width=True,
+                hide_index=True,
+            )
             confirm_delete = st.text_input("Ketik DELETE untuk konfirmasi hapus", key="crud_v2_delete_confirm")
             if st.button("Confirm Delete", key="crud_v2_delete", type="primary"):
                 if confirm_delete != "DELETE":
                     st.error("Konfirmasi belum benar. Ketik DELETE untuk menghapus.")
                     return
-                updated = outlet_mapping[~outlet_mapping["outlet_name"].isin(outlets_to_delete)].copy()
+                updated = outlet_mapping[~outlet_mapping["outlet_name"].isin(selected_for_delete)].copy()
                 updated.to_csv(OUTLET_MAPPING_PATH, index=False)
                 try: cache_clear(load_app_data)
                 except Exception: pass
+                st.session_state["crud_v2_delete_selected"] = []
                 st.success("Outlet berhasil dihapus dari mapping CRUD.")
                 rerun()
 

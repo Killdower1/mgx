@@ -91,6 +91,7 @@ Kolom utama CSV dashboard:
 - CRUD outlet ditambah tab AI Suggest untuk rekomendasi area, kategori, sub kategori, dan tipe dari nama outlet. Hasil AI bisa diedit manual sebelum di-apply.
 - Deploy server dipermudah dengan `deploy.sh` untuk backup, pull dari GitHub, update dependency, restart PM2, health check, dan reload Nginx.
 - Push ke GitHub dipermudah dengan `push.ps1` untuk Windows PowerShell dan `push.sh` untuk Git Bash/Linux.
+- Delete outlet CRUD diperbaiki agar pilihan checklist tidak hilang saat konfirmasi `DELETE`.
 
 ## Cara Menjalankan Lokal
 
