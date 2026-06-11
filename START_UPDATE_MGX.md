@@ -92,6 +92,7 @@ Kolom utama CSV dashboard:
 - Deploy server dipermudah dengan `deploy.sh` untuk backup, pull dari GitHub, update dependency, restart PM2, health check, dan reload Nginx.
 - Push ke GitHub dipermudah dengan `push.ps1` untuk Windows PowerShell dan `push.sh` untuk Git Bash/Linux.
 - Delete outlet CRUD diperbaiki agar pilihan checklist tidak hilang saat konfirmasi `DELETE`.
+- Delete outlet CRUD sekarang menyimpan blocklist lokal agar outlet yang masih ada di data transaksi tidak otomatis masuk lagi lewat auto-sync.
 
 ## Cara Menjalankan Lokal
 

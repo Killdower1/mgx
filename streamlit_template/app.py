@@ -19,7 +19,7 @@ from typing import List, Tuple, Dict, Optional
 from data_processor import DataProcessor
 from visualizations import Visualizations
 from utils import *
-from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH, USERS_PATH, AUTH_SESSIONS_PATH
+from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH, USERS_PATH, AUTH_SESSIONS_PATH, DELETED_OUTLETS_PATH
 
 # ============== COMPAT LAYER (Streamlit lama / Python 3.6) ==============
 HAS_CACHE_DATA = hasattr(st, "cache_data")
@@ -180,6 +180,23 @@ def save_users(users: List[dict]) -> None:
     USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(USERS_PATH, "w", encoding="utf-8") as f:
         json.dump({"users": users}, f, indent=2)
+
+def load_deleted_outlets() -> List[str]:
+    try:
+        with open(DELETED_OUTLETS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        outlets = data.get("outlets", []) if isinstance(data, dict) else []
+        return [str(x).strip() for x in outlets if str(x).strip()]
+    except FileNotFoundError:
+        return []
+    except Exception:
+        return []
+
+def save_deleted_outlets(outlets: List[str]) -> None:
+    DELETED_OUTLETS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    clean = sorted(set(str(x).strip() for x in outlets if str(x).strip()))
+    with open(DELETED_OUTLETS_PATH, "w", encoding="utf-8") as f:
+        json.dump({"outlets": clean}, f, indent=2)
 
 def load_auth_sessions() -> Dict[str, dict]:
     try:
@@ -1178,12 +1195,13 @@ def show_outlet_crud_v2(df, config, processor):
         outlet_mapping[col] = outlet_mapping[col].fillna("").astype(str)
     outlet_mapping["outlet_name"] = outlet_mapping["outlet_name"].str.strip()
     outlet_mapping = outlet_mapping[outlet_mapping["outlet_name"] != ""].drop_duplicates("outlet_name", keep="last")
+    deleted_outlets = set(load_deleted_outlets())
 
     if not df.empty and "outlet_name" in df.columns:
         source_outlets = df.copy(deep=True)
         source_outlets["outlet_name"] = source_outlets["outlet_name"].fillna("").astype(str).str.strip()
         source_outlets = source_outlets[source_outlets["outlet_name"] != ""]
-        missing_names = sorted(set(source_outlets["outlet_name"]) - set(outlet_mapping["outlet_name"]))
+        missing_names = sorted(set(source_outlets["outlet_name"]) - set(outlet_mapping["outlet_name"]) - deleted_outlets)
 
         if missing_names:
             def first_non_empty(frame, col, default_value=""):
@@ -1330,6 +1348,8 @@ def show_outlet_crud_v2(df, config, processor):
                     updated = pd.concat([outlet_mapping, new_row], ignore_index=True)
                     updated = updated[required_cols].sort_values("outlet_name").reset_index(drop=True)
                     updated.to_csv(OUTLET_MAPPING_PATH, index=False)
+                    deleted_outlets = [x for x in load_deleted_outlets() if x != new_name]
+                    save_deleted_outlets(deleted_outlets)
                     try: cache_clear(load_app_data)
                     except Exception: pass
                     st.success("Outlet berhasil ditambahkan.")
@@ -1515,6 +1535,9 @@ def show_outlet_crud_v2(df, config, processor):
                     return
                 updated = outlet_mapping[~outlet_mapping["outlet_name"].isin(selected_for_delete)].copy()
                 updated.to_csv(OUTLET_MAPPING_PATH, index=False)
+                deleted_now = set(load_deleted_outlets())
+                deleted_now.update(str(x).strip() for x in selected_for_delete if str(x).strip())
+                save_deleted_outlets(list(deleted_now))
                 try: cache_clear(load_app_data)
                 except Exception: pass
                 st.session_state["crud_v2_delete_selected"] = []

@@ -9,6 +9,7 @@ DATA_CSV_PATH = DATA_DIR / "difotoin_dashboard_data.csv"
 OUTLET_MAPPING_PATH = DATA_DIR / "difotoin_outlet_mapping.csv"
 USERS_PATH = CONFIG_DIR / "users.json"
 AUTH_SESSIONS_PATH = CONFIG_DIR / "sessions.json"
+DELETED_OUTLETS_PATH = CONFIG_DIR / "deleted_outlets.json"
 
 class Config:
     def __init__(self):
