@@ -9,6 +9,7 @@ import hashlib
 import secrets
 import time
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -69,6 +70,60 @@ def s_caption(text: str):
             st.markdown(f"<small>{text}</small>", unsafe_allow_html=True)
     except Exception:
         st.markdown(f"<small>{text}</small>", unsafe_allow_html=True)
+
+def install_scroll_guard():
+    components.html(
+        """
+        <script>
+        (function () {
+          try {
+            const KEY = "difotoin_scroll_y";
+            const w = window.parent;
+            const d = w.document;
+            let ticking = false;
+
+            function currentY() {
+              return w.scrollY || d.documentElement.scrollTop || d.body.scrollTop || 0;
+            }
+
+            function save() {
+              try {
+                const y = currentY();
+                if (y >= 0) w.sessionStorage.setItem(KEY, String(y));
+              } catch (e) {}
+            }
+
+            function restore() {
+              try {
+                const saved = parseInt(w.sessionStorage.getItem(KEY) || "0", 10);
+                if (!Number.isFinite(saved) || saved < 80) return;
+                const now = currentY();
+                if (now < Math.max(40, saved * 0.25)) {
+                  w.scrollTo(0, saved);
+                }
+              } catch (e) {}
+            }
+
+            w.addEventListener("scroll", function () {
+              if (ticking) return;
+              ticking = true;
+              w.setTimeout(function () {
+                save();
+                ticking = false;
+              }, 120);
+            }, { passive: true });
+
+            w.addEventListener("beforeunload", save);
+            [50, 150, 350, 800, 1400].forEach(function (delay) {
+              w.setTimeout(restore, delay);
+            });
+          } catch (e) {}
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 def cache_clear(func):
     try:
@@ -147,8 +202,11 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] button{color:#fff!important;}
     .stButton button{color:#1f2937!important;background:#3b82f6!important;border:none!important;}
     .performer-card{padding:.5rem;margin:.25rem 0;border-radius:.25rem;background:#2a2a2a;border:1px solid #404040;}
+    [data-testid="stStatusWidget"], [data-testid="stConnectionStatus"], .stStatusWidget{display:none!important;visibility:hidden!important;}
 </style>
 """, unsafe_allow_html=True)
+
+install_scroll_guard()
 
 # ================= AUTH =================
 def _normalize_email(email: str) -> str:
