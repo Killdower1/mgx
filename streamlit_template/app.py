@@ -1231,9 +1231,13 @@ def show_outlet_crud_v2(df, config, processor):
                 except Exception: pass
                 st.info("{} outlet dari database transaksi otomatis ditambahkan ke CRUD mapping.".format(len(new_rows)))
 
-    tab_edit, tab_add, tab_ai, tab_master, tab_delete = st.tabs(["Edit Outlet", "Add Outlet", "AI Suggest", "Master Data", "Delete"])
+    crud_modes = ["Edit Outlet", "Add Outlet", "AI Suggest", "Master Data", "Delete"]
+    try:
+        crud_mode = st.radio("Mode CRUD Outlet", crud_modes, horizontal=True, key="crud_v2_mode")
+    except TypeError:
+        crud_mode = st.radio("Mode CRUD Outlet", crud_modes, key="crud_v2_mode")
 
-    with tab_edit:
+    if crud_mode == "Edit Outlet":
         m1, m2, m3 = st.columns(3)
         with m1:
             st.metric("Total Outlet", f"{len(outlet_mapping):,}")
@@ -1275,7 +1279,7 @@ def show_outlet_crud_v2(df, config, processor):
                 tipe_options = sorted(set(["Indoor", "Outdoor", "Semi-Outdoor"]) | set(safe_unique_str(outlet_mapping, "tipe_tempat")))
                 try:
                     editor_config = {
-                        "outlet_name": st.column_config.TextColumn("Outlet", width="large"),
+                        "_index": st.column_config.TextColumn("Outlet", width="large"),
                         "area": st.column_config.SelectboxColumn("Area", options=area_options, width="medium"),
                         "kategori_tempat": st.column_config.SelectboxColumn("Kategori", options=kategori_options, width="medium"),
                         "sub_kategori_tempat": st.column_config.SelectboxColumn("Sub Kategori", options=sub_options, width="medium"),
@@ -1285,12 +1289,13 @@ def show_outlet_crud_v2(df, config, processor):
                     editor_config = None
 
             if hasattr(st, "data_editor"):
+                editor_data = visible[required_cols].copy().set_index("outlet_name")
+                editor_data.index.name = "Outlet"
                 edited_visible = st.data_editor(
-                    visible.reset_index(drop=True),
+                    editor_data,
                     use_container_width=True,
-                    hide_index=True,
+                    hide_index=False,
                     num_rows="fixed",
-                    disabled=["outlet_name"],
                     column_config=editor_config,
                     key="crud_v2_editor",
                 )
@@ -1302,7 +1307,12 @@ def show_outlet_crud_v2(df, config, processor):
             c_save, c_info = st.columns([1, 4])
             with c_save:
                 if st.button("Save Changes", type="primary", key="crud_v2_save"):
-                    edited_visible = pd.DataFrame(edited_visible)[required_cols].copy()
+                    edited_visible = pd.DataFrame(edited_visible).reset_index()
+                    if "Outlet" in edited_visible.columns:
+                        edited_visible = edited_visible.rename(columns={"Outlet": "outlet_name"})
+                    elif "index" in edited_visible.columns and "outlet_name" not in edited_visible.columns:
+                        edited_visible = edited_visible.rename(columns={"index": "outlet_name"})
+                    edited_visible = edited_visible[required_cols].copy()
                     edited_visible["outlet_name"] = edited_visible["outlet_name"].astype(str).str.strip()
                     if edited_visible["outlet_name"].eq("").any():
                         st.error("Outlet name tidak boleh kosong.")
@@ -1320,7 +1330,7 @@ def show_outlet_crud_v2(df, config, processor):
             with c_info:
                 st.caption(f"Menampilkan {len(visible):,} dari {len(outlet_mapping):,} outlet.")
 
-    with tab_add:
+    if crud_mode == "Add Outlet":
         st.subheader("Add New Outlet")
         with st.form("crud_v2_add_form"):
             new_name = st.text_input("Outlet Name")
@@ -1355,7 +1365,7 @@ def show_outlet_crud_v2(df, config, processor):
                     st.success("Outlet berhasil ditambahkan.")
                     rerun()
 
-    with tab_ai:
+    if crud_mode == "AI Suggest":
         st.subheader("AI Suggest Outlet Mapping")
         st.caption("AI lokal membaca nama outlet untuk menebak area, kategori, sub kategori, dan tipe. Lo tetap bisa edit hasilnya sebelum apply.")
 
@@ -1450,7 +1460,7 @@ def show_outlet_crud_v2(df, config, processor):
                     st.success("Rekomendasi AI berhasil disimpan. Cek lagi di tab Edit Outlet kalau mau koreksi manual.")
                     rerun()
 
-    with tab_master:
+    if crud_mode == "Master Data":
         st.subheader("Master Data")
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -1463,7 +1473,7 @@ def show_outlet_crud_v2(df, config, processor):
             st.markdown("**Sub Kategori**")
             df_show(pd.DataFrame({"Sub Kategori": SUB_KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
 
-    with tab_delete:
+    if crud_mode == "Delete":
         st.subheader("Delete Outlet")
         st.caption("Centang outlet yang mau dihapus dari mapping CRUD. Data transaksi historis tidak ikut dihapus.")
 
