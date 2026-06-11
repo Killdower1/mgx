@@ -16,6 +16,7 @@ streamlit_template/config/config.json
 streamlit_template/config/users.json
 streamlit_template/config/sessions.json
 streamlit_template/config/deleted_outlets.json
+streamlit_template/config/master_data.json
 streamlit_template/package-lock.json
 
 # Local MGX/generated workspace artifacts

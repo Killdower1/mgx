@@ -96,6 +96,7 @@ Kolom utama CSV dashboard:
 - CRUD outlet tidak lagi memakai tab Streamlit untuk mode utama agar tidak lompat saat rerun; kolom Outlet di editor dibuat sebagai index sticky saat scroll horizontal.
 - App ditambah scroll guard dan status widget connection Streamlit disembunyikan agar reconnect/rerun tidak mengganggu posisi layar.
 - Nginx ditambah fallback reconnect page untuk mengganti 502/503/504 singkat saat Streamlit sedang restart.
+- Edit outlet CRUD sekarang dibungkus form agar perubahan tidak rerun per cell; Master Data area/kategori/sub kategori sudah bisa add, edit, update, dan delete lewat UI.
 
 ## Cara Menjalankan Lokal
 

@@ -20,7 +20,7 @@ from typing import List, Tuple, Dict, Optional
 from data_processor import DataProcessor
 from visualizations import Visualizations
 from utils import *
-from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH, USERS_PATH, AUTH_SESSIONS_PATH, DELETED_OUTLETS_PATH
+from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH, USERS_PATH, AUTH_SESSIONS_PATH, DELETED_OUTLETS_PATH, MASTER_DATA_PATH
 
 # ============== COMPAT LAYER (Streamlit lama / Python 3.6) ==============
 HAS_CACHE_DATA = hasattr(st, "cache_data")
@@ -174,6 +174,125 @@ SUB_KATEGORI_TEMPAT = [
     "Budget Hotel","Luxury Hotel","Resort","Resort/Hotel","Homestay","Guest House","Hostel",
     "Community Space","Creative Space","Airport","Tidak Terkategorisasi","Lainnya"
 ]
+
+DEFAULT_MASTER_DATA = {
+    "areas": INDONESIA_AREAS.copy(),
+    "kategori_tempat": KATEGORI_TEMPAT.copy(),
+    "sub_kategori_tempat": SUB_KATEGORI_TEMPAT.copy(),
+}
+
+def _clean_master_values(values: List[str]) -> List[str]:
+    cleaned = []
+    seen = set()
+    for value in values or []:
+        text = str(value or "").strip()
+        if not text or text.lower() in seen:
+            continue
+        cleaned.append(text)
+        seen.add(text.lower())
+    return cleaned
+
+def load_master_data() -> Dict[str, List[str]]:
+    try:
+        with open(MASTER_DATA_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {k: v.copy() for k, v in DEFAULT_MASTER_DATA.items()}
+    except FileNotFoundError:
+        return {k: v.copy() for k, v in DEFAULT_MASTER_DATA.items()}
+    except Exception:
+        return {k: v.copy() for k, v in DEFAULT_MASTER_DATA.items()}
+
+    result = {}
+    for key, defaults in DEFAULT_MASTER_DATA.items():
+        values = data.get(key)
+        result[key] = _clean_master_values(values if isinstance(values, list) else defaults)
+        if not result[key]:
+            result[key] = defaults.copy()
+    return result
+
+def save_master_data(data: Dict[str, List[str]]) -> None:
+    MASTER_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "areas": _clean_master_values(data.get("areas", [])),
+        "kategori_tempat": _clean_master_values(data.get("kategori_tempat", [])),
+        "sub_kategori_tempat": _clean_master_values(data.get("sub_kategori_tempat", [])),
+    }
+    with open(MASTER_DATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+def apply_master_data() -> None:
+    global INDONESIA_AREAS, KATEGORI_TEMPAT, SUB_KATEGORI_TEMPAT
+    data = load_master_data()
+    INDONESIA_AREAS = data["areas"]
+    KATEGORI_TEMPAT = data["kategori_tempat"]
+    SUB_KATEGORI_TEMPAT = data["sub_kategori_tempat"]
+
+apply_master_data()
+
+def bool_series(values) -> pd.Series:
+    series = values if isinstance(values, pd.Series) else pd.Series(values)
+    return series.fillna(False).astype(str).str.lower().isin(["true", "1", "yes"])
+
+def render_master_data_editor(title: str, key: str, values: List[str]) -> None:
+    st.markdown(f"**{title}**")
+    source = pd.DataFrame({
+        "delete": False,
+        "value": _clean_master_values(values),
+    })
+    editor_config = None
+    if HAS_COLUMN_CONFIG:
+        try:
+            editor_config = {
+                "delete": st.column_config.CheckboxColumn("Delete", width="small"),
+                "value": st.column_config.TextColumn(title, width="medium"),
+            }
+        except Exception:
+            editor_config = None
+
+    with st.form(f"master_data_{key}_form"):
+        new_value = st.text_input("Tambah baru", key=f"master_data_{key}_new")
+        if hasattr(st, "data_editor"):
+            edited = st.data_editor(
+                source,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="fixed",
+                column_config=editor_config,
+                key=f"master_data_{key}_editor",
+            )
+        else:
+            edited = source.copy()
+            df_show(source.drop(columns=["delete"]), use_container_width=True, hide_index=True)
+            st.warning("Versi Streamlit ini belum mendukung edit langsung di tabel.")
+        submitted = st.form_submit_button(f"Save {title}", type="primary")
+
+    if submitted:
+        edited_df = pd.DataFrame(edited)
+        if "delete" not in edited_df.columns:
+            edited_df["delete"] = False
+        if "value" not in edited_df.columns:
+            edited_df["value"] = ""
+        keep_mask = ~bool_series(edited_df["delete"])
+        final_values = edited_df.loc[keep_mask, "value"].dropna().astype(str).str.strip().tolist()
+        new_value = str(new_value or "").strip()
+        if new_value:
+            final_values.append(new_value)
+        final_values = _clean_master_values(final_values)
+        if not final_values:
+            st.error(f"{title} minimal harus punya 1 data.")
+            return
+
+        master = load_master_data()
+        master[key] = final_values
+        save_master_data(master)
+        apply_master_data()
+        try:
+            cache_clear(load_app_data)
+        except Exception:
+            pass
+        st.success(f"{title} berhasil disimpan.")
+        rerun()
 
 VALID_EMAIL = os.getenv("DIFOTOIN_ADMIN_EMAIL", "admin@difotoin.local")
 VALID_PASSWORD = os.getenv("DIFOTOIN_ADMIN_PASSWORD", "")
@@ -1346,47 +1465,52 @@ def show_outlet_crud_v2(df, config, processor):
                 except Exception:
                     editor_config = None
 
-            if hasattr(st, "data_editor"):
-                editor_data = visible[required_cols].copy().set_index("outlet_name")
-                editor_data.index.name = "Outlet"
-                edited_visible = st.data_editor(
-                    editor_data,
-                    use_container_width=True,
-                    hide_index=False,
-                    num_rows="fixed",
-                    column_config=editor_config,
-                    key="crud_v2_editor",
-                )
-            else:
-                edited_visible = visible.copy()
-                df_show(visible, use_container_width=True, hide_index=True, column_config=editor_config)
-                st.warning("Versi Streamlit ini belum mendukung edit langsung di tabel.")
+            editor_key_seed = "|".join(visible["outlet_name"].astype(str).tolist())
+            editor_key = "crud_v2_editor_" + hashlib.md5(editor_key_seed.encode("utf-8")).hexdigest()[:12]
+            with st.form("crud_v2_edit_form"):
+                if hasattr(st, "data_editor"):
+                    editor_data = visible[required_cols].copy().set_index("outlet_name")
+                    editor_data.index.name = "Outlet"
+                    edited_visible = st.data_editor(
+                        editor_data,
+                        use_container_width=True,
+                        hide_index=False,
+                        num_rows="fixed",
+                        column_config=editor_config,
+                        key=editor_key,
+                    )
+                else:
+                    edited_visible = visible.copy()
+                    df_show(visible, use_container_width=True, hide_index=True, column_config=editor_config)
+                    st.warning("Versi Streamlit ini belum mendukung edit langsung di tabel.")
 
-            c_save, c_info = st.columns([1, 4])
-            with c_save:
-                if st.button("Save Changes", type="primary", key="crud_v2_save"):
-                    edited_visible = pd.DataFrame(edited_visible).reset_index()
-                    if "Outlet" in edited_visible.columns:
-                        edited_visible = edited_visible.rename(columns={"Outlet": "outlet_name"})
-                    elif "index" in edited_visible.columns and "outlet_name" not in edited_visible.columns:
-                        edited_visible = edited_visible.rename(columns={"index": "outlet_name"})
-                    edited_visible = edited_visible[required_cols].copy()
-                    edited_visible["outlet_name"] = edited_visible["outlet_name"].astype(str).str.strip()
-                    if edited_visible["outlet_name"].eq("").any():
-                        st.error("Outlet name tidak boleh kosong.")
-                    elif edited_visible["outlet_name"].duplicated().any():
-                        st.error("Ada outlet name duplikat di hasil edit.")
-                    else:
-                        merged = outlet_mapping.set_index("outlet_name")
-                        merged.update(edited_visible.set_index("outlet_name"))
-                        merged = merged.reset_index()[required_cols].sort_values("outlet_name").reset_index(drop=True)
-                        merged.to_csv(OUTLET_MAPPING_PATH, index=False)
-                        try: cache_clear(load_app_data)
-                        except Exception: pass
-                        st.success("Outlet mapping berhasil disimpan.")
-                        rerun()
-            with c_info:
-                st.caption(f"Menampilkan {len(visible):,} dari {len(outlet_mapping):,} outlet.")
+                c_save, c_info = st.columns([1, 4])
+                with c_save:
+                    save_edit = st.form_submit_button("Save Changes", type="primary")
+                with c_info:
+                    st.caption(f"Menampilkan {len(visible):,} dari {len(outlet_mapping):,} outlet.")
+
+            if save_edit:
+                edited_visible = pd.DataFrame(edited_visible).reset_index()
+                if "Outlet" in edited_visible.columns:
+                    edited_visible = edited_visible.rename(columns={"Outlet": "outlet_name"})
+                elif "index" in edited_visible.columns and "outlet_name" not in edited_visible.columns:
+                    edited_visible = edited_visible.rename(columns={"index": "outlet_name"})
+                edited_visible = edited_visible[required_cols].copy()
+                edited_visible["outlet_name"] = edited_visible["outlet_name"].astype(str).str.strip()
+                if edited_visible["outlet_name"].eq("").any():
+                    st.error("Outlet name tidak boleh kosong.")
+                elif edited_visible["outlet_name"].duplicated().any():
+                    st.error("Ada outlet name duplikat di hasil edit.")
+                else:
+                    merged = outlet_mapping.set_index("outlet_name")
+                    merged.update(edited_visible.set_index("outlet_name"))
+                    merged = merged.reset_index()[required_cols].sort_values("outlet_name").reset_index(drop=True)
+                    merged.to_csv(OUTLET_MAPPING_PATH, index=False)
+                    try: cache_clear(load_app_data)
+                    except Exception: pass
+                    st.success("Outlet mapping berhasil disimpan.")
+                    rerun()
 
     if crud_mode == "Add Outlet":
         st.subheader("Add New Outlet")
@@ -1520,16 +1644,14 @@ def show_outlet_crud_v2(df, config, processor):
 
     if crud_mode == "Master Data":
         st.subheader("Master Data")
+        st.caption("Edit nilai langsung di tabel, centang Delete untuk hapus, atau isi Tambah baru. Perubahan master data dipakai sebagai opsi di Add/Edit/AI Suggest.")
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown("**Area**")
-            df_show(pd.DataFrame({"Area": INDONESIA_AREAS}), use_container_width=True, hide_index=True)
+            render_master_data_editor("Area", "areas", INDONESIA_AREAS)
         with c2:
-            st.markdown("**Kategori**")
-            df_show(pd.DataFrame({"Kategori": KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
+            render_master_data_editor("Kategori", "kategori_tempat", KATEGORI_TEMPAT)
         with c3:
-            st.markdown("**Sub Kategori**")
-            df_show(pd.DataFrame({"Sub Kategori": SUB_KATEGORI_TEMPAT}), use_container_width=True, hide_index=True)
+            render_master_data_editor("Sub Kategori", "sub_kategori_tempat", SUB_KATEGORI_TEMPAT)
 
     if crud_mode == "Delete":
         st.subheader("Delete Outlet")
