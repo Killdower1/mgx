@@ -527,6 +527,7 @@ Script ini otomatis:
 - restart/start PM2 `difotoin-dashboard`
 - cek health `http://127.0.0.1:8501`
 - copy `nginx.conf`, test Nginx, lalu reload Nginx
+- kalau Streamlit sedang restart, Nginx menampilkan halaman reconnect singkat, bukan `502 Bad Gateway` mentah
 
 Kalau mau deploy branch lain:
 

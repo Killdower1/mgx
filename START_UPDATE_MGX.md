@@ -95,6 +95,7 @@ Kolom utama CSV dashboard:
 - Delete outlet CRUD sekarang menyimpan blocklist lokal agar outlet yang masih ada di data transaksi tidak otomatis masuk lagi lewat auto-sync.
 - CRUD outlet tidak lagi memakai tab Streamlit untuk mode utama agar tidak lompat saat rerun; kolom Outlet di editor dibuat sebagai index sticky saat scroll horizontal.
 - App ditambah scroll guard dan status widget connection Streamlit disembunyikan agar reconnect/rerun tidak mengganggu posisi layar.
+- Nginx ditambah fallback reconnect page untuk mengganti 502/503/504 singkat saat Streamlit sedang restart.
 
 ## Cara Menjalankan Lokal
 
