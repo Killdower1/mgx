@@ -98,6 +98,18 @@ Push:
 git push origin main
 ```
 
+Cara cepat dari Windows PowerShell:
+
+```powershell
+.\push.ps1 -Message "update dashboard"
+```
+
+Cara cepat dari Git Bash/Linux:
+
+```bash
+bash push.sh "update dashboard"
+```
+
 Kalau branch bukan `main`:
 
 ```bash
