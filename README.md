@@ -495,34 +495,38 @@ Masuk folder app:
 cd /var/www/difotoin-dashboard
 ```
 
-Backup dulu sebelum pull:
-
-```bash
-tar -czf backup-difotoin-$(date +%Y-%m-%d-%H%M).tar.gz streamlit_template/data streamlit_template/config
-```
-
-Pull update:
+Kalau server belum punya `deploy.sh`, pull sekali dulu:
 
 ```bash
 git pull origin main
 ```
 
-Install dependency terbaru:
+Deploy update:
 
 ```bash
-./install.sh
+bash deploy.sh
 ```
 
-Restart app:
+Script ini otomatis:
+
+- backup `streamlit_template/data`, `streamlit_template/config`, `ecosystem.config.js`, dan `nginx.conf`
+- `git pull --ff-only origin main`
+- update Python dependency di `.venv`
+- restart/start PM2 `difotoin-dashboard`
+- cek health `http://127.0.0.1:8501`
+- copy `nginx.conf`, test Nginx, lalu reload Nginx
+
+Kalau mau deploy branch lain:
 
 ```bash
-pm2 restart difotoin-dashboard
+BRANCH=nama-branch bash deploy.sh
 ```
 
 Cek:
 
 ```bash
 pm2 logs difotoin-dashboard
+curl -I http://127.0.0.1:8501
 ```
 
 ## 20. Backup Data Server
