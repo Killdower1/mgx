@@ -89,6 +89,7 @@ Kolom utama CSV dashboard:
 - Halaman Analisis Trend ditambah tab AI Insight lokal untuk merangkum performa, temuan penting, dan rekomendasi aksi berdasarkan range periode terpilih.
 - AI Insight dirapikan menjadi satu tempat di tab, dibuat lebih tajam dengan decision brief, risiko, eksperimen, outlet prioritas, dan halaman khusus AI Decision.
 - CRUD outlet ditambah tab AI Suggest untuk rekomendasi area, kategori, sub kategori, dan tipe dari nama outlet. Hasil AI bisa diedit manual sebelum di-apply.
+- Deploy server dipermudah dengan `deploy.sh` untuk backup, pull dari GitHub, update dependency, restart PM2, health check, dan reload Nginx.
 
 ## Cara Menjalankan Lokal
 
