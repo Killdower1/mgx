@@ -11,8 +11,21 @@ import streamlit as st
 
 from config import USERS_PATH, AUTH_SESSIONS_PATH, DELETED_OUTLETS_PATH
 
-VALID_EMAIL = os.getenv("DIFOTOIN_ADMIN_EMAIL", "admin@difotoin.local")
-VALID_PASSWORD = os.getenv("DIFOTOIN_ADMIN_PASSWORD", "")
+def get_admin_creds():
+    """Load admin credentials from env vars, fallback to Streamlit secrets."""
+    email = os.getenv("DIFOTOIN_ADMIN_EMAIL")
+    password = os.getenv("DIFOTOIN_ADMIN_PASSWORD")
+    if not email or not password:
+        try:
+            if not email:
+                email = st.secrets.get("auth", {}).get("admin_email", "admin@difotoin.local")
+            if not password:
+                password = st.secrets.get("auth", {}).get("admin_password", "")
+        except Exception:
+            pass
+    return email or "admin@difotoin.local", password or ""
+
+VALID_EMAIL, VALID_PASSWORD = get_admin_creds()
 AUTH_SESSION_TTL_SECONDS = int(os.getenv("DIFOTOIN_AUTH_SESSION_TTL_SECONDS", str(7 * 24 * 60 * 60)))
 AUTH_SIGNING_SECRET = os.getenv("DIFOTOIN_AUTH_SECRET", "") or VALID_PASSWORD or "difotoin-dashboard-auth"
 AUTH_SIGNING_VERSION = "v1"
