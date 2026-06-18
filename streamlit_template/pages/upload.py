@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from config import Config
+from services.validation import validate_upload_df
 
 def show_upload_data(config: Config):
     # Lazy imports to avoid circular dependency while app.py still hosts helpers
@@ -97,6 +98,15 @@ def show_upload_data(config: Config):
                 cleaned["outlet_name"] = cleaned["outlet_name"].astype(str).str.strip()
             if "area" not in cleaned.columns:
                 cleaned["area"] = ""
+
+            # === VALIDATION ===
+            required = ["outlet_name", "harga"]
+            is_valid, val_errors = validate_upload_df(cleaned, required)
+            if not is_valid:
+                st.error("❌ **Validasi Gagal — Perbaiki data sebelum melanjutkan:**")
+                for err in val_errors:
+                    st.warning(f"⚠️ {err}")
+                st.stop()
 
             # DIAG: Distribusi type
             if "type" in cleaned.columns:
