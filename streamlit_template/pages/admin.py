@@ -10,54 +10,6 @@ import streamlit as st
 from config import Config, DATA_CSV_PATH
 from services.auth import _normalize_email, _hash_password, load_users, save_users
 
-def render_sharing_upload_panel(config: Config) -> None:
-    from app import (
-        list_sharing_periods,
-        load_sharing_outlets,
-        infer_period_from_filename,
-        parse_sharing_outlet_excel,
-        save_sharing_outlets,
-        sync_sharing_to_mapping,
-        cache_clear,
-        load_app_data,
-        rerun,
-    )
-    periods = list_sharing_periods()
-    latest_period = periods[-1] if periods else None
-    latest_rows = 0
-    if latest_period:
-        _, latest_df = load_sharing_outlets(latest_period)
-        latest_rows = len(latest_df)
-    st.subheader("Upload Data Sharing Outlet")
-    st.caption("Upload file outlet-list Excel per bulan. Contoh file bulanan: sftp://killdower@103.250.10.163/home/killdower/dower/outlet_update.xlsx. Data ini menimpa partner share, broker share, minimum payment, dan rent sesuai periode kontrak.")
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        period_input = st.text_input("Periode sharing (YYYY-MM)", value=datetime.now().strftime("%Y-%m"), key="sharing_period_input")
-    with c2:
-        sharing_file = st.file_uploader("File Excel sharing outlet", type=["xlsx", "xls"], key="sharing_upload_file")
-    if sharing_file is not None:
-        if not re.match(r"^\d{4}-\d{2}$", str(period_input or "")):
-            inferred = infer_period_from_filename(sharing_file.name)
-            if inferred:
-                period_input = inferred
-        if st.button("Upload & Terapkan Sharing", type="primary", key="sharing_upload_submit"):
-            if not re.match(r"^\d{4}-\d{2}$", str(period_input or "")):
-                st.error("Periode wajib format YYYY-MM.")
-            else:
-                sharing_df = parse_sharing_outlet_excel(sharing_file)
-                if sharing_df.empty:
-                    st.error("File tidak berisi outlet yang valid.")
-                else:
-                    save_sharing_outlets(period_input, sharing_df)
-                    total, added = sync_sharing_to_mapping(sharing_df, period_input)
-                    try:
-                        cache_clear(load_app_data)
-                    except Exception:
-                        pass
-                    st.success(f"{period_input}: {len(sharing_df)} outlet sharing tersimpan. Master outlet: {total} baris, tambah baru: {added}.")
-                    rerun()
-    st.info(f"Sharing terbaru: {latest_period or '-'} ({latest_rows} outlet). Periode tersimpan: {', '.join(periods) if periods else '-'}.")
-
 SHARING_MASTER_COLUMNS = [
     "outlet_id", "outlet_name", "area", "outlet_status_master", "outlet_type_master",
     "investor_name", "partner_share", "broker_share", "sharing_bagi_hasil",
