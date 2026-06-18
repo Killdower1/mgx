@@ -7,10 +7,12 @@ DATA_DIR = BASE_DIR / "data"
 CONFIG_DIR = BASE_DIR / "config"
 DATA_CSV_PATH = DATA_DIR / "difotoin_dashboard_data.csv"
 OUTLET_MAPPING_PATH = DATA_DIR / "difotoin_outlet_mapping.csv"
+OUTLET_PARTNERSHIPS_PATH = DATA_DIR / "outlet_partnerships.json"
 USERS_PATH = CONFIG_DIR / "users.json"
 AUTH_SESSIONS_PATH = CONFIG_DIR / "sessions.json"
 DELETED_OUTLETS_PATH = CONFIG_DIR / "deleted_outlets.json"
 MASTER_DATA_PATH = CONFIG_DIR / "master_data.json"
+UPLOAD_STAGING_DIR = Path("/var/www/difotoin-dashboard/uploads")
 
 class Config:
     def __init__(self):
