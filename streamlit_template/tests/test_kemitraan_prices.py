@@ -4,11 +4,13 @@ from pathlib import Path
 
 APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
 APP_SOURCE = APP_PATH.read_text(encoding="utf-8")
+KEMITRAAN_PATH = Path(__file__).resolve().parents[1] / "services/kemitraan.py"
+KEMITRAAN_SOURCE = KEMITRAAN_PATH.read_text(encoding="utf-8")
 
 
 class KemitraanPriceSourceTests(unittest.TestCase):
     def test_sharing_master_columns_do_not_expose_harga_mesin(self):
-        match = re.search(r"SHARING_MASTER_COLUMNS\s*=\s*\[(.*?)\]", APP_SOURCE, re.S)
+        match = re.search(r"SHARING_MASTER_COLUMNS\s*=\s*\[(.*?)\]", KEMITRAAN_SOURCE, re.S)
         self.assertIsNotNone(match, "Blok SHARING_MASTER_COLUMNS harus ada.")
         block = match.group(1)
         self.assertNotIn(
@@ -26,7 +28,7 @@ class KemitraanPriceSourceTests(unittest.TestCase):
 
     def test_internal_alias_keeps_harga_mesin_equal_to_harga_beli(self):
         self.assertRegex(
-            APP_SOURCE,
+            KEMITRAAN_SOURCE,
             r'out\["harga_mesin"\]\s*=\s*out\["harga_beli_kemitraan"\]',
             "App harus bikin alias internal: harga_mesin = harga_beli_kemitraan.",
         )
