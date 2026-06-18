@@ -169,7 +169,10 @@ def aggregate_monthly(mapped_df: pd.DataFrame, config: Config, fallback_period: 
     for col in ["kategori_tempat", "sub_kategori_tempat", "tipe_tempat"]:
         if col not in agg.columns:
             agg[col] = "Tidak Terkategorisasi"
-    agg["area"] = agg.get("area", "").astype(str).replace({"nan": ""})
+    if "area" in agg.columns:
+        agg["area"] = agg["area"].astype(str).replace({"nan": ""})
+    else:
+        agg["area"] = ""
 
     cols = ["periode", "outlet_name", "area", "kategori_tempat", "sub_kategori_tempat", "tipe_tempat",
             "total_revenue", "foto_qty", "unlock_qty", "print_qty", "conversion_rate", "outlet_status"]
