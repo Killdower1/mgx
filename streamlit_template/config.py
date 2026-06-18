@@ -11,7 +11,18 @@ OUTLET_PARTNERSHIPS_PATH = DATA_DIR / "outlet_partnerships.json"
 USERS_PATH = CONFIG_DIR / "users.json"
 AUTH_SESSIONS_PATH = CONFIG_DIR / "sessions.json"
 DELETED_OUTLETS_PATH = CONFIG_DIR / "deleted_outlets.json"
-MASTER_DATA_PATH = CONFIG_DIR / "master_data.json"
+MASTER_DATA_PATH = DATA_DIR / "master_data.json"
+
+def load_master_data() -> dict:
+    if MASTER_DATA_PATH.exists():
+        with open(MASTER_DATA_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"areas": [], "kategori_tempat": [], "sub_kategori_tempat": [], "tipe_tempat": []}
+
+def save_master_data(data: dict) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(MASTER_DATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 UPLOAD_STAGING_DIR = Path("/var/www/difotoin-dashboard/uploads")
 
 class Config:
