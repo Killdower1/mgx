@@ -24,140 +24,11 @@ from data_processor import DataProcessor, normalize_outlet_name
 from visualizations import Visualizations
 from utils import *
 from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH, USERS_PATH, AUTH_SESSIONS_PATH, DELETED_OUTLETS_PATH, MASTER_DATA_PATH
+from components.compat import cache_data, rerun, text_col, number_col, table_height, df_show, DEFAULT_TABLE_MAX_HEIGHT, HAS_COLUMN_CONFIG, HAS_CAPTION
+from components.ui_helpers import render_mobile_cards, s_caption, bool_series, _clean_master_values, kemitraan_table_show
 
 # ============== COMPAT LAYER (Streamlit lama / Python 3.6) ==============
-HAS_CACHE_DATA = hasattr(st, "cache_data")
-HAS_COLUMN_CONFIG = hasattr(st, "column_config")
-HAS_CAPTION = hasattr(st, "caption")
-
-def cache_data(func=None, **kwargs):
-    deco = st.cache_data if HAS_CACHE_DATA else st.cache
-    return deco(func) if func else deco(**kwargs)
-
-def rerun():
-    try:
-        st.rerun()
-    except Exception:
-        try:
-            st.experimental_rerun()
-        except Exception:
-            pass
-
-def text_col(title, width="medium"):
-    if HAS_COLUMN_CONFIG:
-        try:
-            return st.column_config.TextColumn(title, width=width)
-        except Exception:
-            return None
-    return None
-
-def number_col(title, width="medium", fmt="%d"):
-    if HAS_COLUMN_CONFIG:
-        try:
-            return st.column_config.NumberColumn(title, width=width, format=fmt)
-        except Exception:
-            return None
-    return None
-
-DEFAULT_TABLE_MAX_HEIGHT = 560
-
-def table_height(row_count, min_h=220, max_h=DEFAULT_TABLE_MAX_HEIGHT):
-    try:
-        rows = int(row_count)
-    except Exception:
-        rows = 8
-    return max(min_h, min(max_h, 72 + (rows + 1) * 36))
-
-def df_show(df_obj, use_container_width=True, hide_index=True, column_config=None, height=None):
-    if height is None:
-        try:
-            height = table_height(len(df_obj), 220, DEFAULT_TABLE_MAX_HEIGHT)
-        except Exception:
-            height = DEFAULT_TABLE_MAX_HEIGHT
-    try:
-        if column_config is not None and HAS_COLUMN_CONFIG:
-            st.dataframe(df_obj, use_container_width=use_container_width, hide_index=hide_index, column_config=column_config, height=height)
-        else:
-            st.dataframe(df_obj, use_container_width=use_container_width, hide_index=hide_index, height=height)
-    except TypeError:
-        st.dataframe(df_obj)
-    except Exception:
-        try:
-            st.table(df_obj)
-        except Exception:
-            st.write(df_obj)
-
-def kemitraan_table_show(df_obj, use_container_width=True, hide_index=True, column_config=None, height=None):
-    st.markdown('<div class="mobile-table-muted">', unsafe_allow_html=True)
-    df_show(
-        df_obj,
-        use_container_width=use_container_width,
-        hide_index=hide_index,
-        column_config=column_config,
-        height=height,
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-def s_caption(text: str):
-    try:
-        if HAS_CAPTION:
-            st.caption(text)
-        else:
-            st.markdown(f"<small>{text}</small>", unsafe_allow_html=True)
-    except Exception:
-        st.markdown(f"<small>{text}</small>", unsafe_allow_html=True)
-
-def _html_escape(value) -> str:
-    text = "" if value is None else str(value)
-    return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-        .replace("'", "&#x27;")
-    )
-
-def _status_class(status) -> str:
-    status_text = str(status or "").strip().lower()
-    if status_text == "keeper":
-        return "keeper"
-    if status_text == "optimasi":
-        return "optimasi"
-    if status_text == "relocate":
-        return "relocate"
-    if status_text == "tidak aktif":
-        return "inactive"
-    return "neutral"
-
-def render_mobile_cards(df_obj: pd.DataFrame, title_col: str, rows: List[Tuple[str, str]], status_col: Optional[str] = None, max_rows: int = 30) -> None:
-    if not isinstance(df_obj, pd.DataFrame) or df_obj.empty or title_col not in df_obj.columns:
-        return
-    parts = ['<div class="mobile-card-list">']
-    shown = df_obj.head(max_rows).copy()
-    for _, row in shown.iterrows():
-        title = _html_escape(row.get(title_col, ""))
-        status = _html_escape(row.get(status_col, "")) if status_col and status_col in row else ""
-        status_class = _status_class(status)
-        parts.append('<article class="mobile-data-card">')
-        parts.append('<div class="mobile-card-head">')
-        parts.append(f'<strong>{title}</strong>')
-        if status:
-            parts.append(f'<span class="mobile-status {status_class}">{status}</span>')
-        parts.append('</div><div class="mobile-card-grid">')
-        for label, col in rows:
-            if col not in row:
-                continue
-            parts.append(
-                '<div><span>{}</span><b>{}</b></div>'.format(
-                    _html_escape(label),
-                    _html_escape(row.get(col, "")),
-                )
-            )
-        parts.append('</div></article>')
-    if len(df_obj) > len(shown):
-        parts.append(f'<p class="mobile-card-note">Menampilkan {len(shown)} dari {len(df_obj)} baris. Tabel lengkap tersedia di layar besar.</p>')
-    parts.append('</div>')
-    st.markdown("".join(parts), unsafe_allow_html=True)
+# NOTE: moved to components/compat.py — kept re-exports for backward compat during transition
 
 def install_scroll_guard():
     components.html(
@@ -322,17 +193,6 @@ DEFAULT_MASTER_DATA = {
     "tipe_tempat": TIPE_TEMPAT.copy(),
 }
 
-def _clean_master_values(values: List[str]) -> List[str]:
-    cleaned = []
-    seen = set()
-    for value in values or []:
-        text = str(value or "").strip()
-        if not text or text.lower() in seen:
-            continue
-        cleaned.append(text)
-        seen.add(text.lower())
-    return cleaned
-
 def load_master_data() -> Dict[str, List[str]]:
     try:
         with open(MASTER_DATA_PATH, "r", encoding="utf-8") as f:
@@ -372,10 +232,6 @@ def apply_master_data() -> None:
     TIPE_TEMPAT = data.get("tipe_tempat", ["Indoor", "Outdoor", "Semi-Outdoor"])
 
 apply_master_data()
-
-def bool_series(values) -> pd.Series:
-    series = values if isinstance(values, pd.Series) else pd.Series(values)
-    return series.fillna(False).astype(str).str.lower().isin(["true", "1", "yes"])
 
 def render_master_data_editor(title: str, key: str, values: List[str]) -> None:
     st.markdown(f"**{title}**")
