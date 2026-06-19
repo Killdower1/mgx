@@ -30,6 +30,7 @@ from pages.conversion import show_conversion_analysis
 from pages.ranking import show_outlet_ranking
 from pages.comparison import show_period_comparison
 from pages.kemitraan import show_kemitraan_page
+from pages.lead_partnership import show_lead_partnership_page
 
 # ================= SCROLL GUARDS =================
 
@@ -187,7 +188,7 @@ def main():
 
     page = st.sidebar.selectbox("Pilih Halaman", [
         "🏠 Dashboard Utama", "📊 Analisis Trend", "AI Decision", "🔄 Analisis Konversi",
-        "🏆 Ranking Outlet", "🤝 Kemitraan", "📅 Perbandingan Periode",
+        "🏆 Ranking Outlet", "🤝 Kemitraan", "📋 Lead Partnership", "📅 Perbandingan Periode",
         "🗃️ CRUD Data Outlet", "⚙️ Admin Panel", "📤 Upload Data",
     ])
 
@@ -217,6 +218,7 @@ def main():
         "🔄 Analisis Konversi": lambda: show_conversion_analysis(filtered_df, config, processor, viz),
         "🏆 Ranking Outlet": lambda: show_outlet_ranking(filtered_df, config, processor),
         "🤝 Kemitraan": lambda: show_kemitraan_page(filtered_full_df, config, processor),
+        "📋 Lead Partnership": lambda: show_lead_partnership_page(),
         "📅 Perbandingan Periode": lambda: show_period_comparison(filtered_df, config, processor, viz, current_period, compare_period),
         "🗃️ CRUD Data Outlet": lambda: show_outlet_crud_v2(df, config, processor),
         "⚙️ Admin Panel": lambda: show_admin_panel(config),
