@@ -9,6 +9,7 @@ import streamlit as st
 
 from config import Config, DATA_CSV_PATH
 from services.auth import _normalize_email, _hash_password, load_users, save_users
+from services.erpnext import load_erpnext_config, save_erpnext_config, check_connection
 
 SHARING_MASTER_COLUMNS = [
     "outlet_id", "outlet_name", "area", "outlet_status_master", "outlet_type_master",
@@ -247,6 +248,37 @@ def show_admin_panel(config):
             except Exception as e:
                 st.warning(f"ℹ️ Cache clear note: {e}")
 
+    st.markdown("---")
+    st.subheader("🔗 Konfigurasi ERPNext")
+    st.caption("Koneksi ke ERPNext API untuk fitur Lead Permanen & Lead Partnership.")
+    erp_cfg = load_erpnext_config()
+    erp_url = st.text_input("URL ERPNext", value=erp_cfg.get("url", ""), key="admin_erp_url", placeholder="https://erp.midory.id")
+    erp_key = st.text_input("API Key", value=erp_cfg.get("api_key", ""), key="admin_erp_key", type="password" if erp_cfg.get("api_key") else "default")
+    erp_secret = st.text_input("API Secret", value=erp_cfg.get("api_secret", ""), key="admin_erp_secret", type="password" if erp_cfg.get("api_secret") else "default")
+
+    colE1, colE2, colE3 = st.columns([1, 1, 4])
+    with colE1:
+        test_erp = st.button("🧪 Test Koneksi", key="admin_erp_test", use_container_width=True)
+    with colE2:
+        save_erp = st.button("💾 Simpan", key="admin_erp_save", type="primary", use_container_width=True)
+    with colE3:
+        st.caption("")
+
+    if test_erp:
+        cfg_test = {"url": erp_url.strip(), "api_key": erp_key.strip(), "api_secret": erp_secret.strip()}
+        save_erpnext_config(cfg_test)
+        ok, msg = check_connection(doctype="Lead")
+        if ok:
+            st.success(f"✅ {msg}")
+        else:
+            st.error(f"❌ {msg}")
+
+    if save_erp:
+        save_erpnext_config({"url": erp_url.strip(), "api_key": erp_key.strip(), "api_secret": erp_secret.strip()})
+        st.success("✅ Konfigurasi ERPNext tersimpan!")
+        rerun()
+
+    st.markdown("---")
     st.subheader("📋 Current Configuration")
     try: st.json(config.config)
     except Exception: st.info("ℹ️ Tidak bisa menampilkan JSON config.")
