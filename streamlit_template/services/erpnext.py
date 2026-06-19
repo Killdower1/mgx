@@ -28,7 +28,8 @@ LEAD_PARTNERSHIP_FIELDS = [
     "skema_kerja_sama_yang_terbuka",     # Skema Kerjasama
     "status_lead",                       # Status Lead
     "source_lead",                       # Source / tahu dari mana
-    "sales_pic",                         # Sales PIC
+    "sales_pic",                         # Sales PIC (user ID)
+    "sales_pic_full",                    # Sales PIC (full name)
     "jabatan_pic",                       # Jabatan PIC
     "nomor_whatsapp_pic",                # No. WhatsApp PIC
     "email_pic",                         # Email PIC
@@ -172,6 +173,7 @@ LEAD_PARTNERSHIP_DISPLAY_NAMES = {
     "status_lead": "Status Lead",
     "source_lead": "Source Lead",
     "sales_pic": "Sales PIC",
+    "sales_pic_full": "Sales PIC (Full)",
     "jabatan_pic": "Jabatan PIC",
     "nomor_whatsapp_pic": "No. WhatsApp",
     "email_pic": "Email PIC",
@@ -665,6 +667,79 @@ def aggregate_lp_by_source(df: pd.DataFrame) -> pd.DataFrame:
         row = {"source_lead": src, "total": len(grp)}
         for s in status_cols:
             row[s] = int((grp["status_lead"].astype(str).str.strip() == s).sum()) if "status_lead" in grp.columns else 0
+        stats.append(row)
+
+    if not stats:
+        return pd.DataFrame()
+
+    result_df = pd.DataFrame(stats)
+    result_df = result_df.sort_values("total", ascending=False).reset_index(drop=True)
+    return result_df
+
+
+def aggregate_lp_monthly(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute monthly aggregation of Lead Partnership data.
+
+    Groups by month (from `creation` field) and counts total leads
+    plus breakdown per status_lead stage.
+
+    Returns DataFrame with columns:
+      bulan, total, New, Contact, Need Info, Qualified,
+      Negotiation, Approved, Live, Lost, won_rate (Approved+Live / Total)
+    """
+    if df.empty or "creation" not in df.columns:
+        return pd.DataFrame()
+
+    # Extract month period
+    months = pd.to_datetime(df["creation"], errors="coerce").dt.to_period("M")
+    status_cols = ["New", "Contact", "Need Info", "Qualified",
+                   "Negotiation", "Approved", "Live", "Lost"]
+
+    rows = []
+    for period, grp in df.groupby(months):
+        if period is None or pd.isna(period):
+            continue
+        row = {"bulan": str(period)}
+        row["total"] = len(grp)
+        for s in status_cols:
+            row[s] = int((grp["status_lead"].astype(str).str.strip() == s).sum()) if "status_lead" in grp.columns else 0
+        won = row.get("Approved", 0) + row.get("Live", 0)
+        row["won_rate"] = round(won / max(row["total"], 1) * 100, 1)
+        rows.append(row)
+
+    if not rows:
+        return pd.DataFrame()
+
+    result_df = pd.DataFrame(rows)
+    # Sort by bulan ascending
+    result_df = result_df.sort_values("bulan").reset_index(drop=True)
+    return result_df
+
+
+def aggregate_lp_by_sales_pic_full(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute per-sales_pic_full performance stats.
+
+    Groups by the sales_pic_full field (full name of the sales person)
+    and returns aggregate counts per status stage + conversion rate.
+
+    Returns DataFrame with columns:
+      sales_pic_full, total, New, Contact, Need Info, Qualified,
+      Negotiation, Approved, Live, Lost, conversion_rate (Approved+Live / Total)
+    """
+    if df.empty or "sales_pic_full" not in df.columns:
+        return pd.DataFrame()
+
+    status_cols = ["New", "Contact", "Need Info", "Qualified",
+                   "Negotiation", "Approved", "Live", "Lost"]
+
+    stats = []
+    for pic, grp in df.groupby("sales_pic_full"):
+        pic_name = str(pic).strip() if pic and str(pic).strip() else "(Tidak Ada)"
+        row = {"sales_pic_full": pic_name, "total": len(grp)}
+        for s in status_cols:
+            row[s] = int((grp["status_lead"].astype(str).str.strip() == s).sum()) if "status_lead" in grp.columns else 0
+        won = row.get("Approved", 0) + row.get("Live", 0)
+        row["conversion_rate"] = round(won / max(row["total"], 1) * 100, 1)
         stats.append(row)
 
     if not stats:
