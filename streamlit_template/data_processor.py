@@ -1,8 +1,14 @@
 import pandas as pd
 import numpy as np
+import re
 from datetime import datetime
 
 from config import DATA_DIR, DATA_CSV_PATH, OUTLET_MAPPING_PATH
+
+def normalize_outlet_name(value):
+    text = str(value or "").strip().lower()
+    text = re.sub(r"\s+", " ", text)
+    return text
 
 class DataProcessor:
     def __init__(self):
@@ -27,18 +33,29 @@ class DataProcessor:
         if mapping.empty or "outlet_name" not in mapping.columns:
             return df
 
-        override_cols = ["area", "kategori_tempat", "sub_kategori_tempat", "tipe_tempat"]
+        override_cols = [
+            "area", "kategori_tempat", "sub_kategori_tempat", "tipe_tempat",
+            "outlet_id", "outlet_status_master", "partner_share", "broker_share",
+            "sharing_bagi_hasil", "ownership_status", "investor_name", "harga_beli_kemitraan",
+            "harga_mesin", "monthly_rent", "minimum_payment",
+        ]
         available_cols = ["outlet_name"] + [c for c in override_cols if c in mapping.columns]
         if len(available_cols) == 1:
             return df
 
         clean_mapping = mapping[available_cols].copy()
         clean_mapping["outlet_name"] = clean_mapping["outlet_name"].astype(str).str.strip()
-        clean_mapping = clean_mapping.drop_duplicates("outlet_name", keep="last")
+        clean_mapping["_outlet_key"] = clean_mapping["outlet_name"].map(normalize_outlet_name)
+        clean_mapping = clean_mapping.drop_duplicates("_outlet_key", keep="last")
 
         out = df.copy()
         out["outlet_name"] = out["outlet_name"].astype(str).str.strip()
-        out = out.merge(clean_mapping, on="outlet_name", how="left", suffixes=("", "_mapping"))
+        out["_outlet_key"] = out["outlet_name"].map(normalize_outlet_name)
+        out = out.merge(clean_mapping, on="_outlet_key", how="left", suffixes=("", "_mapping"))
+        if "outlet_name_mapping" in out.columns:
+            mapped_name = out["outlet_name_mapping"].replace("", np.nan)
+            out["outlet_name"] = mapped_name.combine_first(out["outlet_name"])
+            out = out.drop(columns=["outlet_name_mapping"])
 
         for col in override_cols:
             mapped_col = f"{col}_mapping"
@@ -46,6 +63,8 @@ class DataProcessor:
                 mapped_values = out[mapped_col].replace("", np.nan)
                 out[col] = mapped_values.combine_first(out[col] if col in out.columns else pd.Series(index=out.index, dtype=object))
                 out = out.drop(columns=[mapped_col])
+        if "_outlet_key" in out.columns:
+            out = out.drop(columns=["_outlet_key"])
 
         return out
     

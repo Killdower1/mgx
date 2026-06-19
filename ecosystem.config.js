@@ -4,7 +4,7 @@ module.exports = {
       name: "difotoin-dashboard",
       cwd: "./streamlit_template",
       script: ".venv/bin/streamlit",
-      args: "run app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true",
+      args: "run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true",
       interpreter: "none",
       autorestart: true,
       watch: false,

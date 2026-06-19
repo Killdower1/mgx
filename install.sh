@@ -54,6 +54,14 @@ if command -v systemctl >/dev/null 2>&1; then
   sudo systemctl enable nginx || true
 fi
 
+if command -v firewall-cmd >/dev/null 2>&1; then
+  echo "==> Opening firewall for web access"
+  sudo systemctl enable --now firewalld || true
+  sudo firewall-cmd --permanent --zone=public --add-service=http || true
+  sudo firewall-cmd --permanent --zone=public --add-service=https || true
+  sudo firewall-cmd --reload || true
+fi
+
 echo "==> Install complete"
 echo
 echo "Next steps:"

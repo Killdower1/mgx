@@ -1,0 +1,695 @@
+{
+  "_instructions": "Key boleh nama outlet atau outlet_id. ownership_status: kemitraan | milik sendiri. investor_name diisi nama orang/mitra. harga_beli_kemitraan dalam Rupiah, boleh null.",
+  "outlets": {
+    "Omman Kopi Temanggung - Tugu Jogja": {
+      "ownership_status": "kemitraan",
+      "investor_name": "Gani ( CSN )",
+      "harga_beli_kemitraan": 100000000.0
+    },
+    "ARYADUTA Lippo Village": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "ASHTA Disctrict 8": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Aeon Deltamas - Entrance": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Aeon Deltamas - LED": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Aloha - PIK 2": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Ancol LB": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Ancol LB 2": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Ancol Point": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Ayodya Resort": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Batamu Space": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Batavia PIK": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Batavia PIK - Jembatan Kota Intan": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Beachwalk Mall Kuta - Gate": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Beachwalk Mall Kuta - Rooftop": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Beachwalk Vacation": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Buy Local Creative Zone by JXB": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "CPI (Sunset Quay A)": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "CPI (Sunset Quay B)": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Central Park 1": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Chariot Bar & Lounge": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Citra Niaga Samarinda": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "City Plaza Jatinegara": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Colosseum Kintamani": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Cove Pantai Indah Kapuk": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Discovery Mall Beach Area": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Discovery Mall Icon": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Discovery Mall Vacation": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Entertainment District PIK 2": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Flavor Bliss & Broadway Alam Sutera": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Flavor Bliss Vacation": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Florawisata D'Castello": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Fort Williem I - Benteng Ambarawa": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Freelance Difotoin Vacation Hotel": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "GWK Area Fieldtrip": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "GWK Area Garuda": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "GWK Lotus": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "GWK Utama": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "GWK Vacation": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Grand Galaxy Park": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Grand Puncak Sari": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Grand Puncak Sari - Tegukopi": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Grand Waterfront - Sedayu City": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "HeHa Sky View - Drop Off": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "HeHa Sky View - Love Lock": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "HeHa Sky View - Sky Lolli": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "HeHa Waterfall": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Hoolu Burger": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "I Gusti Ngurah Rai Airport": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "ITDC Nusa Dua Vacation": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Ibarbo Park": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "JGC": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Jakarta International Stadium (JIS)": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Jakarta Vacation": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "JakartaLoc": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Jogja Pasaraya Malioboro": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "K3MART SCBD": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "KKuwa Koffie & Space": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kayumanis Seaside Sanur": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kebun Raya Bedugul Vacation": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kembali Ke Alam Kampung Rimba": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kembali Ke Alam Puncak": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kemuning Sky Hills": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kian Social House": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kopi Daong - Hutan Pinus": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kopi Ngegasss": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kopi Tubing Pamijahan": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kopi Tubing Sentul": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Kuwa Koffie x Mulih Ka Uwa": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Lawu Kala Senja": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Lippo Mall Puri": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Living World Denpasar": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Malang Skyland": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Malaya Kopitiam": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Mall Bali Icon": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Mirror Club": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Museum Mandiri Jakarta": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Myloc Coffe & Cafe": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Neo Soho Skywalk": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Nicole's River Park": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Nimo Eye": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Obelix Sea View": {
+      "ownership_status": "kemitraan",
+      "investor_name": "Gani ( CSN )",
+      "harga_beli_kemitraan": 100000000.0
+    },
+    "Obelix Village": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Oculus Cafe Kintamani": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Omman Tugu Jogja": {
+      "ownership_status": "kemitraan",
+      "investor_name": "Gani ( CSN )",
+      "harga_beli_kemitraan": 100000000.0
+    },
+    "Pantai Akkarena": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Pantai Kuta Vacation": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Pantai Sanur Sans Juro": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Pantjoran Pantai Indah Kapuk": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Pantjoran Pantai Indah Kapuk 2": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Perpustakaan Universitas Indonesia": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "SAJA Sports Club": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Sacra | Stuja Ubud": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Sarinah Dewata": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Sarinah Kolam": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Secret Garden Village": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Semarang Zoo": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Senayan Park": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Senayan Park 2": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Sender PKU Jogja": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Sky Dining": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Skywalk Central Park 2": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Stuja Di Pantai": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Sunset Avenue Citra 8": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "TMII (Istana Anak)": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "TMII (Menara Pandang Saujana)": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "TMII (Museum Indonesia)": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Taman Bendera Pusaka": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Taman Bendera Pusaka 2": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Taman Ismail Marzuki": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Taman Lapangan Banteng": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Taman Lego-Lego": {
+      "ownership_status": "kemitraan",
+      "investor_name": "Rozy & Nadya",
+      "harga_beli_kemitraan": 135000000.0
+    },
+    "Taman Literasi Jakarta": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Taman Mini Indonesia Indah": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Tepian Laut Merak": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Teras Samarinda": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "The Alana Hotel & Conference Center Sentul City": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "The Keranjang Bali": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Tip Tap Toe Vacation": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Tipsy Lion": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Toko Liman Malioboro": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Tokyo Hub": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Transjakarta - Halte CSW": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Transjakarta - Halte Tosari": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Vacation Hotel Sheraton": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Vilo Gelato Citra 8": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Widi Coffee": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Wooly": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Yogyakarta International Airport": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Yogyakarta International Airport (Arrival)": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "Zonablu x Gofit": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "tes": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "test duplicate": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    },
+    "test2": {
+      "ownership_status": "",
+      "investor_name": "",
+      "harga_beli_kemitraan": null
+    }
+  },
+  "partners": [
+    {
+      "name": "Gani ( CSN )"
+    },
+    {
+      "name": "GoFredy"
+    },
+    {
+      "name": "Hafid"
+    },
+    {
+      "name": "Rozy & Nadya"
+    },
+    {
+      "name": "Wijaya"
+    },
+    {
+      "name": "gretia"
+    }
+  ]
+}
