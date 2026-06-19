@@ -15,11 +15,55 @@ from config import CONFIG_DIR, load_erpnext_config as _load_cfg, save_erpnext_co
 
 ERPNEXT_CONFIG_PATH = CONFIG_DIR / "erpnext_config.json"
 
-# Lead Partnership fields (existing)
+# Lead Partnership fields (actual ERPNext field names — verified 2026-06-19)
 LEAD_PARTNERSHIP_FIELDS = [
-    "name", "lead_name", "jenis", "tempat", "pic", "kota",
-    "lokasi", "skema", "status", "status_kemitraan",
-    "creation", "modified", "custom_note", "custom_phone",
+    "name",
+    "nama_pic",                          # Nama PIC (kontak person)
+    "nama_perusahaan__lembaga__venue_jika_ada",  # Perusahaan / Lembaga / Venue
+    "nama_tempat",                       # Nama Tempat (venue)
+    "jenis_partnership",                 # Jenis Partnership
+    "kota_lokasi",                       # Kota / Lokasi
+    "jenis_lokasi",                      # Jenis Lokasi (Mall, Hotel, Cafe, etc.)
+    "tipe_lokasi",                       # Tipe Lokasi (Indoor/Outdoor)
+    "skema_kerja_sama_yang_terbuka",     # Skema Kerjasama
+    "status_lead",                       # Status Lead
+    "source_lead",                       # Source / tahu dari mana
+    "sales_pic",                         # Sales PIC
+    "jabatan_pic",                       # Jabatan PIC
+    "nomor_whatsapp_pic",                # No. WhatsApp PIC
+    "email_pic",                         # Email PIC
+    "area_penempatan",                   # Area Penempatan
+    "alamat__link_google_maps",          # Alamat / Google Maps
+    "estimasi_pengunjung_per_hari",      # Estimasi Pengunjung/hari
+    "space_tersedia",                    # Space Tersedia
+    "listrik_tersedia",                  # Listrik Tersedia
+    "kelayakan_space",                   # Kelayakan Space
+    "kelayakan_listrik",                 # Kelayakan Listrik
+    "kelayakan_operasional",             # Kelayakan Operasional
+    "pic_responsif",                     # PIC Responsif
+    "potensi_revenue",                   # Potensi Revenue
+    "priority",                          # Prioritas
+    "note",                              # Catatan
+    "decision",                          # Keputusan
+    "lost_reason",                       # Alasan Lost
+    "last_follow_up",                    # Last Follow Up
+    "next_follow_up",                    # Next Follow Up
+    "hasil_follow_up",                   # Hasil Follow Up
+    "harga_sewa",                        # Harga Sewa
+    "revenue_share",                     # Revenue Share
+    "minimum_payment",                   # Minimum Payment
+    "minimum_kontrak",                   # Minimum Kontrak
+    "skema_final",                       # Skema Final
+    "datetime_contact",                  # Tgl Contact
+    "datetime_qualified",                # Tgl Qualified
+    "datetime_negotiation",              # Tgl Negotiation
+    "datetime_approved",                 # Tgl Approved
+    "datetime_live",                     # Tgl Live
+    "datetime_lost",                     # Tgl Lost
+    "creation",                          # Tgl Dibuat
+    "modified",                          # Tgl Modifikasi
+    "owner",                             # Pemilik Data
+    "docstatus",                         # Status Dokumen
 ]
 
 # Lead DocType fields for "Lead Permanen" page
@@ -112,6 +156,57 @@ FIELD_DISPLAY_NAMES = {
     # "custom_tipe_tempat": "Tipe Lokasi",
     # "custom_tahu_difotoin_dari": "Tahu Difotoin Dari",
     # "custom_nama_tempat": "Nama Tempat",
+}
+
+# Lead Partnership field display name mapping untuk UI
+LEAD_PARTNERSHIP_DISPLAY_NAMES = {
+    "name": "ID Lead",
+    "nama_pic": "Nama PIC",
+    "nama_perusahaan__lembaga__venue_jika_ada": "Perusahaan / Venue",
+    "nama_tempat": "Nama Tempat",
+    "jenis_partnership": "Jenis Partnership",
+    "kota_lokasi": "Kota",
+    "jenis_lokasi": "Jenis Lokasi",
+    "tipe_lokasi": "Tipe Lokasi",
+    "skema_kerja_sama_yang_terbuka": "Skema Kerjasama",
+    "status_lead": "Status Lead",
+    "source_lead": "Source Lead",
+    "sales_pic": "Sales PIC",
+    "jabatan_pic": "Jabatan PIC",
+    "nomor_whatsapp_pic": "No. WhatsApp",
+    "email_pic": "Email PIC",
+    "area_penempatan": "Area Penempatan",
+    "alamat__link_google_maps": "Alamat / Google Maps",
+    "estimasi_pengunjung_per_hari": "Estimasi Pengunjung/hari",
+    "space_tersedia": "Space Tersedia",
+    "listrik_tersedia": "Listrik Tersedia",
+    "kelayakan_space": "Kelayakan Space",
+    "kelayakan_listrik": "Kelayakan Listrik",
+    "kelayakan_operasional": "Kelayakan Operasional",
+    "pic_responsif": "PIC Responsif",
+    "potensi_revenue": "Potensi Revenue",
+    "priority": "Prioritas",
+    "note": "Catatan",
+    "decision": "Keputusan",
+    "lost_reason": "Alasan Lost",
+    "last_follow_up": "Last Follow Up",
+    "next_follow_up": "Next Follow Up",
+    "hasil_follow_up": "Hasil Follow Up",
+    "harga_sewa": "Harga Sewa",
+    "revenue_share": "Revenue Share",
+    "minimum_payment": "Minimum Payment",
+    "minimum_kontrak": "Minimum Kontrak",
+    "skema_final": "Skema Final",
+    "datetime_contact": "Tgl Contact",
+    "datetime_qualified": "Tgl Qualified",
+    "datetime_negotiation": "Tgl Negotiation",
+    "datetime_approved": "Tgl Approved",
+    "datetime_live": "Tgl Live",
+    "datetime_lost": "Tgl Lost",
+    "creation": "Tgl Dibuat",
+    "modified": "Tgl Modifikasi",
+    "owner": "Pemilik Data",
+    "docstatus": "Status Dokumen",
 }
 
 
@@ -396,41 +491,188 @@ def aggregate_team_performance(df: pd.DataFrame) -> pd.DataFrame:
 
 # ================= LEAD PARTNERSHIP FUNCTIONS (existing) =================
 
-def fetch_lead_partnerships(limit: int = 200) -> pd.DataFrame:
-    """Fetch Lead Partnership records as a DataFrame. Returns empty on error."""
-    cfg = load_erpnext_config()
-    if not cfg.get("url"):
+def fetch_lead_partnerships(limit: int = 5000) -> pd.DataFrame:
+    """Fetch Lead Partnership records as a DataFrame using _fetch_all() with wildcard fields.
+
+    Uses ["*"] to bypass ERPNext field-level restrictions on Lead Partnership DocType.
+    Returns DataFrame with only LEAD_PARTNERSHIP_FIELDS columns, empty on error.
+    """
+    df = _fetch_all("Lead Partnership", ["*"], limit=limit)
+    if df.empty:
         return pd.DataFrame()
 
-    try:
-        fields = '["name","lead_name","jenis","tempat","pic","kota","lokasi","skema","status","creation","modified"]'
-        r = requests.get(
-            f"{_base_url(cfg)}/api/resource/Lead%20Partnership",
-            headers=_headers(cfg),
-            params={
-                "limit_page_length": min(limit, 200),
-                "fields": fields,
-            },
-            timeout=30,
-        )
-        if r.status_code != 200:
-            return pd.DataFrame()
+    # Select only the fields we care about (that actually exist in the data)
+    avail = [c for c in LEAD_PARTNERSHIP_FIELDS if c in df.columns]
+    return df[avail]
 
-        data = r.json().get("data", [])
-        if not data:
-            return pd.DataFrame()
 
-        df = pd.DataFrame(data)
+# ================= LEAD PARTNERSHIP AGGREGATION =================
 
-        # Normalise column types
-        for col in ["creation", "modified"]:
-            if col in df.columns:
-                df[col] = pd.to_datetime(df[col], errors="coerce")
+def aggregate_lp_data(df: pd.DataFrame) -> Dict[str, Any]:
+    """Compute aggregate KPI funnel stats from Lead Partnership DataFrame.
 
-        return df
+    Returns dict with keys:
+      - total_all, total_today, total_this_week, total_this_month
+      - status_lead_distribution: {status: count}
+      - jenis_partnership_distribution: {jenis: count}
+      - source_lead_distribution: {source: count}
+      - kota_top10: [(kota, count), ...]
+      - jenis_lokasi_distribution: {jenis_lokasi: count}
+      - sales_pic_count: number of unique sales PICs
+      - priority_distribution: {priority: count}
+      - conversion_funnel: {stage: count} — New→Contact→Qualified→Negotiation→Approved→Live
+      - rata_rata_harga_sewa: mean harga_sewa (if numeric data exists)
+    """
+    result: Dict[str, Any] = {
+        "total_all": len(df),
+        "total_today": 0,
+        "total_this_week": 0,
+        "total_this_month": 0,
+        "status_lead_distribution": {},
+        "jenis_partnership_distribution": {},
+        "source_lead_distribution": {},
+        "kota_top10": [],
+        "jenis_lokasi_distribution": {},
+        "sales_pic_count": 0,
+        "priority_distribution": {},
+        "conversion_funnel": {},
+        "rata_rata_harga_sewa": None,
+    }
 
-    except Exception:
+    if df.empty:
+        return result
+
+    now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+
+    # Time-based counts
+    if "creation" in df.columns:
+        creation = pd.to_datetime(df["creation"], errors="coerce")
+        result["total_today"] = int((creation >= today_start).sum())
+        result["total_this_week"] = int((creation >= week_start).sum())
+        result["total_this_month"] = int((creation >= month_start).sum())
+
+    # Status Lead distribution
+    if "status_lead" in df.columns:
+        sc = df["status_lead"].fillna("Unknown").value_counts()
+        result["status_lead_distribution"] = sc.to_dict()
+
+    # Jenis Partnership distribution
+    if "jenis_partnership" in df.columns:
+        jc = df["jenis_partnership"].fillna("Tidak Ada").value_counts()
+        result["jenis_partnership_distribution"] = jc.to_dict()
+
+    # Source Lead distribution
+    if "source_lead" in df.columns:
+        src = df["source_lead"].fillna("Unknown").value_counts()
+        result["source_lead_distribution"] = src.to_dict()
+
+    # Kota top 10
+    if "kota_lokasi" in df.columns:
+        kc = df["kota_lokasi"].fillna("Unknown").value_counts().head(10)
+        result["kota_top10"] = [(k, int(c)) for k, c in kc.items()]
+
+    # Jenis Lokasi distribution
+    if "jenis_lokasi" in df.columns:
+        jlc = df["jenis_lokasi"].fillna("Tidak Ada").value_counts()
+        result["jenis_lokasi_distribution"] = jlc.to_dict()
+
+    # Sales PIC unique count
+    if "sales_pic" in df.columns:
+        result["sales_pic_count"] = int(df["sales_pic"].dropna().nunique())
+
+    # Priority distribution
+    if "priority" in df.columns:
+        pc = df["priority"].fillna("Unknown").value_counts()
+        result["priority_distribution"] = pc.to_dict()
+
+    # Conversion funnel — ordered stages
+    funnel_order = ["New", "Contact", "Need Info", "Qualified",
+                    "Negotiation", "Approved", "Live"]
+    if "status_lead" in df.columns:
+        funnel = {}
+        for stage in funnel_order:
+            count = int((df["status_lead"].astype(str).str.strip() == stage).sum())
+            if count > 0:
+                funnel[stage] = count
+        result["conversion_funnel"] = funnel
+
+    # Rata-rata harga sewa
+    if "harga_sewa" in df.columns:
+        numeric_sewa = pd.to_numeric(df["harga_sewa"], errors="coerce").dropna()
+        if not numeric_sewa.empty:
+            result["rata_rata_harga_sewa"] = float(numeric_sewa.mean())
+
+    return result
+
+
+def aggregate_lp_by_pic(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute per-sales_pic performance stats.
+
+    Returns DataFrame with columns:
+      sales_pic, total, New, Contact, Need Info, Qualified,
+      Negotiation, Approved, Live, Lost, conversion_rate (Approved+Live / Total)
+    """
+    if df.empty or "sales_pic" not in df.columns:
         return pd.DataFrame()
+
+    # Define status categories
+    status_cols = ["New", "Contact", "Need Info", "Qualified",
+                   "Negotiation", "Approved", "Live", "Lost"]
+
+    stats = []
+    for pic, grp in df.groupby("sales_pic"):
+        if not pic or str(pic).strip() == "":
+            continue
+
+        row = {"sales_pic": pic, "total": len(grp)}
+        # Count each status
+        for s in status_cols:
+            row[s] = int((grp["status_lead"].astype(str).str.strip() == s).sum()) if "status_lead" in grp.columns else 0
+
+        # Conversion rate: (Approved + Live) / Total
+        won = row.get("Approved", 0) + row.get("Live", 0)
+        row["conversion_rate"] = round(won / max(row["total"], 1) * 100, 1)
+
+        stats.append(row)
+
+    if not stats:
+        return pd.DataFrame()
+
+    result_df = pd.DataFrame(stats)
+    result_df = result_df.sort_values("total", ascending=False).reset_index(drop=True)
+    return result_df
+
+
+def aggregate_lp_by_source(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute per-source_lead distribution stats.
+
+    Returns DataFrame with columns:
+      source_lead, total, New, Contact, Qualified, Approved, Live, Lost
+    """
+    if df.empty or "source_lead" not in df.columns:
+        return pd.DataFrame()
+
+    status_cols = ["New", "Contact", "Qualified", "Approved", "Live", "Lost"]
+
+    stats = []
+    for src, grp in df.groupby("source_lead"):
+        if not src or str(src).strip() == "":
+            continue
+
+        row = {"source_lead": src, "total": len(grp)}
+        for s in status_cols:
+            row[s] = int((grp["status_lead"].astype(str).str.strip() == s).sum()) if "status_lead" in grp.columns else 0
+        stats.append(row)
+
+    if not stats:
+        return pd.DataFrame()
+
+    result_df = pd.DataFrame(stats)
+    result_df = result_df.sort_values("total", ascending=False).reset_index(drop=True)
+    return result_df
 
 
 def get_lead_partnership(record_name: str) -> Optional[dict]:
@@ -458,8 +700,8 @@ def create_lead_partnership(data: dict) -> Tuple[bool, str]:
         return False, "ERPNext belum dikonfigurasi."
 
     payload = {k: v for k, v in data.items() if v is not None and v != ""}
-    if not payload.get("lead_name"):
-        return False, "Nama lead (lead_name) wajib diisi."
+    if not payload.get("nama_pic"):
+        return False, "Nama PIC (nama_pic) wajib diisi."
 
     try:
         r = requests.post(
@@ -506,38 +748,67 @@ def update_lead_partnership(record_name: str, data: dict) -> Tuple[bool, str]:
         return False, f"Error: {e}"
 
 
-# ================= FIELD OPTIONS =================
+# ================= FIELD OPTIONS (Lead Partnership) =================
 
-def get_jenis_options() -> list:
-    """Possible values for Lead Partnership 'jenis' field."""
+def get_jenis_partnership_options() -> list:
+    """Possible values for Lead Partnership 'jenis_partnership' field."""
     return [
         "", "Lokasi Permanen", "Lokasi Semi Permanen",
         "Pop Up", "Event", "Lainnya",
     ]
 
 
+def get_jenis_options() -> list:
+    """Backward-compat alias for get_jenis_partnership_options()."""
+    return get_jenis_partnership_options()
+
+
+def get_skema_kerjasama_options() -> list:
+    """Possible values for 'skema_kerja_sama_yang_terbuka' field."""
+    return ["", "Sewa", "Revenue Sharing", "Bagi Hasil", "Sewa + Bagi Hasil", "Kerjasama", "Lainnya"]
+
+
 def get_skema_options() -> list:
-    return ["", "Sewa", "Bagi Hasil", "Sewa + Bagi Hasil", "Kerjasama", "Lainnya"]
+    """Backward-compat alias for get_skema_kerjasama_options()."""
+    return get_skema_kerjasama_options()
+
+
+def get_jenis_lokasi_options() -> list:
+    """Possible values for 'jenis_lokasi' field (Mall, Hotel, Cafe, etc.)."""
+    return [
+        "", "Mall / Pusat Perbelanjaan", "Tempat Wisata", "Hotel",
+        "Cafe / Restoran", "Taman / Area Publik", "Lainnya",
+    ]
 
 
 def get_lokasi_options() -> list:
+    """Backward-compat alias for get_jenis_lokasi_options()."""
+    return get_jenis_lokasi_options()
+
+
+def get_tipe_lokasi_options() -> list:
+    """Possible values for 'tipe_lokasi' field (Indoor/Outdoor)."""
+    return ["", "Indoor", "Outdoor", "Semi-Outdoor"]
+
+
+def get_status_lead_options() -> list:
+    """Possible values for Lead Partnership 'status_lead' field."""
     return [
-        "", "Indoor", "Outdoor", "Semi-Outdoor",
-        "Indoor, < 500 pengunjung/hari",
-        "Indoor, 500-2000 pengunjung/hari",
-        "Indoor, > 2000 pengunjung/hari",
-        "Outdoor, < 500 pengunjung/hari",
-        "Outdoor, 500-2000 pengunjung/hari",
-        "Outdoor, > 2000 pengunjung/hari",
+        "", "New", "Contact", "Need Info", "Qualified",
+        "Negotiation", "Approved", "Live", "Lost",
     ]
 
 
 def get_status_options() -> list:
-    return [
-        "", "Open", "Contact", "Negotiation", "Won", "Lost",
-        "On Hold", "Spam",
-    ]
+    """Backward-compat alias for get_status_lead_options()."""
+    return get_status_lead_options()
 
 
-def get_status_kemitraan_options() -> list:
-    return ["", "Aktif", "Non-Aktif", "Proses"]
+def get_source_lead_options() -> list:
+    """Possible values for 'source_lead' field."""
+    return ["", "Website", "Instagram", "WhatsApp", "Facebook", "Referensi", "Lainnya"]
+
+
+def get_priority_options() -> list:
+    """Possible values for 'priority' field."""
+    return ["", "High", "Medium", "Low"]
