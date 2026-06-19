@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+from typing import Optional
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -12,6 +13,7 @@ USERS_PATH = CONFIG_DIR / "users.json"
 AUTH_SESSIONS_PATH = CONFIG_DIR / "sessions.json"
 DELETED_OUTLETS_PATH = CONFIG_DIR / "deleted_outlets.json"
 MASTER_DATA_PATH = DATA_DIR / "master_data.json"
+ERPNEXT_CONFIG_PATH = CONFIG_DIR / "erpnext_config.json"
 
 def load_master_data() -> dict:
     if MASTER_DATA_PATH.exists():
@@ -23,17 +25,33 @@ def save_master_data(data: dict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(MASTER_DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+
+def load_erpnext_config() -> dict:
+    """Load ERPNext connection configuration."""
+    try:
+        with open(ERPNEXT_CONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_erpnext_config(data: dict) -> None:
+    """Save ERPNext connection configuration."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(ERPNEXT_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
 UPLOAD_STAGING_DIR = Path("/var/www/difotoin-dashboard/uploads")
+
 
 class Config:
     def __init__(self):
         self.config_path = CONFIG_DIR
         self.config_file = "config.json"
-        
+
         self.config_path.mkdir(parents=True, exist_ok=True)
-        
+
         self.config = self.load_config()
-    
+
     def load_config(self):
         """Load configuration from file"""
         try:
@@ -54,7 +72,7 @@ class Config:
             }
             self.save_config_to_file(default_config)
             return default_config
-    
+
     def save_config(self):
         """Save current config to file"""
         try:
@@ -63,22 +81,22 @@ class Config:
         except Exception as e:
             print(f"Error saving config: {e}")
             return False
-    
+
     def save_config_to_file(self, config):
         """Save config to file"""
         with open(self.config_path / self.config_file, 'w') as f:
             json.dump(config, f, indent=2)
-    
+
     def get_threshold(self, threshold_type):
         """Get threshold value"""
         return self.config.get("thresholds", {}).get(threshold_type, 0)
-    
+
     def set_threshold(self, threshold_type, value):
         """Set threshold value"""
         if "thresholds" not in self.config:
             self.config["thresholds"] = {}
         self.config["thresholds"][threshold_type] = value
-    
+
     def format_currency(self, amount):
         """Format currency based on config"""
         currency = self.config.get("app_settings", {}).get("currency", "IDR")
@@ -86,3 +104,11 @@ class Config:
             return f"Rp {amount:,.0f}"
         else:
             return f"{currency} {amount:,.2f}"
+
+    def get_erpnext_config(self) -> dict:
+        """Get ERPNext config from file (separate from app config)."""
+        return load_erpnext_config()
+
+    def save_erpnext_config(self, data: dict) -> None:
+        """Save ERPNext config to file."""
+        save_erpnext_config(data)
