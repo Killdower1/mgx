@@ -39,3 +39,4 @@ streamlit_template/data/*backup_before_delete*.csv
 Thumbs.db
 .idea/
 .vscode/
+.hermes/

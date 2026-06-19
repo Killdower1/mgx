@@ -75,50 +75,50 @@ class AggregateLeadDataTests(unittest.TestCase):
                 "name": "LEAD-001",
                 "lead_name": "John Doe",
                 "status": "Open",
-                "city": "Jakarta",
-                "source": "Website",
+                "tempat": "Jakarta",
+                "social_media": "Website",
                 "lead_owner": "Alice",
-                "custom_kategori_tempat": "Mall",
+                "spot_foto": "Mall",
                 "creation": now,
             },
             {
                 "name": "LEAD-002",
                 "lead_name": "Jane Smith",
                 "status": "Contact",
-                "city": "Bandung",
-                "source": "Referral",
+                "tempat": "Bandung",
+                "social_media": "Referral",
                 "lead_owner": "Bob",
-                "custom_kategori_tempat": "Restoran",
+                "spot_foto": "Restoran",
                 "creation": yesterday,
             },
             {
                 "name": "LEAD-003",
                 "lead_name": "Bob Wilson",
                 "status": "Won",
-                "city": "Jakarta",
-                "source": "Website",
+                "tempat": "Jakarta",
+                "social_media": "Website",
                 "lead_owner": "Alice",
-                "custom_kategori_tempat": "Mall",
+                "spot_foto": "Mall",
                 "creation": last_week,
             },
             {
                 "name": "LEAD-004",
                 "lead_name": "Alice Brown",
                 "status": "Lost",
-                "city": "Surabaya",
-                "source": "Instagram",
+                "tempat": "Surabaya",
+                "social_media": "Instagram",
                 "lead_owner": "Charlie",
-                "custom_kategori_tempat": "Hotel",
+                "spot_foto": "Hotel",
                 "creation": last_month,
             },
             {
                 "name": "LEAD-005",
                 "lead_name": "Charlie Davis",
                 "status": "Open",
-                "city": "Jakarta",
-                "source": "Website",
+                "tempat": "Jakarta",
+                "social_media": "Website",
                 "lead_owner": "Bob",
-                "custom_kategori_tempat": "Mall",
+                "spot_foto": "Mall",
                 "creation": now,
             },
         ])
@@ -265,7 +265,7 @@ class LeadFieldsValidationTests(unittest.TestCase):
 
     def test_lead_fields_contains_core_fields(self):
         """Core required fields are present."""
-        required = {"name", "lead_name", "status", "city", "source",
+        required = {"name", "lead_name", "status", "tempat", "social_media",
                      "lead_owner", "creation", "modified"}
         self.assertTrue(
             required.issubset(set(LEAD_FIELDS)),
@@ -273,17 +273,17 @@ class LeadFieldsValidationTests(unittest.TestCase):
         )
 
     def test_lead_fields_contains_custom_fields(self):
-        """Custom fields used in aggregations are present."""
-        custom_required = {"custom_kategori_tempat", "custom_tipe_tempat",
-                           "custom_tahu_difotoin_dari"}
+        """Custom fields used in aggregations are present (or fallback)."""
+        # Core fallback fields
+        core_fallback = {"tempat", "spot_foto", "social_media", "keperluan"}
         self.assertTrue(
-            custom_required.issubset(set(LEAD_FIELDS)),
-            f"Missing custom fields: {custom_required - set(LEAD_FIELDS)}",
+            core_fallback.issubset(set(LEAD_FIELDS)),
+            f"Missing fallback fields: {core_fallback - set(LEAD_FIELDS)}",
         )
 
     def test_field_display_names_covers_core_fields(self):
         """Core fields have display name mappings."""
-        core = {"name", "lead_name", "status", "city", "source",
+        core = {"name", "lead_name", "status", "tempat", "social_media",
                 "lead_owner", "creation"}
         unmapped = core - set(FIELD_DISPLAY_NAMES.keys())
         self.assertEqual(

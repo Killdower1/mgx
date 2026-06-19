@@ -226,8 +226,8 @@ def _tab_ringkasan_global():
     with st.expander("📋 Data Lead Terbaru", expanded=False):
         display_cols = [
             c for c in [
-                "lead_name", "company_name", "city", "status",
-                "custom_kategori_tempat", "source", "lead_owner", "creation",
+                "lead_name", "company_name", "tempat", "status",
+                "spot_foto", "social_media", "lead_owner", "creation",
             ] if c in df.columns
         ]
         if display_cols:
@@ -347,9 +347,9 @@ def _tab_pantauan_team():
     st.markdown("#### 🔍 Detail Lead per Staff")
     display_detail_cols = [
         c for c in [
-            "lead_name", "company_name", "city", "status",
-            "custom_kategori_tempat", "custom_tipe_tempat",
-            "source", "creation",
+            "lead_name", "company_name", "tempat", "status",
+            "spot_foto", "keperluan",
+            "social_media", "creation",
         ] if c in filtered.columns
     ]
 

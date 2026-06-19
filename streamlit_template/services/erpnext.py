@@ -23,110 +23,95 @@ LEAD_PARTNERSHIP_FIELDS = [
 ]
 
 # Lead DocType fields for "Lead Permanen" page
+# Core fields (confirmed existing on this ERPNext instance)
 LEAD_FIELDS = [
     "name",
     "lead_name",                    # Nama
+    "first_name",
+    "title",
     "company_name",                 # Nama Perusahaan / Lembaga / Venue
     "email_id",                     # Email
     "mobile_no",                    # No. HP
+    "phone",
     "website",
-    "city",                         # Kota Lokasi
-    "state",
     "country",
+    "tempat",                       # Kota/Lokasi Tempat (maps to city)
     "status",                       # Status Lead
-    "source",                       # Source Lead
     "lead_owner",                   # Sales PIC
-    "territory",
-    "industry",
+    "social_media",                 # Source Lead / tahu dari mana
+    "keperluan",                    # Keperluan / Purpose
+    "qualification_status",
+    "spot_foto",
+    "spot_foto_event",
+    "estimasi_kunjungan_harian",
+    "total_kunjungan_harian",
+    "type",
+    "request_type",
+    "no_of_employees",
+    "annual_revenue",
+    "language",
     "creation",                     # Datetime dibuat
     "modified",
-    "custom_phone",                 # Nomor WhatsApp
-    "custom_jabatan",               # Jabatan
-    "custom_kategori_tempat",       # Kategori Tempat (Mall, Restoran, dll)
-    "custom_tipe_tempat",           # Tipe Lokasi (Indoor/Outdoor)
-    "custom_tahu_difotoin_dari",    # Tahu Difotoin dari mana
-    "custom_nama_tempat",           # Nama Tempat
-    "custom_jenis_lokasi",          # Jenis Lokasi
-    "custom_jenis_partnership",     # Jenis Partnership
-    "custom_alamat_gmaps",          # Alamat / Link Google Maps
-    "custom_estimasi_pengunjung",   # Estimasi Pengunjung per Hari
-    "custom_space_tersedia",        # Space Tersedia
-    "custom_area_penempatan",       # Area Penempatan
-    "custom_listrik_tersedia",      # Listrik Tersedia
-    "custom_skema_kerjasama",       # Skema Kerja Sama yang Terbuka
-    "custom_note",                  # Note
-    "custom_priority",              # Priority
-    "custom_datetime_new",
-    "custom_datetime_contact",
-    "custom_datetime_qualified",
-    "custom_datetime_need_info",
-    "custom_datetime_negotiation",
-    "custom_datetime_approved",
-    "custom_datetime_live",
-    "custom_datetime_lost",
-    "custom_kelayakan_space",       # Kelayakan Space
-    "custom_kelayakan_listrik",     # Kelayakan Listrik
-    "custom_location_score",        # Location Score
-    "custom_potensi_revenue",       # Potensi Revenue
-    "custom_kelayakan_operasional", # Kelayakan Operasional
-    "custom_pic_responsif",         # PIC Responsif
-    "custom_skema_final",           # Skema Final
-    "custom_revenue_share",         # Revenue Share
-    "custom_harga_sewa",            # Harga Sewa
-    "custom_minimum_payment",       # Minimum Payment (Rp)
-    "custom_minimum_kontrak",       # Minimum Kontrak (Bulan)
-    "custom_last_follow_up",        # Last Follow Up
-    "custom_next_follow_up",        # Next Follow Up
-    "custom_hasil_follow_up",       # Hasil Follow Up
-    "custom_decision",              # Decision
-    "custom_lost_reason",           # Lost Reason
+    "notes",
+    "akun_socmed",
+    "image",
+    "disabled",
 ]
+
+# Extended fields (custom fields — add here when created on ERPNext)
+# Uncomment / add after creating custom fields on ERPNext Lead DocType:
+# "custom_kategori_tempat",        # Kategori Tempat (Mall, Restoran, dll)
+# "custom_tipe_tempat",            # Tipe Lokasi (Indoor/Outdoor)
+# "custom_tahu_difotoin_dari",     # Tahu Difotoin dari mana
+# "custom_nama_tempat",            # Nama Tempat
+# "custom_jabatan",                # Jabatan
+# "custom_jenis_lokasi",           # Jenis Lokasi
+# "custom_jenis_partnership",      # Jenis Partnership
+# "custom_alamat_gmaps",           # Alamat / Link Google Maps
+# "custom_estimasi_pengunjung",
+# "custom_space_tersedia",
+# "custom_area_penempatan",
+# "custom_listrik_tersedia",
+# "custom_skema_kerjasama",
+# "custom_priority",
+# "custom_datetime_new",
+# "custom_datetime_contact",
+# ...
 
 # Field display name mapping untuk UI
 FIELD_DISPLAY_NAMES = {
     "name": "ID Lead",
     "lead_name": "Nama",
+    "first_name": "Nama Depan",
+    "title": "Title",
     "company_name": "Perusahaan / Venue",
     "email_id": "Email",
     "mobile_no": "No. HP",
-    "city": "Kota Lokasi",
+    "phone": "Telp",
+    "tempat": "Lokasi / Kota",
+    "country": "Negara",
     "status": "Status Lead",
-    "source": "Source Lead",
     "lead_owner": "Sales PIC",
+    "social_media": "Sumber Info",
+    "keperluan": "Keperluan",
+    "qualification_status": "Kualifikasi",
+    "spot_foto": "Spot Foto",
+    "estimasi_kunjungan_harian": "Estimasi Kunjungan/Hari",
+    "total_kunjungan_harian": "Total Kunjungan/Hari",
+    "type": "Tipe",
+    "request_type": "Jenis Permintaan",
+    "no_of_employees": "Karyawan",
+    "annual_revenue": "Revenue Tahunan",
+    "language": "Bahasa",
     "creation": "Tgl Dibuat",
     "modified": "Tgl Modifikasi",
-    "custom_phone": "Nomor WhatsApp",
-    "custom_jabatan": "Jabatan",
-    "custom_kategori_tempat": "Kategori Tempat",
-    "custom_tipe_tempat": "Tipe Lokasi",
-    "custom_tahu_difotoin_dari": "Tahu Difotoin Dari",
-    "custom_nama_tempat": "Nama Tempat",
-    "custom_jenis_lokasi": "Jenis Lokasi",
-    "custom_jenis_partnership": "Jenis Partnership",
-    "custom_alamat_gmaps": "Alamat / Google Maps",
-    "custom_estimasi_pengunjung": "Estimasi Pengunjung/Hari",
-    "custom_space_tersedia": "Space Tersedia",
-    "custom_area_penempatan": "Area Penempatan",
-    "custom_listrik_tersedia": "Listrik Tersedia",
-    "custom_skema_kerjasama": "Skema Kerja Sama",
-    "custom_note": "Note",
-    "custom_priority": "Priority",
-    "custom_kelayakan_space": "Kelayakan Space",
-    "custom_kelayakan_listrik": "Kelayakan Listrik",
-    "custom_location_score": "Location Score",
-    "custom_potensi_revenue": "Potensi Revenue",
-    "custom_kelayakan_operasional": "Kelayakan Operasional",
-    "custom_pic_responsif": "PIC Responsif",
-    "custom_skema_final": "Skema Final",
-    "custom_revenue_share": "Revenue Share",
-    "custom_harga_sewa": "Harga Sewa",
-    "custom_minimum_payment": "Minimum Payment",
-    "custom_minimum_kontrak": "Minimum Kontrak (Bulan)",
-    "custom_last_follow_up": "Last Follow Up",
-    "custom_next_follow_up": "Next Follow Up",
-    "custom_hasil_follow_up": "Hasil Follow Up",
-    "custom_decision": "Decision",
-    "custom_lost_reason": "Lost Reason",
+    "akun_socmed": "Akun Sosmed",
+    "disabled": "Nonaktif",
+    # Custom field display names (when enabled)
+    # "custom_kategori_tempat": "Kategori Tempat",
+    # "custom_tipe_tempat": "Tipe Lokasi",
+    # "custom_tahu_difotoin_dari": "Tahu Difotoin Dari",
+    # "custom_nama_tempat": "Nama Tempat",
 }
 
 
@@ -328,14 +313,19 @@ def aggregate_lead_data(df: pd.DataFrame) -> Dict[str, Any]:
         status_counts = df["status"].fillna("Unknown").value_counts()
         result["status_distribution"] = status_counts.to_dict()
 
-    # City top 10
-    if "city" in df.columns:
-        city_counts = df["city"].fillna("Unknown").value_counts().head(10)
+    # City top 10 — use 'tempat' field (maps to location/city)
+    city_col = None
+    for col in ["tempat", "city", "kota", "location"]:
+        if col in df.columns:
+            city_col = col
+            break
+    if city_col:
+        city_counts = df[city_col].fillna("Unknown").value_counts().head(10)
         result["city_top10"] = [(city, int(cnt)) for city, cnt in city_counts.items()]
 
-    # Kategori Tempat
+    # Kategori Tempat — check custom field first, else use spot_foto / type as fallback
     kategori_col = None
-    for col in ["custom_kategori_tempat", "kategori_tempat"]:
+    for col in ["custom_kategori_tempat", "kategori_tempat", "spot_foto", "type"]:
         if col in df.columns:
             kategori_col = col
             break
@@ -343,9 +333,9 @@ def aggregate_lead_data(df: pd.DataFrame) -> Dict[str, Any]:
         kat_counts = df[kategori_col].fillna("Tidak Ada").value_counts()
         result["kategori_tempat"] = kat_counts.to_dict()
 
-    # Source distribution
+    # Source distribution — use social_media field (maps to "tahu dari mana")
     source_col = None
-    for col in ["source", "custom_tahu_difotoin_dari", "source_custom"]:
+    for col in ["social_media", "source", "custom_tahu_difotoin_dari", "source_custom", "keperluan"]:
         if col in df.columns:
             source_col = col
             break
