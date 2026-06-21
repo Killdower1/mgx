@@ -10,7 +10,7 @@ import numpy as np
 from config import Config
 from utils import generate_insights
 from components.compat import cache_data, rerun, text_col, number_col, table_height, df_show, DEFAULT_TABLE_MAX_HEIGHT, HAS_COLUMN_CONFIG, HAS_CAPTION
-from components.ui_helpers import render_mobile_cards, s_caption, bool_series, _clean_master_values, kemitraan_table_show
+from components.ui_helpers import s_caption, bool_series, _clean_master_values, kemitraan_table_show
 
 
 # ================= HELPERS =================
@@ -31,6 +31,12 @@ def format_decimal_with_comma(num, digits=1, suffix=""):
 
 def _norm_name(s: str) -> str:
     return str(s).strip().lower()
+
+
+def _zebra_rows(row):
+    """Alternating row background for table readability (zebra striping)."""
+    bg = '#1a2744' if row.name % 2 == 0 else '#0f1a2e'
+    return [f'background-color: {bg}'] * len(row)
 
 
 def format_comparison_value(current_val, compare_val, is_percentage=False):
@@ -203,6 +209,7 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
         styled = styled.apply(lambda s: color_by_delta(s, table_sorted['_foto_delta']), axis=0, subset=['Foto Compare'])
         styled = styled.apply(lambda s: color_by_delta(s, table_sorted['_unlock_delta']), axis=0, subset=['Unlock Compare'])
         styled = styled.apply(lambda s: color_by_delta(s, table_sorted['_conv_delta']), axis=0, subset=['Conversion Compare'])
+    styled = styled.apply(_zebra_rows, axis=1)
     styled = styled.format({
         "Omset": format_number_with_dots,
         "Foto": format_number_with_dots,
@@ -222,27 +229,6 @@ def create_outlet_table(df, current_period, compare_period, full_df=None):
             "Status": text_col("Status", width="small"),
         }
 
-    mobile_df = display_df.copy()
-    for col in ("Omset", "Foto", "Unlock"):
-        if col in mobile_df.columns:
-            mobile_df[col] = mobile_df[col].apply(format_number_with_dots)
-    if "Conversion" in mobile_df.columns:
-        mobile_df["Conversion"] = mobile_df["Conversion"].apply(lambda v: format_decimal_with_comma(v, 1, "%"))
-    mobile_rows = [
-        ("Area", "Area"),
-        ("Omset", "Omset"),
-        ("Foto", "Foto"),
-        ("Unlock", "Unlock"),
-        ("Conversion", "Conversion"),
-    ]
-    if compare_period:
-        mobile_rows.extend([
-            ("Omset vs compare", "Omset Compare"),
-            ("Foto vs compare", "Foto Compare"),
-            ("Unlock vs compare", "Unlock Compare"),
-            ("Conversion vs compare", "Conversion Compare"),
-        ])
-    render_mobile_cards(mobile_df, "Outlet", mobile_rows, status_col="Status", max_rows=25)
     st.markdown('<div class="mobile-table-muted">', unsafe_allow_html=True)
     df_show(styled, use_container_width=True, hide_index=True, column_config=column_config)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -280,7 +266,7 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
     trend_df["outlet_name"] = trend_df["outlet_name"].astype(str).str.strip()
     trend_df["total_revenue"] = pd.to_numeric(trend_df.get("total_revenue", 0), errors="coerce").fillna(0.0)
 
-    from app import _sort_periods_str
+    from services.aggregation import _sort_periods_str
     anchor = current_period if (current_period and isinstance(current_period, str)) else (
         _sort_periods_str([str(x) for x in trend_df["periode"].dropna().unique().tolist()])[-1]
         if trend_df["periode"].notna().any() else None
@@ -368,24 +354,14 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
             "Outlet": text_col("Outlet", width="medium"),
         }
 
-    active_df = display_df_sorted[display_df_sorted["_aktif_current"]].drop(columns=["_aktif_current"])
-    inactive_df = display_df_sorted[~display_df_sorted["_aktif_current"]].drop(columns=["_aktif_current"])
+    active_df = display_df_sorted[display_df_sorted["_aktif_current"]].drop(columns=["_aktif_current"]).reset_index(drop=True)
+    inactive_df = display_df_sorted[~display_df_sorted["_aktif_current"]].drop(columns=["_aktif_current"]).reset_index(drop=True)
 
     st.markdown("**Outlet Aktif**")
     if active_df.empty:
         st.info("Tidak ada outlet aktif di periode ini.")
     else:
-        active_mobile = active_df.copy()
-        for col, formatter in fmt_map.items():
-            if col in active_mobile.columns:
-                active_mobile[col] = active_mobile[col].apply(formatter)
-        render_mobile_cards(
-            active_mobile,
-            "Outlet",
-            [("Rata-rata", "Rata-rata")] + [(p, p) for p in value_cols[:4]],
-            max_rows=20,
-        )
-        styled_active = active_df.style.apply(_growth_colors, axis=1, subset=value_cols).format(fmt_map)
+        styled_active = active_df.style.apply(_growth_colors, axis=1, subset=value_cols).apply(_zebra_rows, axis=1).format(fmt_map)
         st.markdown('<div class="mobile-table-muted">', unsafe_allow_html=True)
         df_show(styled_active, use_container_width=True, hide_index=True, column_config=column_config)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -394,17 +370,7 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
     if inactive_df.empty:
         st.info("Tidak ada outlet tidak aktif di periode ini.")
     else:
-        inactive_mobile = inactive_df.copy()
-        for col, formatter in fmt_map.items():
-            if col in inactive_mobile.columns:
-                inactive_mobile[col] = inactive_mobile[col].apply(formatter)
-        render_mobile_cards(
-            inactive_mobile,
-            "Outlet",
-            [("Rata-rata", "Rata-rata")] + [(p, p) for p in value_cols[:4]],
-            max_rows=20,
-        )
-        styled_inactive = inactive_df.style.apply(_growth_colors, axis=1, subset=value_cols).format(fmt_map)
+        styled_inactive = inactive_df.style.apply(_growth_colors, axis=1, subset=value_cols).apply(_zebra_rows, axis=1).format(fmt_map)
         st.markdown('<div class="mobile-table-muted">', unsafe_allow_html=True)
         df_show(styled_inactive, use_container_width=True, hide_index=True, column_config=column_config)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -418,7 +384,7 @@ def show_omset_trend_table(df_filtered: pd.DataFrame, df_full: pd.DataFrame, con
 # ================= MAIN DASHBOARD PAGE =================
 
 def show_main_dashboard(df, config, processor, viz, current_period, compare_period, full_df):
-    st.markdown('<h1 class="main-header">📸 backup-dower</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">📸 Difotoin Dashboard</h1>', unsafe_allow_html=True)
     if df.empty:
         st.error("❌ Data tidak tersedia. Silakan upload data terlebih dahulu."); return
 
@@ -460,6 +426,19 @@ def show_main_dashboard(df, config, processor, viz, current_period, compare_peri
             status_class = f"status-{str(row['outlet_status']).lower()}"
             st.markdown(f"""
             <div class="performer-card">
+                <strong>{row['outlet_name']}</strong><br>
+                <span class="{status_class}">{row['outlet_status']}</span> | 
+                <span>{config.format_currency(row['total_revenue'])}</span> | 
+                <span>{row['conversion_rate']:.1f}%</span>
+            </div>
+            """, unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("⬇️ 10 Outlet Terjelek")
+        worst = m_df.sort_values("total_revenue", ascending=True).head(10)
+        for _, row in worst.iterrows():
+            status_class = f"status-{str(row['outlet_status']).lower()}"
+            st.markdown(f"""
+            <div class="performer-card" style="border-left:3px solid var(--red)">
                 <strong>{row['outlet_name']}</strong><br>
                 <span class="{status_class}">{row['outlet_status']}</span> | 
                 <span>{config.format_currency(row['total_revenue'])}</span> | 

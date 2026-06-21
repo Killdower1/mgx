@@ -1,859 +1,481 @@
-"""📋 Lead Partnership — manage partnership leads from ERPNext."""
-
+"""📋 Lead Partnership — analytics dashboard & data viewer for partnership leads (machine placement).
+Read-only — data comes from ERPNext, no edit/create here."""
 from typing import Optional
 
 import pandas as pd
+import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
-import streamlit as st
 
 from services.erpnext import (
     load_erpnext_config,
     save_erpnext_config,
     check_connection,
     fetch_lead_partnerships,
-    get_lead_partnership,
-    create_lead_partnership,
-    update_lead_partnership,
-    get_jenis_partnership_options,
-    get_skema_kerjasama_options,
-    get_jenis_lokasi_options,
-    get_tipe_lokasi_options,
-    get_status_lead_options,
-    get_source_lead_options,
-    get_priority_options,
-    aggregate_lp_monthly,
-    aggregate_lp_by_sales_pic_full,
+    get_lp_cache_info,
     LEAD_PARTNERSHIP_DISPLAY_NAMES,
 )
-from components.compat import rerun, HAS_COLUMN_CONFIG
+from components.compat import rerun
 
+
+# ── Color palette ──
+STATUS_COLORS = {
+    "New": "#6366f1", "Contact": "#06b6d4", "Need Info": "#f59e0b",
+    "Qualified": "#22c55e", "Negotiation": "#f97316", "Approved": "#14b8a6",
+    "Live": "#22c55e", "Lost": "#ef4444",
+}
+PRIORITY_COLORS = {"High": "#ef4444", "Medium": "#f59e0b", "Low": "#6b7280"}
+CAT_COLORS = px.colors.qualitative.Set2 + px.colors.qualitative.Pastel1
+
+
+# ═══════════════════════════════════════════════
+#  MAIN PAGE
+# ═══════════════════════════════════════════════
 
 def show_lead_partnership_page():
     st.title("📋 Lead Partnership")
-    st.caption("Manajemen data partnership lead dari ERPNext — lihat, cari, edit, dan tambah lead.")
+    st.caption(
+        "Dashboard & data calon partner penempatan mesin dari ERPNext — "
+        "analisis untuk pengambilan keputusan."
+    )
 
-    # ----------------- CONFIG CHECK -----------------
+    # ── Config ──
     cfg = load_erpnext_config()
     connected = False
-
     if not cfg.get("url") or not cfg.get("api_key"):
-        _render_config_form(cfg)
-        return
+        _render_config_form(cfg); return
     else:
-        connected_ok, connected_msg = check_connection()
-        connected = connected_ok
-        if not connected_ok:
-            st.warning(f"⚠️ {connected_msg}")
+        ok, msg = check_connection("Lead%20Partnership")
+        connected = ok
+        if not ok:
+            st.warning(f"⚠️ {msg}")
             with st.expander("🔧 Konfigurasi ERPNext"):
                 _render_config_form(cfg)
-            # Still show cached/generic data if connection fails
 
-    # ----------------- TOOLBAR -----------------
-    cols = st.columns([3, 1, 1])
-    with cols[0]:
-        search_q = st.text_input("🔍 Cari lead (nama, tempat, PIC, kota)", key="lp_search")
-    with cols[1]:
-        filter_status = st.selectbox(
-            "Filter Status",
-            ["Semua"] + [s for s in get_status_lead_options() if s],
-            key="lp_filter_status",
-        )
-    with cols[2]:
-        refresh = st.button("🔄 Refresh Data", type="secondary", use_container_width=True)
-
-    # ----------------- FETCH -----------------
-    if connected:
-        df = fetch_lead_partnerships(limit=5000)
-    else:
-        df = pd.DataFrame()
-
+    # ── Fetch ──
+    df = fetch_lead_partnerships(limit=5000) if connected else pd.DataFrame()
     if df.empty:
         st.info("Belum ada data Lead Partnership dari ERPNext.")
         if not connected:
             st.caption("Pastikan konfigurasi ERPNext benar dan koneksi tersambung.")
         return
 
-    # ----------------- FILTER -----------------
-    if filter_status and filter_status != "Semua":
-        df = df[df.get("status_lead", "").astype(str).str.strip() == filter_status].copy()
+    # ── Global filters ──
+    col_f1, col_f2, col_f3, col_f4 = st.columns([2, 1.5, 1.5, 1])
+    with col_f1:
+        search_q = st.text_input("🔍 Cari (nama, tempat, PIC, kota)", key="lp_search_g")
+    with col_f2:
+        sopts = ["Semua Status"] + sorted(df["status_lead"].dropna().unique())
+        filter_status = st.selectbox("Status", sopts, key="lp_filter_status_g")
+    with col_f3:
+        jopts = ["Semua Jenis"] + sorted(df["jenis_partnership"].dropna().unique())
+        filter_jenis = st.selectbox("Jenis Partnership", jopts, key="lp_filter_jenis_g")
+    with col_f4:
+        refresh = st.button("🔄 Refresh", type="secondary", use_container_width=True)
 
+    ci = get_lp_cache_info()
+    if ci:
+        st.caption(f"💾 Data lokal: {ci.get('count',0)} record — terakhir sync {ci.get('last_sync','-')[:16]}")
+
+    # ── Apply filters ──
+    fdf = df.copy()
+    if filter_status and filter_status != "Semua Status":
+        fdf = fdf[fdf["status_lead"].astype(str).str.strip() == filter_status]
+    if filter_jenis and filter_jenis != "Semua Jenis":
+        fdf = fdf[fdf["jenis_partnership"].astype(str).str.strip() == filter_jenis]
     if search_q.strip():
         q = search_q.strip().lower()
         mask = (
-            df.get("nama_pic", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
-            | df.get("nama_tempat", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
-            | df.get("nama_perusahaan__lembaga__venue_jika_ada", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
-            | df.get("kota_lokasi", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
-            | df.get("name", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
+            fdf.get("nama_pic", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
+            | fdf.get("nama_tempat", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
+            | fdf.get("nama_perusahaan__lembaga__venue_jika_ada", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
+            | fdf.get("kota_lokasi", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
+            | fdf.get("sales_pic", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
+            | fdf.get("name", pd.Series(dtype=str)).astype(str).str.lower().str.contains(q, na=False)
         )
-        df = df[mask].copy()
+        fdf = fdf[mask].copy()
 
-    # ----------------- TABS -----------------
-    tab_list, tab_bulanan, tab_pic, tab_add = st.tabs([
-        "📋 Daftar Lead", "📊 Ringkasan Bulanan", "👤 Per PIC", "➕ Tambah Lead Baru",
-    ])
-
+    tab_dash, tab_list = st.tabs(["📊 Dashboard Lead Partnership", "📋 Daftar Lead"])
+    with tab_dash:
+        _render_dashboard(fdf)
     with tab_list:
-        _render_lead_table(df)
-
-    with tab_bulanan:
-        _tab_ringkasan_bulanan(df)
-
-    with tab_pic:
-        _tab_per_pic(df)
-
-    with tab_add:
-        if connected:
-            _render_create_form()
-        else:
-            st.info("Sambungkan ke ERPNext dulu untuk menambah lead baru.")
+        _render_lead_table(fdf)
 
 
-# ================= CONFIG FORM =================
+# ═══════════════════════════════════════════════
+#  DASHBOARD
+# ═══════════════════════════════════════════════
 
-def _render_config_form(cfg: dict):
-    st.subheader("🔧 Konfigurasi ERPNext")
-    st.caption("Masukkan kredensial ERPNext untuk mengakses Lead Partnership.")
+def _render_dashboard(df: pd.DataFrame):
+    total = len(df)
+    qualified = len(df[df.get("status_lead","").astype(str).str.strip() == "Qualified"])
+    high_prio = len(df[df.get("priority","").astype(str).str.strip() == "High"])
+    live = len(df[df.get("status_lead","").astype(str).str.strip() == "Live"])
+    total_sewa = df.get("harga_sewa", pd.Series(dtype=float)).fillna(0).astype(float).sum()
+    unique_kota = df.get("kota_lokasi", pd.Series(dtype=str)).dropna().nunique()
 
-    with st.form("erpnext_config_form"):
-        url = st.text_input(
-            "URL ERPNext",
-            value=cfg.get("url", ""),
-            placeholder="https://erp.midory.id",
-            key="lp_config_url",
-        )
-        api_key = st.text_input(
-            "API Key",
-            value=cfg.get("api_key", ""),
-            type="password",
-            key="lp_config_key",
-        )
-        api_secret = st.text_input(
-            "API Secret",
-            value=cfg.get("api_secret", ""),
-            type="password",
-            key="lp_config_secret",
-        )
-        submitted = st.form_submit_button("💾 Simpan & Uji Koneksi", type="primary")
-        if submitted:
-            if not url.strip():
-                st.error("URL ERPNext wajib diisi.")
-            elif not api_key.strip():
-                st.error("API Key wajib diisi.")
-            else:
-                save_erpnext_config({
-                    "url": url.strip().rstrip("/"),
-                    "api_key": api_key.strip(),
-                    "api_secret": api_secret.strip(),
-                })
-                ok, msg = check_connection()
-                if ok:
-                    st.success(f"✅ {msg}")
-                    rerun()
-                else:
-                    st.error(f"❌ {msg}")
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    with m1: st.metric("📋 Total", total)
+    with m2: st.metric("✅ Qualified", qualified)
+    with m3: st.metric("🔴 High Prio", high_prio)
+    with m4: st.metric("💚 Live", live)
+    with m5: st.metric("💰 Total Sewa", f"Rp{total_sewa:,.0f}" if total_sewa > 0 else "-")
+    with m6: st.metric("📍 Kota", unique_kota)
+    st.markdown("---")
 
+    # Row 1: Funnel + Trend
+    c1, c2 = st.columns([1.2, 1])
+    with c1: _chart_funnel(df)
+    with c2: _chart_trend(df)
+    st.markdown("---")
 
-# ================= LEAD TABLE =================
+    # Row 2: Status, Priority, Jenis Partnership
+    c1, c2, c3 = st.columns(3)
+    with c1: _chart_status(df)
+    with c2: _chart_priority(df)
+    with c3: _chart_jenis(df)
+    st.markdown("---")
 
-def _render_lead_table(df: pd.DataFrame):
-    st.write(f"**{len(df)}** lead ditemukan.")
+    # Row 3: Kota, Source, Skema
+    c1, c2, c3 = st.columns(3)
+    with c1: _chart_kota(df)
+    with c2: _chart_source(df)
+    with c3: _chart_skema(df)
+    st.markdown("---")
 
-    display = df.copy()
-    # Format columns for display — use actual ERPNext field names
-    col_map = dict(LEAD_PARTNERSHIP_DISPLAY_NAMES)
-    # Only include columns that exist in the dataframe
-    avail_cols = [c for c in col_map if c in display.columns]
-    # Order: most important fields first
-    preferred_order = [
-        "name", "nama_pic", "nama_perusahaan__lembaga__venue_jika_ada",
-        "nama_tempat", "jenis_partnership", "kota_lokasi",
-        "jenis_lokasi", "tipe_lokasi", "skema_kerja_sama_yang_terbuka",
-        "status_lead", "source_lead", "sales_pic", "sales_pic_full",
-    ]
-    ordered = [c for c in preferred_order if c in avail_cols]
-    remaining = [c for c in avail_cols if c not in ordered]
-    final_cols = ordered + remaining
+    # Row 4: Jenis Lokasi, Tipe Lokasi, Sales PIC
+    c1, c2, c3 = st.columns(3)
+    with c1: _chart_jenis_lokasi(df)
+    with c2: _chart_tipe_lokasi(df)
+    with c3: _chart_sales_pic(df)
+    st.markdown("---")
 
-    display = display[final_cols].rename(columns=col_map)
+    # Row 5: Revenue & Sewa Summary
+    _chart_revenue_summary(df)
+    st.markdown("---")
 
-    # Make status column more visual
-    status_display_name = col_map.get("status_lead", "Status Lead")
-    if status_display_name in display.columns:
-        display[status_display_name] = display[status_display_name].apply(_status_badge)
+    # Row 6: Kelayakan
+    c1, c2, c3 = st.columns(3)
+    with c1: _chart_kelayakan_space(df)
+    with c2: _chart_kelayakan_listrik(df)
+    with c3: _chart_kelayakan_operasional(df)
+    st.markdown("---")
 
-    # Use st.dataframe with config
-    if HAS_COLUMN_CONFIG:
-        col_config = {
-            col_map.get("name", "ID Lead"): st.column_config.TextColumn("ID Lead", width="small"),
-            col_map.get("nama_pic", "Nama PIC"): st.column_config.TextColumn("Nama PIC", width="medium"),
-            col_map.get("sales_pic", "Sales PIC"): st.column_config.TextColumn("Sales PIC", width="medium"),
-            col_map.get("sales_pic_full", "Sales PIC (Full)"): st.column_config.TextColumn("Sales PIC (Full)", width="medium"),
-        }
-    else:
-        col_config = None
-
-    st.dataframe(
-        display,
-        use_container_width=True,
-        hide_index=True,
-        column_config=col_config,
-        height=400,
-    )
-
-    # ----------------- DETAIL / EDIT SELECTION -----------------
-    lead_names = df["name"].tolist() if "name" in df.columns else []
-    if lead_names:
-        st.markdown("---")
-        st.subheader("✏️ Edit Lead")
-        selected = st.selectbox(
-            "Pilih Lead untuk diedit",
-            lead_names,
-            format_func=lambda x: f"{x} — {_get_lead_label(df, x)}",
-            key="lp_select_edit",
-        )
-        if selected:
-            _render_edit_form(selected)
+    # Row 7: Raw data
+    with st.expander("📋 Lihat Semua Data", expanded=False):
+        _render_compact_table(df)
 
 
-def _get_lead_label(df: pd.DataFrame, name: str) -> str:
-    row = df[df["name"] == name]
-    if row.empty:
-        return name
-    r = row.iloc[0]
-    parts = [str(r.get("nama_pic", "")), str(r.get("nama_tempat", "")), str(r.get("kota_lokasi", ""))]
-    return " - ".join(p for p in parts if p.strip())
+# ═══════════════════════════════════════════════
+#  CHART FUNCTIONS
+# ═══════════════════════════════════════════════
+
+def _chart_funnel(df):
+    st.subheader("🔄 Funnel Konversi")
+    sc = df.get("status_lead", pd.Series(dtype=str))
+    if sc.empty: st.info("−"); return
+    order = ["New", "Contact", "Need Info", "Qualified", "Negotiation", "Approved", "Live", "Lost"]
+    d = {s: (sc.astype(str).str.strip() == s).sum() for s in order if (sc.astype(str).str.strip() == s).sum() > 0}
+    if not d: st.info("−"); return
+    fd = pd.DataFrame(list(d.items()), columns=["stage","count"])
+    fig = px.funnel(fd, x="count", y="stage", color="stage",
+                    color_discrete_map=STATUS_COLORS, text="count", template="plotly_dark")
+    fig.update_traces(textposition="inside", textfont=dict(size=14))
+    fig.update_layout(height=400, margin=dict(t=10,b=10,l=10,r=10), showlegend=False)
+    st.plotly_chart(fig, use_container_width=True)
 
 
-def _status_badge(status) -> str:
-    status_str = str(status or "").strip()
-    if not status_str:
-        return "-"
-    badges = {
-        "New": "🆕",
-        "Contact": "🔵",
-        "Need Info": "🟠",
-        "Qualified": "🟢",
-        "Negotiation": "🟡",
-        "Approved": "✅",
-        "Live": "💚",
-        "Lost": "🔴",
-    }
-    emoji = badges.get(status_str, "⚪")
-    return f"{emoji} {status_str}"
+def _chart_trend(df):
+    st.subheader("📈 Tren per Bulan")
+    c = df.get("creation", pd.Series(dtype=str))
+    if c.dropna().empty: st.info("−"); return
+    ts = pd.to_datetime(c, errors="coerce").dropna()
+    if ts.empty: st.info("−"); return
+    m = ts.dt.to_period("M").value_counts().sort_index()
+    m.index = m.index.astype(str)
+    fig = px.line(x=m.index, y=m.values, markers=True, template="plotly_dark")
+    fig.update_traces(line=dict(color="#3b82f6", width=3), marker=dict(size=8))
+    fig.update_layout(height=350, margin=dict(t=10,b=40,l=10,r=10), xaxis_title="Bulan", yaxis_title="Lead")
+    st.plotly_chart(fig, use_container_width=True)
 
 
-# ================= EDIT FORM =================
-
-def _render_edit_form(record_name: str):
-    detail = get_lead_partnership(record_name)
-    if not detail:
-        st.error(f"Tidak bisa mengambil detail lead {record_name}.")
-        return
-
-    with st.form(f"edit_lp_{record_name}"):
-        st.markdown(f"**Mengedit:** {record_name}")
-        cols = st.columns(2)
-
-        with cols[0]:
-            nama_pic = st.text_input(
-                "Nama PIC", value=detail.get("nama_pic", ""),
-                key=f"lp_edit_nama_pic_{record_name}",
-            )
-            nama_perusahaan = st.text_input(
-                "Perusahaan / Venue",
-                value=detail.get("nama_perusahaan__lembaga__venue_jika_ada", ""),
-                key=f"lp_edit_perusahaan_{record_name}",
-            )
-            nama_tempat = st.text_input(
-                "Nama Tempat", value=detail.get("nama_tempat", ""),
-                key=f"lp_edit_tempat_{record_name}",
-            )
-            jenis_partnership = st.selectbox(
-                "Jenis Partnership", get_jenis_partnership_options(),
-                index=_dropdown_idx(get_jenis_partnership_options(), detail.get("jenis_partnership", "")),
-                key=f"lp_edit_jenis_{record_name}",
-            )
-            kota_lokasi = st.text_input(
-                "Kota", value=detail.get("kota_lokasi", ""),
-                key=f"lp_edit_kota_{record_name}",
-            )
-
-        with cols[1]:
-            sumber_lead = st.selectbox(
-                "Source Lead", get_source_lead_options(),
-                index=_dropdown_idx(get_source_lead_options(), detail.get("source_lead", "")),
-                key=f"lp_edit_source_{record_name}",
-            )
-            sales_pic = st.text_input(
-                "Sales PIC", value=detail.get("sales_pic", ""),
-                key=f"lp_edit_sales_pic_{record_name}",
-            )
-            sales_pic_full = st.text_input(
-                "Sales PIC (Full Name)", value=detail.get("sales_pic_full", ""),
-                key=f"lp_edit_sales_pic_full_{record_name}",
-            )
-            status_lead = st.selectbox(
-                "Status Lead", get_status_lead_options(),
-                index=_dropdown_idx(get_status_lead_options(), detail.get("status_lead", "")),
-                key=f"lp_edit_status_{record_name}",
-            )
-            priority = st.selectbox(
-                "Prioritas", get_priority_options(),
-                index=_dropdown_idx(get_priority_options(), detail.get("priority", "")),
-                key=f"lp_edit_priority_{record_name}",
-            )
-
-        with st.expander("📍 Detail Lokasi"):
-            lcols = st.columns(2)
-            with lcols[0]:
-                jenis_lokasi = st.selectbox(
-                    "Jenis Lokasi", get_jenis_lokasi_options(),
-                    index=_dropdown_idx(get_jenis_lokasi_options(), detail.get("jenis_lokasi", "")),
-                    key=f"lp_edit_jenis_lokasi_{record_name}",
-                )
-                tipe_lokasi = st.selectbox(
-                    "Tipe Lokasi", get_tipe_lokasi_options(),
-                    index=_dropdown_idx(get_tipe_lokasi_options(), detail.get("tipe_lokasi", "")),
-                    key=f"lp_edit_tipe_lokasi_{record_name}",
-                )
-                area_penempatan = st.text_input(
-                    "Area Penempatan", value=detail.get("area_penempatan", ""),
-                    key=f"lp_edit_area_{record_name}",
-                )
-                alamat_maps = st.text_input(
-                    "Alamat / Google Maps", value=detail.get("alamat__link_google_maps", ""),
-                    key=f"lp_edit_alamat_{record_name}",
-                )
-            with lcols[1]:
-                skema_kerjasama = st.selectbox(
-                    "Skema Kerjasama", get_skema_kerjasama_options(),
-                    index=_dropdown_idx(get_skema_kerjasama_options(), detail.get("skema_kerja_sama_yang_terbuka", "")),
-                    key=f"lp_edit_skema_{record_name}",
-                )
-                estimasi_pengunjung = st.text_input(
-                    "Estimasi Pengunjung/hari", value=detail.get("estimasi_pengunjung_per_hari", ""),
-                    key=f"lp_edit_estimasi_{record_name}",
-                )
-                space_tersedia = st.text_input(
-                    "Space Tersedia", value=detail.get("space_tersedia", ""),
-                    key=f"lp_edit_space_{record_name}",
-                )
-                listrik_tersedia = st.text_input(
-                    "Listrik Tersedia", value=detail.get("listrik_tersedia", ""),
-                    key=f"lp_edit_listrik_{record_name}",
-                )
-
-        with st.expander("📞 Kontak PIC"):
-            ccols = st.columns(2)
-            with ccols[0]:
-                jabatan_pic = st.text_input(
-                    "Jabatan PIC", value=detail.get("jabatan_pic", ""),
-                    key=f"lp_edit_jabatan_{record_name}",
-                )
-                nomor_wa = st.text_input(
-                    "No. WhatsApp", value=detail.get("nomor_whatsapp_pic", ""),
-                    key=f"lp_edit_wa_{record_name}",
-                )
-            with ccols[1]:
-                email_pic = st.text_input(
-                    "Email PIC", value=detail.get("email_pic", ""),
-                    key=f"lp_edit_email_{record_name}",
-                )
-
-        submitted = st.form_submit_button("💾 Simpan Perubahan", type="primary")
-        if submitted:
-            payload = {
-                "nama_pic": nama_pic.strip(),
-                "nama_perusahaan__lembaga__venue_jika_ada": nama_perusahaan.strip(),
-                "nama_tempat": nama_tempat.strip(),
-                "jenis_partnership": jenis_partnership,
-                "kota_lokasi": kota_lokasi.strip(),
-                "source_lead": sumber_lead,
-                "sales_pic": sales_pic.strip(),
-                "sales_pic_full": sales_pic_full.strip(),
-                "status_lead": status_lead,
-                "priority": priority,
-                "jenis_lokasi": jenis_lokasi,
-                "tipe_lokasi": tipe_lokasi,
-                "area_penempatan": area_penempatan.strip(),
-                "alamat__link_google_maps": alamat_maps.strip(),
-                "skema_kerja_sama_yang_terbuka": skema_kerjasama,
-                "estimasi_pengunjung_per_hari": estimasi_pengunjung.strip(),
-                "space_tersedia": space_tersedia.strip(),
-                "listrik_tersedia": listrik_tersedia.strip(),
-                "jabatan_pic": jabatan_pic.strip(),
-                "nomor_whatsapp_pic": nomor_wa.strip(),
-                "email_pic": email_pic.strip(),
-            }
-            ok, msg = update_lead_partnership(record_name, payload)
-            if ok:
-                st.success(f"✅ {msg}")
-                rerun()
-            else:
-                st.error(f"❌ {msg}")
+def _chart_status(df):
+    st.subheader("📊 Status")
+    sc = df.get("status_lead", pd.Series(dtype=str)).dropna()
+    if sc.empty: st.info("−"); return
+    co = sc.value_counts().reset_index(); co.columns = ["s","c"]
+    fig = px.bar(co, x="s", y="c", color="s", color_discrete_map=STATUS_COLORS,
+                 text="c", template="plotly_dark")
+    fig.update_traces(textposition="outside"); fig.update_layout(height=300, showlegend=False, margin=dict(t=10,b=40,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
 
 
-# ================= CREATE FORM =================
-
-def _render_create_form():
-    with st.form("create_lead_partnership"):
-        st.markdown("**Form Lead Baru**")
-        cols = st.columns(2)
-
-        with cols[0]:
-            nama_pic = st.text_input(
-                "Nama PIC *", placeholder="Nama kontak person",
-                key="lp_create_nama_pic",
-            )
-            nama_perusahaan = st.text_input(
-                "Perusahaan / Venue", placeholder="Nama perusahaan / lembaga",
-                key="lp_create_perusahaan",
-            )
-            nama_tempat = st.text_input(
-                "Nama Tempat", placeholder="Nama tempat / venue",
-                key="lp_create_tempat",
-            )
-            jenis_partnership = st.selectbox(
-                "Jenis Partnership", get_jenis_partnership_options(),
-                key="lp_create_jenis",
-            )
-            kota_lokasi = st.text_input(
-                "Kota", placeholder="Kota lokasi",
-                key="lp_create_kota",
-            )
-
-        with cols[1]:
-            sumber_lead = st.selectbox(
-                "Source Lead", get_source_lead_options(),
-                key="lp_create_source",
-            )
-            sales_pic = st.text_input(
-                "Sales PIC", placeholder="Nama sales PIC",
-                key="lp_create_sales_pic",
-            )
-            sales_pic_full = st.text_input(
-                "Sales PIC (Full Name)", placeholder="Nama lengkap sales PIC",
-                key="lp_create_sales_pic_full",
-            )
-            status_lead = st.selectbox(
-                "Status Lead", get_status_lead_options(),
-                index=1,  # Default: "New"
-                key="lp_create_status",
-            )
-            priority = st.selectbox(
-                "Prioritas", get_priority_options(),
-                key="lp_create_priority",
-            )
-
-        with st.expander("📍 Detail Lokasi"):
-            lcols = st.columns(2)
-            with lcols[0]:
-                jenis_lokasi = st.selectbox(
-                    "Jenis Lokasi", get_jenis_lokasi_options(),
-                    key="lp_create_jenis_lokasi",
-                )
-                tipe_lokasi = st.selectbox(
-                    "Tipe Lokasi", get_tipe_lokasi_options(),
-                    key="lp_create_tipe_lokasi",
-                )
-            with lcols[1]:
-                skema_kerjasama = st.selectbox(
-                    "Skema Kerjasama", get_skema_kerjasama_options(),
-                    key="lp_create_skema",
-                )
-                alamat_maps = st.text_input(
-                    "Alamat / Google Maps", placeholder="Link Google Maps",
-                    key="lp_create_alamat",
-                )
-
-        with st.expander("📞 Kontak PIC"):
-            ccols = st.columns(2)
-            with ccols[0]:
-                jabatan_pic = st.text_input(
-                    "Jabatan PIC", placeholder="Owner, Manager, dll",
-                    key="lp_create_jabatan",
-                )
-                nomor_wa = st.text_input(
-                    "No. WhatsApp", placeholder="08xxxxxxxxxx",
-                    key="lp_create_wa",
-                )
-            with ccols[1]:
-                email_pic = st.text_input(
-                    "Email PIC", placeholder="email@example.com",
-                    key="lp_create_email",
-                )
-
-        submitted = st.form_submit_button("➕ Buat Lead Baru", type="primary")
-        if submitted:
-            if not nama_pic.strip():
-                st.error("Nama PIC wajib diisi.")
-            else:
-                payload = {
-                    "nama_pic": nama_pic.strip(),
-                    "nama_perusahaan__lembaga__venue_jika_ada": nama_perusahaan.strip(),
-                    "nama_tempat": nama_tempat.strip(),
-                    "jenis_partnership": jenis_partnership,
-                    "kota_lokasi": kota_lokasi.strip(),
-                    "source_lead": sumber_lead,
-                    "sales_pic": sales_pic.strip(),
-                    "sales_pic_full": sales_pic_full.strip(),
-                    "status_lead": status_lead,
-                    "priority": priority,
-                    "jenis_lokasi": jenis_lokasi,
-                    "tipe_lokasi": tipe_lokasi,
-                    "skema_kerja_sama_yang_terbuka": skema_kerjasama,
-                    "alamat__link_google_maps": alamat_maps.strip(),
-                    "jabatan_pic": jabatan_pic.strip(),
-                    "nomor_whatsapp_pic": nomor_wa.strip(),
-                    "email_pic": email_pic.strip(),
-                }
-                ok, msg = create_lead_partnership(payload)
-                if ok:
-                    st.success(f"✅ {msg}")
-                    rerun()
-                else:
-                    st.error(f"❌ {msg}")
+def _chart_priority(df):
+    st.subheader("🎯 Prioritas")
+    pc = df.get("priority", pd.Series(dtype=str)).dropna()
+    if pc.empty: st.info("−"); return
+    co = pc.value_counts().reset_index(); co.columns = ["p","c"]
+    fig = px.pie(co, names="p", values="c", color="p", color_discrete_map=PRIORITY_COLORS,
+                 template="plotly_dark", hole=0.4)
+    fig.update_traces(textposition="outside", textinfo="label+percent")
+    fig.update_layout(height=300, margin=dict(t=10,b=10,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
 
 
-# ================= MONTHLY SUMMARY TAB =================
-
-def _tab_ringkasan_bulanan(df: pd.DataFrame):
-    """Tab: Ringkasan Bulanan — lead per month with status breakdown."""
-    st.markdown("### 📊 Ringkasan Bulanan")
-    st.caption("Data lead partnership per bulan — breakdown status lead.")
-
-    if df.empty:
-        st.info("Belum ada data untuk ditampilkan.")
-        return
-
-    # ── Aggregate monthly ──
-    monthly = aggregate_lp_monthly(df)
-
-    if monthly.empty:
-        st.info("Tidak bisa mengelompokkan data per bulan (field `creation` tidak ditemukan).")
-        return
-
-    # ── Metric cards: total overall ──
-    agg = df
-    c1, c2, c3, c4 = st.columns(4)
-    total_all = len(df)
-    total_nego = int((agg["status_lead"].astype(str).str.strip() == "Negotiation").sum()) if "status_lead" in agg.columns else 0
-    total_live = int((agg["status_lead"].astype(str).str.strip() == "Live").sum()) if "status_lead" in agg.columns else 0
-    total_lost = int((agg["status_lead"].astype(str).str.strip() == "Lost").sum()) if "status_lead" in agg.columns else 0
-
-    with c1:
-        st.metric("Total Lead", f"{total_all:,}")
-    with c2:
-        st.metric("💰 Negosiasi", f"{total_nego:,}")
-    with c3:
-        st.metric("✅ Live", f"{total_live:,}")
-    with c4:
-        st.metric("❌ Lost", f"{total_lost:,}")
-
-    # ── Stacked bar chart per bulan ──
-    status_cols_chart = ["New", "Contact", "Need Info", "Qualified",
-                         "Negotiation", "Approved", "Live", "Lost"]
-    avail_status = [c for c in status_cols_chart if c in monthly.columns]
-
-    if avail_status:
-        melted = monthly.melt(
-            id_vars=["bulan", "total", "won_rate"],
-            value_vars=avail_status,
-            var_name="Status",
-            value_name="Jumlah",
-        )
-        # Filter out zero values
-        melted = melted[melted["Jumlah"] > 0]
-
-        if not melted.empty:
-            color_map = {
-                "New": "#38bdf8", "Contact": "#f59e0b", "Need Info": "#fb923c",
-                "Qualified": "#a78bfa", "Negotiation": "#f472b6", "Approved": "#22c55e",
-                "Live": "#10b981", "Lost": "#ef4444",
-            }
-            fig = px.bar(
-                melted,
-                x="bulan",
-                y="Jumlah",
-                color="Status",
-                title="📈 Tren Lead per Bulan",
-                barmode="stack",
-                text_auto=True,
-                color_discrete_map=color_map,
-            )
-            fig.update_traces(textposition="inside", textfont=dict(size=10))
-            fig.update_layout(
-                height=400,
-                xaxis=dict(title="Bulan"),
-                yaxis=dict(title="Jumlah Lead"),
-                legend=dict(orientation="h", y=-0.25),
-                paper_bgcolor="#111827",
-                plot_bgcolor="#111827",
-                font=dict(color="#f8fafc", size=12),
-                margin=dict(l=40, r=20, t=40, b=80),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    # ── Monthly table ──
-    st.markdown("#### 📋 Detail per Bulan")
-
-    # Format for display
-    display_monthly = monthly.copy()
-    # Rename columns
-    col_rename = {
-        "bulan": "Bulan", "total": "Total",
-        "New": "Baru", "Contact": "Kontak", "Need Info": "Need Info",
-        "Qualified": "Qualified", "Negotiation": "Negosiasi",
-        "Approved": "Approved", "Live": "Live", "Lost": "Lost",
-        "won_rate": "Win Rate (%)",
-    }
-    display_monthly = display_monthly.rename(columns=col_rename)
-    # Select and order columns
-    display_cols = [c for c in col_rename.values() if c in display_monthly.columns]
-    display_monthly = display_monthly[display_cols] if display_cols else display_monthly
-
-    # Style win rate column
-    if "Win Rate (%)" in display_monthly.columns:
-        display_monthly["Win Rate (%)"] = display_monthly["Win Rate (%)"].apply(
-            lambda x: f"{x}%" if pd.notna(x) else "-"
-        )
-
-    st.dataframe(
-        display_monthly,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    # ── Donut chart: overall status distribution ──
-    st.markdown("#### 🔄 Distribusi Status Keseluruhan")
-    if "status_lead" in df.columns:
-        status_counts = df["status_lead"].fillna("Unknown").value_counts().reset_index()
-        status_counts.columns = ["Status", "Jumlah"]
-        status_counts = status_counts[status_counts["Jumlah"] > 0]
-
-        if not status_counts.empty:
-            color_map = {
-                "New": "#38bdf8", "Contact": "#f59e0b", "Need Info": "#fb923c",
-                "Qualified": "#a78bfa", "Negotiation": "#f472b6", "Approved": "#22c55e",
-                "Live": "#10b981", "Lost": "#ef4444",
-            }
-            fig = px.pie(
-                status_counts,
-                names="Status",
-                values="Jumlah",
-                hole=0.4,
-                color="Status",
-                color_discrete_map=color_map,
-            )
-            fig.update_traces(textposition="inside", textinfo="percent+label")
-            fig.update_layout(
-                height=400,
-                paper_bgcolor="#111827",
-                font=dict(color="#f8fafc", size=12),
-                margin=dict(l=20, r=20, t=10, b=20),
-                showlegend=True,
-                legend=dict(orientation="h", y=-0.2),
-            )
-            st.plotly_chart(fig, use_container_width=True)
+def _chart_jenis(df):
+    st.subheader("🏷️ Jenis Partnership")
+    jc = df.get("jenis_partnership", pd.Series(dtype=str)).dropna()
+    if jc.empty: st.info("−"); return
+    co = jc.value_counts().reset_index(); co.columns = ["j","c"]
+    fig = px.bar(co, x="j", y="c", color="j", text="c", template="plotly_dark",
+                 color_discrete_sequence=CAT_COLORS)
+    fig.update_traces(textposition="outside"); fig.update_layout(height=300, showlegend=False, margin=dict(t=10,b=40,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
 
 
-# ================= PER PIC TAB =================
+def _chart_kota(df):
+    st.subheader("🏙️ Kota")
+    kc = df.get("kota_lokasi", pd.Series(dtype=str)).dropna()
+    if kc.empty: st.info("−"); return
+    co = kc.value_counts().head(10).reset_index(); co.columns = ["kota","c"]
+    fig = px.bar(co, x="c", y="kota", orientation="h", color="c",
+                 color_continuous_scale="blues", text="c", template="plotly_dark")
+    fig.update_traces(textposition="outside"); fig.update_layout(height=300, showlegend=False,
+                      margin=dict(t=10,b=10,l=10,r=40), xaxis_title="Lead", yaxis_title=None, coloraxis_showscale=False)
+    st.plotly_chart(fig, use_container_width=True)
 
-def _tab_per_pic(df: pd.DataFrame):
-    """Tab: Per PIC — ringkasan data per sales_pic_full."""
-    st.markdown("### 👤 Ringkasan per Sales PIC")
-    st.caption("Data lead partnership dikelompokkan berdasarkan nama Sales PIC (full name).")
 
-    if df.empty:
-        st.info("Belum ada data untuk ditampilkan.")
-        return
+def _chart_source(df):
+    st.subheader("📢 Sumber Lead")
+    sc = df.get("source_lead", pd.Series(dtype=str)).dropna()
+    if sc.empty: st.info("−"); return
+    co = sc.value_counts().reset_index(); co.columns = ["s","c"]
+    fig = px.pie(co, names="s", values="c", template="plotly_dark", hole=0.4,
+                 color_discrete_sequence=CAT_COLORS)
+    fig.update_traces(textposition="outside", textinfo="label+percent")
+    fig.update_layout(height=300, margin=dict(t=10,b=10,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
 
-    # Cek ketersediaan field
-    if "sales_pic_full" not in df.columns or df["sales_pic_full"].isna().all():
-        st.warning("⚠️ Field `sales_pic_full` belum terisi di data Lead Partnership ERPNext.")
-        st.info("Silakan isi field `sales_pic_full` di ERPNext untuk setiap record lead partnership.")
-        # Fallback: tampilkan data per sales_pic (old field)
-        if "sales_pic" in df.columns and not df["sales_pic"].isna().all():
-            st.markdown("**Menampilkan data per `sales_pic` sebagai fallback:**")
-            _render_fallback_pic_table(df)
-        return
 
-    # ── Aggregate per PIC ──
-    pic_data = aggregate_lp_by_sales_pic_full(df)
+def _chart_skema(df):
+    st.subheader("🤝 Skema Kerjasama")
+    sc = df.get("skema_kerja_sama_yang_terbuka", pd.Series(dtype=str)).dropna()
+    if sc.empty: st.info("−"); return
+    co = sc.value_counts().reset_index(); co.columns = ["skema","c"]
+    fig = px.bar(co, x="skema", y="c", color="skema", text="c", template="plotly_dark",
+                 color_discrete_sequence=CAT_COLORS)
+    fig.update_traces(textposition="outside"); fig.update_layout(height=300, showlegend=False, margin=dict(t=10,b=40,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
 
-    if pic_data.empty:
-        st.info("Tidak ada data PIC untuk ditampilkan.")
-        return
 
-    # ── Metric cards ──
-    total_pics = len(pic_data)
-    total_leads = pic_data["total"].sum()
-    avg_rate = pic_data["conversion_rate"].mean()
+def _chart_jenis_lokasi(df):
+    st.subheader("🏗️ Jenis Lokasi")
+    jc = df.get("jenis_lokasi", pd.Series(dtype=str)).dropna()
+    if jc.empty: st.info("−"); return
+    co = jc.value_counts().reset_index(); co.columns = ["jl","c"]
+    fig = px.pie(co, names="jl", values="c", template="plotly_dark", hole=0.4,
+                 color_discrete_sequence=CAT_COLORS)
+    fig.update_traces(textposition="outside", textinfo="label+percent")
+    fig.update_layout(height=300, margin=dict(t=10,b=10,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _chart_tipe_lokasi(df):
+    st.subheader("🔄 Tipe Lokasi")
+    tc = df.get("tipe_lokasi", pd.Series(dtype=str)).dropna()
+    if tc.empty: st.info("−"); return
+    co = tc.value_counts().reset_index(); co.columns = ["tl","c"]
+    colors = {"Indoor": "#3b82f6", "Outdoor": "#f59e0b", "Semi-Outdoor": "#8b5cf6"}
+    fig = px.bar(co, x="tl", y="c", color="tl", color_discrete_map=colors,
+                 text="c", template="plotly_dark")
+    fig.update_traces(textposition="outside"); fig.update_layout(height=300, showlegend=False, margin=dict(t=10,b=40,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _chart_sales_pic(df):
+    st.subheader("👨‍💼 Sales PIC")
+    sp = df.get("sales_pic_full", pd.Series(dtype=str))
+    if sp.dropna().empty: sp = df.get("sales_pic", pd.Series(dtype=str))
+    if sp.dropna().empty: st.info("−"); return
+    co = sp.value_counts().reset_index(); co.columns = ["sales","c"]
+    co = co.sort_values("c", ascending=True)
+    fig = px.bar(co, x="c", y="sales", orientation="h", color="c",
+                 color_continuous_scale="blues", text="c", template="plotly_dark")
+    fig.update_traces(textposition="outside")
+    fig.update_layout(height=max(250, len(co)*40), showlegend=False, margin=dict(t=10,b=10,l=10,r=40),
+                      xaxis_title="Lead", yaxis_title=None, coloraxis_showscale=False)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _chart_revenue_summary(df):
+    st.subheader("💰 Ringkasan Revenue & Sewa")
+
+    # Harga Sewa
+    sewa = df.get("harga_sewa", pd.Series(dtype=float)).fillna(0).astype(float)
+    revenue = df.get("potensi_revenue", pd.Series(dtype=float)).fillna(0).astype(float)
+    rr = df.get("revenue_share", pd.Series(dtype=str))
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("Jumlah Sales PIC", f"{total_pics}")
+        if sewa.sum() > 0:
+            st.metric("💰 Rata-rata Sewa", f"Rp{sewa[sewa>0].mean():,.0f}")
+            st.metric("🔺 Sewa Tertinggi", f"Rp{sewa.max():,.0f}")
+            st.metric("📊 Total Sewa", f"Rp{sewa.sum():,.0f}")
+        else:
+            st.info("Data sewa belum tersedia.")
     with c2:
-        st.metric("Total Lead", f"{total_leads:,}")
+        if revenue.sum() > 0:
+            st.metric("📈 Rata-rata Potensi Revenue", f"Rp{revenue[revenue>0].mean():,.0f}")
+            st.metric("🔺 Revenue Tertinggi", f"Rp{revenue.max():,.0f}")
+            st.metric("📊 Total Potensi Revenue", f"Rp{revenue.sum():,.0f}")
+        else:
+            st.info("Data potensi revenue belum tersedia.")
     with c3:
-        st.metric("Rata-rata Win Rate", f"{avg_rate:.1f}%")
-
-    # ── Bar chart per PIC ──
-    st.markdown("#### 📊 Perbandingan Antar Sales PIC")
-    status_cols_chart = ["New", "Contact", "Need Info", "Qualified",
-                         "Negotiation", "Approved", "Live", "Lost"]
-    avail_status = [c for c in status_cols_chart if c in pic_data.columns]
-
-    if avail_status:
-        melted = pic_data.melt(
-            id_vars=["sales_pic_full", "total", "conversion_rate"],
-            value_vars=avail_status,
-            var_name="Status",
-            value_name="Jumlah",
-        )
-        melted = melted[melted["Jumlah"] > 0]
-
-        if not melted.empty:
-            color_map = {
-                "New": "#38bdf8", "Contact": "#f59e0b", "Need Info": "#fb923c",
-                "Qualified": "#a78bfa", "Negotiation": "#f472b6", "Approved": "#22c55e",
-                "Live": "#10b981", "Lost": "#ef4444",
-            }
-            fig = px.bar(
-                melted,
-                x="sales_pic_full",
-                y="Jumlah",
-                color="Status",
-                title="📊 Lead per Sales PIC (Stacked)",
-                barmode="stack",
-                text_auto=True,
-                color_discrete_map=color_map,
-            )
-            fig.update_traces(textposition="inside", textfont=dict(size=10))
-            fig.update_layout(
-                height=400,
-                xaxis=dict(title="Sales PIC"),
-                yaxis=dict(title="Jumlah Lead"),
-                legend=dict(orientation="h", y=-0.25),
-                paper_bgcolor="#111827",
-                plot_bgcolor="#111827",
-                font=dict(color="#f8fafc", size=12),
-                margin=dict(l=40, r=20, t=40, b=80),
-            )
+        if rr.dropna().empty:
+            st.info("Data revenue share belum tersedia.")
+        else:
+            st.write("**Revenue Share**")
+            rco = rr.value_counts().reset_index(); rco.columns = ["rs","c"]
+            fig = px.pie(rco, names="rs", values="c", template="plotly_dark", hole=0.4,
+                         color_discrete_sequence=CAT_COLORS)
+            fig.update_traces(textposition="outside", textinfo="label+percent")
+            fig.update_layout(height=280, margin=dict(t=10,b=10,l=10,r=10))
             st.plotly_chart(fig, use_container_width=True)
 
-    # ── Conversion rate chart ──
-    st.markdown("#### 📈 Win Rate per Sales PIC")
-    if "conversion_rate" in pic_data.columns:
-        fig = px.bar(
-            pic_data,
-            x="sales_pic_full",
-            y="conversion_rate",
-            title="Win Rate (%) per Sales PIC",
-            text_auto=".1f",
-            color="conversion_rate",
-            color_continuous_scale="viridis",
-        )
-        fig.update_traces(texttemplate="%{text}%", textposition="outside")
-        fig.update_layout(
-            height=350,
-            xaxis=dict(title="Sales PIC"),
-            yaxis=dict(title="Win Rate (%)", range=[0, 105]),
-            paper_bgcolor="#111827",
-            plot_bgcolor="#111827",
-            font=dict(color="#f8fafc", size=12),
-            margin=dict(l=40, r=20, t=40, b=80),
-        )
-        st.plotly_chart(fig, use_container_width=True)
 
-    # ── Table detail ──
-    st.markdown("#### 📋 Detail per Sales PIC")
-    col_rename = {
-        "sales_pic_full": "Sales PIC",
-        "total": "Total Lead",
-        "New": "Baru", "Contact": "Kontak", "Need Info": "Need Info",
-        "Qualified": "Qualified", "Negotiation": "Negosiasi",
-        "Approved": "Approved", "Live": "Live", "Lost": "Lost",
-        "conversion_rate": "Win Rate (%)",
-    }
-    display_pic = pic_data.rename(columns=col_rename)
-    display_cols = [c for c in col_rename.values() if c in display_pic.columns]
-    display_pic = display_pic[display_cols] if display_cols else display_pic
-
-    if "Win Rate (%)" in display_pic.columns:
-        display_pic["Win Rate (%)"] = display_pic["Win Rate (%)"].apply(
-            lambda x: f"{x}%" if pd.notna(x) else "0%"
-        )
-
-    st.dataframe(
-        display_pic,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    # ── PIC selector untuk lihat detail lead ──
-    st.markdown("#### 🔍 Detail Lead per PIC")
-    pic_list = sorted(df["sales_pic_full"].dropna().unique().tolist())
-    if pic_list:
-        selected_pic = st.selectbox(
-            "Pilih Sales PIC untuk lihat detail lead-nya",
-            pic_list,
-            key="pic_detail_select",
-        )
-        if selected_pic:
-            pic_df = df[df["sales_pic_full"] == selected_pic].copy()
-            # Tampilkan kolom penting
-            detail_cols = [c for c in [
-                "name", "nama_pic", "nama_tempat", "kota_lokasi",
-                "jenis_partnership", "status_lead", "source_lead",
-                "creation",
-            ] if c in pic_df.columns]
-            if detail_cols:
-                detail_df = pic_df[detail_cols].rename(
-                    columns={k: LEAD_PARTNERSHIP_DISPLAY_NAMES.get(k, k) for k in detail_cols}
-                )
-                if "Tgl Dibuat" in detail_df.columns:
-                    detail_df["Tgl Dibuat"] = pd.to_datetime(
-                        detail_df["Tgl Dibuat"], errors="coerce"
-                    ).dt.strftime("%d/%m/%Y")
-
-                st.dataframe(
-                    detail_df.sort_values(
-                        "Tgl Dibuat" if "Tgl Dibuat" in detail_df.columns else detail_df.columns[0],
-                        ascending=False,
-                    ),
-                    use_container_width=True,
-                    hide_index=True,
-                )
+def _chart_kelayakan_space(df):
+    st.subheader("📐 Kelayakan Space")
+    co = df.get("kelayakan_space", pd.Series(dtype=str)).dropna()
+    if co.empty: st.info("−"); return
+    colors = {"Layak": "#22c55e", "Tidak Layak": "#ef4444", "Perlu Review": "#f59e0b"}
+    cc = co.value_counts().reset_index(); cc.columns = ["k","c"]
+    fig = px.pie(cc, names="k", values="c", color="k", color_discrete_map=colors,
+                 template="plotly_dark", hole=0.4)
+    fig.update_traces(textposition="outside", textinfo="label+percent")
+    fig.update_layout(height=300, margin=dict(t=10,b=10,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
 
 
-def _render_fallback_pic_table(df: pd.DataFrame):
-    """Fallback: tampilkan data per sales_pic (old field) jika sales_pic_full kosong."""
-    from services.erpnext import aggregate_lp_by_pic
-    fallback = aggregate_lp_by_pic(df)
-    if not fallback.empty:
-        col_rename = {
-            "sales_pic": "Sales PIC", "total": "Total Lead",
-            "New": "Baru", "Contact": "Kontak", "Need Info": "Need Info",
-            "Qualified": "Qualified", "Negotiation": "Negosiasi",
-            "Approved": "Approved", "Live": "Live", "Lost": "Lost",
-            "conversion_rate": "Win Rate (%)",
-        }
-        display = fallback.rename(columns=col_rename)
-        display_cols = [c for c in col_rename.values() if c in display.columns]
-        display = display[display_cols] if display_cols else display
-        if "Win Rate (%)" in display.columns:
-            display["Win Rate (%)"] = display["Win Rate (%)"].apply(
-                lambda x: f"{x}%" if pd.notna(x) else "0%"
-            )
-        st.dataframe(display, use_container_width=True, hide_index=True)
+def _chart_kelayakan_listrik(df):
+    st.subheader("⚡ Kelayakan Listrik")
+    co = df.get("kelayakan_listrik", pd.Series(dtype=str)).dropna()
+    if co.empty: st.info("−"); return
+    colors = {"Layak": "#22c55e", "Tidak Layak": "#ef4444", "Perlu Review": "#f59e0b"}
+    cc = co.value_counts().reset_index(); cc.columns = ["k","c"]
+    fig = px.pie(cc, names="k", values="c", color="k", color_discrete_map=colors,
+                 template="plotly_dark", hole=0.4)
+    fig.update_traces(textposition="outside", textinfo="label+percent")
+    fig.update_layout(height=300, margin=dict(t=10,b=10,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
 
 
-def _dropdown_idx(options: list, current: str) -> int:
-    current = str(current or "").strip()
-    for i, opt in enumerate(options):
-        if str(opt or "").strip() == current:
-            return i
-    return 0  # fallback index (empty string)
+def _chart_kelayakan_operasional(df):
+    st.subheader("🔧 Kelayakan Operasional")
+    co = df.get("kelayakan_operasional", pd.Series(dtype=str)).dropna()
+    if co.empty: st.info("−"); return
+    colors = {"Layak": "#22c55e", "Tidak Layak": "#ef4444", "Perlu Review": "#f59e0b"}
+    cc = co.value_counts().reset_index(); cc.columns = ["k","c"]
+    fig = px.pie(cc, names="k", values="c", color="k", color_discrete_map=colors,
+                 template="plotly_dark", hole=0.4)
+    fig.update_traces(textposition="outside", textinfo="label+percent")
+    fig.update_layout(height=300, margin=dict(t=10,b=10,l=10,r=10))
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ═══════════════════════════════════════════════
+#  CONFIG FORM
+# ═══════════════════════════════════════════════
+
+def _render_config_form(cfg: dict):
+    st.subheader("🔧 Konfigurasi ERPNext")
+    with st.form("lp_config_form"):
+        url = st.text_input("URL", value=cfg.get("url",""), key="lp_cfg_url")
+        key = st.text_input("API Key", value=cfg.get("api_key",""), type="password", key="lp_cfg_key")
+        sec = st.text_input("API Secret", value=cfg.get("api_secret",""), type="password", key="lp_cfg_sec")
+        if st.form_submit_button("💾 Simpan", type="primary"):
+            if not url.strip() or not key.strip(): st.error("URL & API Key wajib.")
+            else:
+                save_erpnext_config({"url":url.strip().rstrip("/"),"api_key":key.strip(),"api_secret":sec.strip()})
+                ok, msg = check_connection("Lead%20Partnership")
+                st.success(f"✅ {msg}") if ok else st.error(f"❌ {msg}")
+                if ok: rerun()
+
+
+# ═══════════════════════════════════════════════
+#  LEAD TABLE (read-only)
+# ═══════════════════════════════════════════════
+
+def _render_lead_table(df: pd.DataFrame):
+    st.write(f"**{len(df)}** lead partnership ditemukan.")
+    if df.empty: st.info("Tidak ada data."); return
+
+    display = df.copy()
+    cm = dict(LEAD_PARTNERSHIP_DISPLAY_NAMES)
+    avail = [c for c in cm if c in display.columns]
+    preferred = ["name","nama_pic","nama_perusahaan__lembaga__venue_jika_ada","nama_tempat",
+                  "jenis_partnership","kota_lokasi","status_lead","priority","source_lead","sales_pic"]
+    ordered = [c for c in preferred if c in avail]
+    remaining = [c for c in avail if c not in ordered]
+    display = display[ordered + remaining].rename(columns=cm)
+
+    # Format currency
+    for col_key, label in [("harga_sewa","Harga Sewa"), ("potensi_revenue","Potensi Revenue")]:
+        lbl = cm.get(col_key, label)
+        if lbl in display.columns:
+            display[lbl] = display[lbl].apply(
+                lambda x: f"Rp{x:,.0f}" if pd.notna(x) and isinstance(x,(int,float)) and x>0 else "-")
+
+    st.dataframe(display, use_container_width=True, hide_index=True, height=450)
+
+    # Detail expander
+    names = df["name"].tolist() if "name" in df.columns else []
+    if names:
+        with st.expander("🔍 Lihat Detail Lead"):
+            sel = st.selectbox("Pilih Lead", names, format_func=lambda x: _get_label(df, x), key="lp_detail_sel")
+            if sel:
+                row = df[df["name"] == sel]
+                if not row.empty:
+                    _show_detail(row.iloc[0])
+
+
+def _get_label(df, name):
+    row = df[df["name"] == name]
+    if row.empty: return name
+    r = row.iloc[0]
+    return " — ".join(str(r.get(c,"")) for c in ("nama_pic","nama_tempat","kota_lokasi") if str(r.get(c,"")).strip())
+
+
+def _show_detail(r):
+    cm = dict(LEAD_PARTNERSHIP_DISPLAY_NAMES)
+    fields = [
+        ("nama_pic","👤"),("nama_perusahaan__lembaga__venue_jika_ada","🏢"),("nama_tempat","📍"),
+        ("jenis_partnership","🏷️"),("kota_lokasi","🏙️"),("jenis_lokasi","🏗️"),("tipe_lokasi","🔄"),
+        ("skema_kerja_sama_yang_terbuka","🤝"),("status_lead","✅"),("source_lead","📢"),
+        ("sales_pic","👨‍💼"),("sales_pic_full","👨‍💼"),("jabatan_pic","📋"),("nomor_whatsapp_pic","📞"),
+        ("email_pic","📧"),("area_penempatan","📍"),("alamat__link_google_maps","🗺️"),
+        ("estimasi_pengunjung_per_hari","👥"),("space_tersedia","📐"),("listrik_tersedia","⚡"),
+        ("kelayakan_space","✅"),("kelayakan_listrik","✅"),("kelayakan_operasional","✅"),
+        ("pic_responsif","📞"),("potensi_revenue","💰"),("priority","🎯"),
+        ("harga_sewa","💵"),("revenue_share","📊"),("minimum_payment","📉"),("minimum_kontrak","📅"),
+        ("skema_final","📋"),("last_follow_up","📆"),("next_follow_up","📆"),("hasil_follow_up","📝"),
+        ("decision","📋"),("lost_reason","❌"),("creation","📅"),("modified","🔄"),
+    ]
+    c1, c2 = st.columns(2)
+    for i, (f, e) in enumerate(fields):
+        v = r.get(f)
+        if v is None or (isinstance(v, float) and pd.isna(v)): continue
+        lbl = cm.get(f, f)
+        txt = f"Rp{v:,.0f}" if isinstance(v,(int,float)) and f in ("harga_sewa","potensi_revenue","minimum_payment") else str(v)
+        with (c1 if i%2==0 else c2):
+            st.markdown(f"**{e} {lbl}:** {txt}")
+
+
+def _render_compact_table(df: pd.DataFrame):
+    if df.empty: st.info("Tidak ada data."); return
+    display = df.copy()
+    cm = dict(LEAD_PARTNERSHIP_DISPLAY_NAMES)
+    avail = [c for c in cm if c in display.columns]
+    preferred = ["name","nama_pic","nama_tempat","jenis_partnership","kota_lokasi","status_lead","priority"]
+    ordered = [c for c in preferred if c in avail]
+    remaining = [c for c in avail if c not in ordered]
+    st.dataframe(display[ordered + remaining].rename(columns=cm), use_container_width=True, hide_index=True, height=350)

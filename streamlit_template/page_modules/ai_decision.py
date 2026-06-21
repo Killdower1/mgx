@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from typing import Dict
 from config import Config
-from pages.trend import build_ai_trend_insights, render_ai_insights
+from page_modules.trend import build_ai_trend_insights, render_ai_insights
 
 
 def show_ai_decision_center(df: pd.DataFrame, config: Config):
@@ -21,7 +21,7 @@ def show_ai_decision_center(df: pd.DataFrame, config: Config):
             base[col] = pd.to_numeric(base[col], errors="coerce").fillna(0.0)
     base["periode"] = base["periode"].astype(str)
 
-    from app import _sort_periods_str
+    from services.aggregation import _sort_periods_str
 
     periods = _sort_periods_str(base["periode"].dropna().astype(str).unique().tolist())
     if not periods:

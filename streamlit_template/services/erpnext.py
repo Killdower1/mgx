@@ -9,11 +9,14 @@ from typing import Optional, List, Dict, Any, Tuple
 import pandas as pd
 import requests
 
-from config import CONFIG_DIR, load_erpnext_config as _load_cfg, save_erpnext_config as _save_cfg
+from config import CONFIG_DIR, DATA_DIR, load_erpnext_config as _load_cfg, save_erpnext_config as _save_cfg
 
 # ================= CONFIG =================
 
 ERPNEXT_CONFIG_PATH = CONFIG_DIR / "erpnext_config.json"
+LEAD_PARTNERSHIP_CACHE_PATH = DATA_DIR / "lead_partnership_cache.json"
+LEAD_CACHE_PATH = DATA_DIR / "lead_cache.json"
+LEAD_KEMITRAAN_CACHE_PATH = DATA_DIR / "lead_kemitraan_cache.json"
 
 # Lead Partnership fields (actual ERPNext field names — verified 2026-06-19)
 LEAD_PARTNERSHIP_FIELDS = [
@@ -211,6 +214,41 @@ LEAD_PARTNERSHIP_DISPLAY_NAMES = {
     "docstatus": "Status Dokumen",
 }
 
+# Lead Kemitraan field display name mapping untuk UI
+LEAD_KEMITRAAN_DISPLAY_NAMES = {
+    "name": "ID Kemitraan",
+    "nama_lengkap": "Nama Lengkap",
+    "nomor_whatsapp": "No. WhatsApp",
+    "email": "Email",
+    "kota_domisili": "Domisili",
+    "pekerjaan_bisnis_saat_ini": "Pekerjaan / Bisnis",
+    "kota_penempatan_mesin": "Kota Penempatan",
+    "sudah_punya_lokasi": "Sudah Punya Lokasi",
+    "tempat_instalasi": "Tempat Instalasi",
+    "jumlah_unit_diminati": "Unit Diminati",
+    "kapan_ingin_mulai": "Kapan Mulai",
+    "dari_mana_tahu_difotoin": "Tahu Difotoin Dari",
+    "source_lead": "Source Lead",
+    "priority": "Prioritas",
+    "status_lead": "Status Lead",
+    "disposition": "Disposisi",
+    "budget_investasi": "Budget Investasi",
+    "jumlah_unit_final": "Unit Final",
+    "harga_investasi_dibahas": "Nilai Investasi",
+    "skema_pembayaran": "Skema Bayar",
+    "kesiapan_dp": "Kesiapan DP",
+    "target_bep": "Target BEP",
+    "status_lokasi": "Status Lokasi",
+    "jenis_lokasi": "Jenis Lokasi",
+    "potensi_lokasi": "Potensi",
+    "next_follow_up": "Follow-up Berikut",
+    "hasil_follow_up_terakhir": "Hasil Follow-up",
+    "next_step": "Next Step",
+    "sales_pic": "Sales PIC",
+    "creation": "Tgl Daftar",
+    "modified": "Tgl Update",
+}
+
 
 def load_erpnext_config() -> dict:
     """Load ERPNext connection configuration (centralised via config.py)."""
@@ -328,9 +366,18 @@ def _fetch_all(doctype: str, fields: list, limit: int = 5000, filters: Optional[
 def fetch_leads(limit: int = 5000) -> pd.DataFrame:
     """Fetch Lead records from ERPNext as a DataFrame.
 
-    Uses the LEAD_FIELDS list. Returns empty DataFrame on error.
+    Uses the LEAD_FIELDS list. Caches locally on success, falls back to cache on failure.
+    Returns empty DataFrame on error.
     """
-    return _fetch_all("Lead", LEAD_FIELDS, limit=limit)
+    df = _fetch_all("Lead", LEAD_FIELDS, limit=limit)
+    if not df.empty:
+        _save_lead_cache(df)
+        return df
+
+    cached = _load_lead_cache()
+    if not cached.empty:
+        return cached
+    return pd.DataFrame()
 
 
 def fetch_leads_by_owner(lead_owner: str, limit: int = 5000) -> pd.DataFrame:
@@ -491,21 +538,319 @@ def aggregate_team_performance(df: pd.DataFrame) -> pd.DataFrame:
     return result_df
 
 
+# ================= LEAD PARTNERSHIP CACHE =================
+
+def _save_lp_cache(df: pd.DataFrame) -> None:
+    """Save Lead Partnership DataFrame to local JSON cache with timestamp."""
+    if df.empty:
+        return
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        cache = {
+            "last_sync": datetime.now().isoformat(),
+            "records": json.loads(df.to_json(orient="records", date_format="iso")),
+        }
+        with open(LEAD_PARTNERSHIP_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False, default=str)
+    except Exception:
+        pass
+
+def _load_lp_cache() -> pd.DataFrame:
+    """Load Lead Partnership DataFrame from local JSON cache."""
+    try:
+        if not LEAD_PARTNERSHIP_CACHE_PATH.exists():
+            return pd.DataFrame()
+        with open(LEAD_PARTNERSHIP_CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        records = cache.get("records", [])
+        if not records:
+            return pd.DataFrame()
+        df = pd.DataFrame(records)
+        for col in ["creation", "modified"]:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors="coerce")
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+def get_lp_cache_info() -> dict:
+    """Get cache info: last_sync time and record count. Returns {} if no cache."""
+    try:
+        if not LEAD_PARTNERSHIP_CACHE_PATH.exists():
+            return {}
+        with open(LEAD_PARTNERSHIP_CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        return {
+            "last_sync": cache.get("last_sync", ""),
+            "count": len(cache.get("records", [])),
+        }
+    except Exception:
+        return {}
+
+# ================= LEAD CACHE =================
+
+def _save_lead_cache(df: pd.DataFrame) -> None:
+    """Save Lead DataFrame to local JSON cache with timestamp."""
+    if df.empty:
+        return
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        cache = {
+            "last_sync": datetime.now().isoformat(),
+            "records": json.loads(df.to_json(orient="records", date_format="iso")),
+        }
+        with open(LEAD_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False, default=str)
+    except Exception:
+        pass
+
+def _load_lead_cache() -> pd.DataFrame:
+    """Load Lead DataFrame from local JSON cache."""
+    try:
+        if not LEAD_CACHE_PATH.exists():
+            return pd.DataFrame()
+        with open(LEAD_CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        records = cache.get("records", [])
+        if not records:
+            return pd.DataFrame()
+        df = pd.DataFrame(records)
+        for col in ["creation", "modified"]:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors="coerce")
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+def get_lead_cache_info() -> dict:
+    """Get Lead cache info: last_sync time and record count. Returns {} if no cache."""
+    try:
+        if not LEAD_CACHE_PATH.exists():
+            return {}
+        with open(LEAD_CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        return {
+            "last_sync": cache.get("last_sync", ""),
+            "count": len(cache.get("records", [])),
+        }
+    except Exception:
+        return {}
+
+# ================= LEAD KEMITRAAN CACHE =================
+
+def _save_lk_cache(df: pd.DataFrame) -> None:
+    """Save Lead Kemitraan DataFrame to local JSON cache with timestamp."""
+    if df.empty:
+        return
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        cache = {
+            "last_sync": datetime.now().isoformat(),
+            "records": json.loads(df.to_json(orient="records", date_format="iso")),
+        }
+        with open(LEAD_KEMITRAAN_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False, default=str)
+    except Exception:
+        pass
+
+
+def _load_lk_cache() -> pd.DataFrame:
+    """Load Lead Kemitraan DataFrame from local JSON cache."""
+    try:
+        if not LEAD_KEMITRAAN_CACHE_PATH.exists():
+            return pd.DataFrame()
+        with open(LEAD_KEMITRAAN_CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        records = cache.get("records", [])
+        if not records:
+            return pd.DataFrame()
+        df = pd.DataFrame(records)
+        for col in ["creation", "modified"]:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors="coerce")
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def get_lk_cache_info() -> dict:
+    """Get Lead Kemitraan cache info: last_sync time and record count. Returns {} if no cache."""
+    try:
+        if not LEAD_KEMITRAAN_CACHE_PATH.exists():
+            return {}
+        with open(LEAD_KEMITRAAN_CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        return {
+            "last_sync": cache.get("last_sync", ""),
+            "count": len(cache.get("records", [])),
+        }
+    except Exception:
+        return {}
+
+
+# ================= LEAD KEMITRAAN FUNCTIONS =================
+
+LEAD_KEMITRAAN_FIELDS = [
+    "name", "nama_lengkap", "nomor_whatsapp", "email",
+    "kota_domisili", "pekerjaan_bisnis_saat_ini", "kota_penempatan_mesin",
+    "sudah_punya_lokasi", "tempat_instalasi", "jumlah_unit_diminati",
+    "kapan_ingin_mulai", "dari_mana_tahu_difotoin", "source_lead",
+    "priority", "status_lead", "disposition",
+    "budget_investasi", "jumlah_unit_final", "harga_investasi_dibahas",
+    "skema_pembayaran", "kesiapan_dp", "target_bep",
+    "status_lokasi", "jenis_lokasi", "potensi_lokasi",
+    "next_follow_up", "hasil_follow_up_terakhir", "next_step",
+    "sales_pic", "creation", "modified",
+]
+
+
+def fetch_lead_kemitraan(limit: int = 5000) -> pd.DataFrame:
+    """Fetch Lead Kemitraan records via API with caching fallback."""
+    df = _fetch_all("Lead Kemitraan", LEAD_KEMITRAAN_FIELDS, limit=limit)
+    if not df.empty:
+        _save_lk_cache(df)
+        return df
+    cached = _load_lk_cache()
+    if not cached.empty:
+        return cached
+    return pd.DataFrame()
+
+
+def get_lead_kemitraan(record_name: str) -> dict:
+    """Get single Lead Kemitraan record detail from ERPNext."""
+    cfg = load_erpnext_config()
+    if not cfg.get("url"):
+        return {}
+    try:
+        r = requests.get(
+            f"{_base_url(cfg)}/api/resource/Lead%20Kemitraan/{record_name}",
+            headers=_headers(cfg),
+            timeout=15,
+        )
+        if r.status_code == 200:
+            return r.json().get("data", {})
+        return {}
+    except Exception:
+        return {}
+
+
+def create_lead_kemitraan(data: dict) -> Tuple[bool, str]:
+    """Create a new Lead Kemitraan record. Returns (success, message)."""
+    cfg = load_erpnext_config()
+    if not cfg.get("url"):
+        return False, "ERPNext belum dikonfigurasi."
+    payload = {k: v for k, v in data.items() if v is not None and v != ""}
+    try:
+        r = requests.post(
+            f"{_base_url(cfg)}/api/resource/Lead%20Kemitraan",
+            headers={**_headers(cfg), "Content-Type": "application/json"},
+            json=payload,
+            timeout=15,
+        )
+        if r.status_code in (200, 201):
+            created = r.json().get("data", {})
+            name = created.get("name", "")
+            return True, f"Lead Kemitraan berhasil dibuat: {name}"
+        msg = r.json().get("exc", r.text[:200])
+        return False, f"Gagal membuat ({r.status_code}): {msg}"
+    except Exception as e:
+        return False, f"Error: {e}"
+
+
+def update_lead_kemitraan(record_name: str, data: dict) -> Tuple[bool, str]:
+    """Update an existing Lead Kemitraan record. Returns (success, message)."""
+    cfg = load_erpnext_config()
+    if not cfg.get("url"):
+        return False, "ERPNext belum dikonfigurasi."
+    if not record_name:
+        return False, "Nama record tidak valid."
+    payload = {k: v for k, v in data.items() if v is not None and v != ""}
+    try:
+        r = requests.put(
+            f"{_base_url(cfg)}/api/resource/Lead%20Kemitraan/{record_name}",
+            headers={**_headers(cfg), "Content-Type": "application/json"},
+            json=payload,
+            timeout=15,
+        )
+        if r.status_code in (200, 201):
+            return True, f"Lead Kemitraan {record_name} berhasil diupdate."
+        msg = r.json().get("exc", r.text[:200])
+        return False, f"Gagal update ({r.status_code}): {msg}"
+    except Exception as e:
+        return False, f"Error: {e}"
+
+
+# ================= LEAD KEMITRAAN OPTIONS =================
+
+def get_lk_status_lead_options() -> list:
+    """Possible values for Lead Kemitraan 'status_lead' field."""
+    return ["", "New", "Contact", "Meeting", "Qualified",
+            "Negotiation", "Approved", "Live", "Lost"]
+
+
+def get_lk_priority_options() -> list:
+    """Possible values for Lead Kemitraan 'priority' field."""
+    return ["", "High", "Medium", "Low"]
+
+
+def get_lk_source_lead_options() -> list:
+    """Possible values for Lead Kemitraan 'source_lead' field."""
+    return ["", "Website", "Instagram", "WhatsApp", "TikTok",
+            "Facebook", "Referral", "Event", "Lainnya"]
+
+
+def get_lk_disposition_options() -> list:
+    """Possible values for Lead Kemitraan 'disposition' field."""
+    return ["", "Active", "Passive", "Warm", "Cold", "Closed"]
+
+
+def get_lk_kesiapan_dp_options() -> list:
+    """Possible values for 'kesiapan_dp' field."""
+    return ["", "Siap", "Butuh Waktu", "Belum Siap"]
+
+
+def get_lk_skema_pembayaran_options() -> list:
+    """Possible values for 'skema_pembayaran' field."""
+    return ["", "Cash", "Termin", "DP + pelunasan", "Kredit", "Lainnya"]
+
+
+def get_lk_status_lokasi_options() -> list:
+    """Possible values for 'status_lokasi' field."""
+    return ["", "Sudah punya", "Ingin dibantu cari lokasi", "Minta dibantu Difotoin"]
+
+
+def get_lk_jenis_lokasi_options() -> list:
+    """Possible values for 'jenis_lokasi' field."""
+    return ["", "Mall", "Cafe", "Restoran", "Hotel", "Ruko",
+            "area publik", "kantor", "sekolah", "Lainnya"]
+
+
+def get_lk_potensi_lokasi_options() -> list:
+    """Possible values for 'potensi_lokasi' field."""
+    return ["", "High", "Medium", "Low"]
+
+
 # ================= LEAD PARTNERSHIP FUNCTIONS (existing) =================
 
 def fetch_lead_partnerships(limit: int = 5000) -> pd.DataFrame:
     """Fetch Lead Partnership records as a DataFrame using _fetch_all() with wildcard fields.
 
+    On success, caches data locally. On failure, returns cached data if available.
     Uses ["*"] to bypass ERPNext field-level restrictions on Lead Partnership DocType.
     Returns DataFrame with only LEAD_PARTNERSHIP_FIELDS columns, empty on error.
     """
     df = _fetch_all("Lead Partnership", ["*"], limit=limit)
-    if df.empty:
-        return pd.DataFrame()
+    if not df.empty:
+        avail = [c for c in LEAD_PARTNERSHIP_FIELDS if c in df.columns]
+        result = df[avail]
+        _save_lp_cache(result)
+        return result
 
-    # Select only the fields we care about (that actually exist in the data)
-    avail = [c for c in LEAD_PARTNERSHIP_FIELDS if c in df.columns]
-    return df[avail]
+    # If fetch failed, try cache
+    cached = _load_lp_cache()
+    if not cached.empty:
+        return cached
+    return pd.DataFrame()
 
 
 # ================= LEAD PARTNERSHIP AGGREGATION =================

@@ -1,4 +1,4 @@
-"""app.py — backup-dower: Streamlit dashboard for Difotoin outlet analysis.
+"""app.py — Difotoin Dashboard: Streamlit dashboard for Difotoin outlet analysis.
 Now slimmed to main router module (Task 15 refactor)."""
 
 import json
@@ -16,40 +16,26 @@ from data_processor import DataProcessor, normalize_outlet_name
 from visualizations import Visualizations
 from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH, MASTER_DATA_PATH
 from components.compat import cache_data, rerun, text_col, number_col, table_height, df_show, DEFAULT_TABLE_MAX_HEIGHT, HAS_COLUMN_CONFIG
-from components.ui_helpers import render_mobile_cards, s_caption, _clean_master_values, kemitraan_table_show
+from components.ui_helpers import s_caption, _clean_master_values, kemitraan_table_show
 
 from services.auth import check_login
-from pages.login import show_login_page, show_logout_button
-from pages.upload import show_upload_data
-from pages.admin import show_admin_panel
-from pages.crud_outlet import show_outlet_crud, show_outlet_crud_v2
-from pages.dashboard import show_main_dashboard
-from pages.trend import show_trend_analysis, show_trend_analysis_v2, render_ai_insights
-from pages.ai_decision import show_ai_decision_center
-from pages.conversion import show_conversion_analysis
-from pages.ranking import show_outlet_ranking
-from pages.comparison import show_period_comparison
-from pages.kemitraan import show_kemitraan_page
-from pages.lead_partnership import show_lead_partnership_page
-from pages.lead_permanen import show_lead_permanen_page
+from page_modules.login import show_login_page, show_logout_button
+from page_modules.upload import show_upload_data
+from page_modules.admin import show_admin_panel
+from page_modules.crud_outlet import show_outlet_crud, show_outlet_crud_v2
+from page_modules.dashboard import show_main_dashboard
+from page_modules.trend import show_trend_analysis, show_trend_analysis_v2, render_ai_insights
+from page_modules.ai_decision import show_ai_decision_center
+from page_modules.conversion import show_conversion_analysis
+from page_modules.ranking import show_outlet_ranking
+from page_modules.comparison import show_period_comparison
+from page_modules.kemitraan import show_kemitraan_page
+from page_modules.lead_partnership import show_lead_partnership_page
+from page_modules.lead_kemitraan import show_lead_kemitraan_page
+from page_modules.lead_permanen import show_lead_permanen_page
 
 # ================= SCROLL GUARDS =================
 
-def install_scroll_guard():
-    components.html("""<script>
-(function(){try{const K="difotoin_scroll_y";const w=window.parent;const d=w.document;let t=false;
-function y(){return w.scrollY||d.documentElement.scrollTop||d.body.scrollTop||0}
-function s(){try{const v=y();if(v>=0)w.sessionStorage.setItem(K,String(v))}catch(e){}}
-function r(){try{const v=parseInt(w.sessionStorage.getItem(K)||"0",10);if(!Number.isFinite(v)||v<80)return;const n=y();if(n<Math.max(40,v*0.25))w.scrollTo(0,v)}catch(e){}}
-w.addEventListener("scroll",function(){if(t)return;t=true;w.setTimeout(function(){s();t=false},120)},{passive:true})
-w.addEventListener("beforeunload",s);[50,150,350,800,1400].forEach(function(d){w.setTimeout(r,d)})}catch(e){}})();</script>""", height=0, width=0)
-
-def install_table_unfreeze_guard():
-    components.html("""<script>
-(function(){try{const w=window.parent;const d=w.document;
-const sel=['.stDataFrame [style*="position: sticky"]','.stDataFrame [style*="position:sticky"]','.stDataFrame [style*="position: fixed"]','.stDataFrame [style*="position:fixed"]','[data-testid="stDataFrame"] [style*="position: sticky"]','[data-testid="stDataFrame"] [style*="position:sticky"]','[data-testid="stDataFrame"] [style*="position: fixed"]','[data-testid="stDataFrame"] [style*="position:fixed"]','[role="grid"] [style*="position: sticky"]','[role="grid"] [style*="position:sticky"]','[role="grid"] [style*="position: fixed"]','[role="grid"] [style*="position:fixed"]'];
-function u(){sel.forEach(function(s){d.querySelectorAll(s).forEach(function(el){el.style.setProperty('position','static','important');el.style.setProperty('left','auto','important');el.style.setProperty('right','auto','important');el.style.setProperty('transform','none','important');el.style.setProperty('z-index','auto','important')})})}
-u();[100,350,800,1500,2500].forEach(function(d){w.setTimeout(u,d)});new MutationObserver(function(){w.requestAnimationFrame(u)}).observe(d.body,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class']})}catch(e){}})();</script>""", height=0, width=0)
 
 def cache_clear(func):
     try: func.clear(); return
@@ -62,9 +48,89 @@ def cache_clear(func):
                 try: clear(); return
                 except Exception: pass
 
+
+# ================= UPLOAD HELPERS =================
+
+def excel_engine_from_filename(filename: str) -> str:
+    return "openpyxl" if str(filename).lower().endswith(".xlsx") else "xlrd"
+
+def suggest_default_sheets(sheet_names):
+    priority = ["data", "sheet1", "transaksi", "report", "database"]
+    scored = sorted(sheet_names, key=lambda s: next((i for i, p in enumerate(priority) if p in s.lower()), 999))
+    return scored[:1] if scored else sheet_names[:1]
+
+def read_selected_sheets(file_bytes, selected_sheets, engine):
+    import io
+    dfs = []
+    for sheet in selected_sheets:
+        df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet, engine=engine, dtype=str)
+        if not df.empty:
+            dfs.append(df)
+    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+
+def apply_column_mapping_auto(df):
+    mapping = {}
+    lower_cols = {c: c for c in df.columns}
+    for keyword, target in [("outlet", "outlet_name"), ("nama outlet", "outlet_name"), ("nama_outlet", "outlet_name"), ("harga", "harga"), ("nominal", "harga"), ("total", "harga"), ("amount", "harga"), ("tanggal", "tanggal"), ("date", "tanggal"), ("tgl", "tanggal"), ("area", "area"), ("cabang", "area"), ("branch", "area"), ("type", "type"), ("jenis", "type"), ("kategori", "type")]:
+        for col in df.columns:
+            if keyword in col.lower():
+                mapping[target] = col
+                break
+    return {v: k for k, v in mapping.items()}
+
+def to_numeric_clean(series):
+    return pd.to_numeric(series.astype(str).str.replace(r"[^0-9,\-]", "", regex=True).str.replace(",", ".", regex=False), errors="coerce").fillna(0)
+
+def deduplicate_rows(df, subset=None):
+    rows_before = len(df)
+    if subset is None:
+        subset = [c for c in ["outlet_name", "harga", "tanggal"] if c in df.columns]
+    deduped = df.drop_duplicates(subset=subset, keep="first").copy() if subset else df.copy()
+    rows_after = len(deduped)
+    return deduped, {"rows_before": rows_before, "rows_after": rows_after, "dup_removed": rows_before - rows_after, "subset": subset, "sum_after": float(deduped.get("harga", pd.Series(dtype=float)).fillna(0).astype(float).sum())}
+
+def aggregate_monthly(df, config, fallback_period=None):
+    from datetime import datetime
+    result = df.copy()
+    if "periode" not in result.columns:
+        if "tanggal" in result.columns:
+            dt = pd.to_datetime(result["tanggal"], errors="coerce")
+            result["periode"] = dt.dt.strftime("%Y-%m")
+        else:
+            result["periode"] = fallback_period or datetime.now().strftime("%Y-%m")
+    result["total_revenue"] = to_numeric_clean(result.get("harga", 0))
+    result["foto_qty"] = 0
+    result["unlock_qty"] = 0
+    result["print_qty"] = 0
+    if "type" in result.columns:
+        t = result["type"].astype(str).str.strip().str.lower()
+        result["foto_qty"] = (t.str.contains("foto", na=False)).astype(int)
+        result["unlock_qty"] = (t.str.contains("unlock", na=False)).astype(int)
+        result["print_qty"] = (t.str.contains("print|cetak", na=False, regex=True)).astype(int)
+    result["conversion_rate"] = np.where(result["foto_qty"] > 0, (result["unlock_qty"] / result["foto_qty"] * 100), 0.0)
+    if "harga" in result.columns:
+        result.drop(columns=["harga"], inplace=True, errors="ignore")
+    return result, {}
+
+def save_overwrite_periods(df, csv_path):
+    df_save = df.copy()
+    periods = df_save["periode"].dropna().unique().tolist() if "periode" in df_save.columns else []
+    try:
+        existing = pd.read_csv(csv_path, dtype=str)
+    except (FileNotFoundError, Exception):
+        existing = pd.DataFrame()
+    before_total = float(existing.get("total_revenue", pd.Series(dtype=float)).fillna(0).astype(float).sum()) if not existing.empty else 0.0
+    if not existing.empty and periods:
+        existing = existing[~existing["periode"].astype(str).str.strip().isin(periods)].copy()
+    merged = pd.concat([existing, df_save], ignore_index=True)
+    merged.to_csv(csv_path, index=False)
+    after_total = float(merged.get("total_revenue", pd.Series(dtype=float)).fillna(0).astype(float).sum())
+    remaining = sorted(merged["periode"].dropna().unique().tolist()) if "periode" in merged.columns else []
+    return merged, {"periods_overwritten": periods, "before_total": before_total, "after_total": after_total, "remaining_periods": remaining}
+
 # ================= PAGE CONFIG =================
 
-st.set_page_config(page_title="backup-dower", page_icon="📸", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Difotoin Dashboard", page_icon="📸", layout="wide", initial_sidebar_state="collapsed")
 
 # ================= MASTER DATA =================
 
@@ -105,46 +171,71 @@ apply_master_data()
 # ================= CSS STYLES =================
 
 st.markdown("""<style>
-:root{--df-bg:#111827;--df-panel:#182235;--df-panel-soft:#202c43;--df-border:#334155;--df-text:#f8fafc;--df-muted:#cbd5e1;--df-blue:#38bdf8;--df-green:#22c55e;--df-yellow:#f59e0b;--df-red:#ef4444}
-.main-header{font-size:2.2rem;font-weight:800;color:var(--df-text)!important;text-align:center;margin-bottom:1.5rem}
-.status-keeper{color:#10b981!important;font-weight:bold}
-.status-optimasi{color:#f59e0b!important;font-weight:bold}
-.status-relocate{color:#ef4444!important;font-weight:bold}
-.insight-box{background:var(--df-panel);border-left:4px solid var(--df-blue);padding:1rem;margin:1rem 0;border-radius:.5rem;color:var(--df-text)!important}
-.filter-buttons .stCheckbox>label{background:var(--df-panel-soft)!important;padding:.55rem .8rem;border-radius:.55rem;border:1px solid var(--df-border);color:var(--df-text)!important;font-weight:700}
-[data-testid="stMetric"]{background:linear-gradient(180deg,#1f2937 0%,#151e2f 100%);border:1px solid var(--df-border);border-radius:.75rem;padding:.9rem 1rem;box-shadow:0 8px 24px rgba(0,0,0,.18)}
-.stMetric [data-testid="metric-value"]{font-size:1.35rem!important;color:var(--df-text)!important;font-weight:800!important}
-.stApp{color:var(--df-text)!important;background:var(--df-bg)!important}
-[data-testid="stAppViewContainer"]>.main{background:radial-gradient(circle at top left,rgba(56,189,248,.10),transparent 26rem),var(--df-bg)}
-.stSidebar{background:#0b1220!important;border-right:1px solid #1f2937}
-.stSidebar *{color:var(--df-text)!important}
-.stSelectbox label,.stTextInput label{color:var(--df-text)!important;font-weight:700!important}
-[data-baseweb="select"]>div,.stTextInput input{background:#0f172a!important;border-color:var(--df-border)!important;color:var(--df-text)!important;border-radius:.65rem!important}
-.stDataFrame{width:100%!important;max-width:100%!important;max-height:560px!important;overflow:auto!important;border-radius:.75rem!important}
+:root{--bg:#09090b;--card:#18181b;--card-soft:#1f1f23;--border:#27272a;--text:#fafafa;--muted:#a1a1aa;--accent:#fafafa;--accent-bg:#27272a;--blue:#3b82f6;--green:#22c55e;--yellow:#f59e0b;--red:#ef4446;--radius:.5rem}
+.main-header{font-size:2rem;font-weight:600;color:var(--text)!important;text-align:center;letter-spacing:-.025em;margin-bottom:1.5rem}
+.status-keeper{color:var(--green)!important;font-weight:600}
+.status-optimasi{color:var(--yellow)!important;font-weight:600}
+.status-relocate{color:var(--red)!important;font-weight:600}
+.status-inactive{color:var(--muted)!important}
+.insight-box{background:var(--card);border-left:3px solid var(--blue);padding:1rem 1.1rem;margin:1rem 0;border-radius:var(--radius);color:var(--text)!important;font-size:.9rem}
+.filter-buttons .stCheckbox>label{background:var(--card-soft)!important;padding:.5rem .75rem;border-radius:var(--radius);border:1px solid var(--border);color:var(--text)!important;font-weight:500;font-size:.82rem}
+[data-testid="stMetric"]{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:.85rem 1rem}
+.stMetric [data-testid="metric-value"]{font-size:1.35rem!important;color:var(--text)!important;font-weight:600!important}
+.stMetric [data-testid="metric-label"]{color:var(--muted)!important;font-size:.8rem!important;font-weight:400!important}
+.stApp{color:var(--text)!important;background:var(--bg)!important}
+[data-testid="stAppViewContainer"]>.main{background:var(--bg)}
+.stSidebar{background:#0c0c0f!important;border-right:1px solid var(--border)}
+.stSidebar *{color:var(--text)!important}
+.stSidebar .stSelectbox label,.stSidebar .stTextInput label{color:var(--muted)!important;font-weight:500!important;font-size:.82rem!important}
+.stSelectbox label,.stTextInput label{color:var(--muted)!important;font-weight:500!important;font-size:.82rem!important}
+[data-baseweb="select"]>div,.stTextInput input{background:var(--card)!important;border-color:var(--border)!important;color:var(--text)!important;border-radius:var(--radius)!important;font-size:.85rem!important}
+[data-baseweb="select"]>div:hover{border-color:#3f3f46!important}
+.stDataFrame{width:100%!important;max-width:100%!important;border-radius:var(--radius)!important}
 .stDataFrame canvas{max-width:none!important}
-.stTabs [data-baseweb="tab-list"]{gap:.35rem;overflow-x:auto}
-.stTabs [data-baseweb="tab-list"] button{color:var(--df-text)!important;background:#172033;border:1px solid #26344e;border-radius:999px;padding:.25rem .8rem}
-.stButton button,.stDownloadButton button{color:#06121f!important;background:var(--df-blue)!important;border:none!important;border-radius:.65rem!important;font-weight:800!important;min-height:2.7rem}
-.performer-card{padding:.8rem;margin:.45rem 0;border-radius:.65rem;background:var(--df-panel);border:1px solid var(--df-border)}
-.mobile-card-list{display:none}
-.mobile-data-card{background:linear-gradient(180deg,#1f2937,#151e2f);border:1px solid var(--df-border);border-radius:.85rem;padding:.9rem;margin:.75rem 0;box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.stTabs [data-baseweb="tab-list"]{gap:.25rem;overflow-x:auto}
+.stTabs [data-baseweb="tab-list"] button{color:var(--muted)!important;background:transparent!important;border:none!important;border-radius:var(--radius)!important;padding:.35rem .75rem!important;font-size:.85rem!important;font-weight:500!important}
+.stTabs [data-baseweb="tab-list"] button[aria-selected="true"]{color:var(--text)!important;background:var(--card-soft)!important}
+.stButton button,.stDownloadButton button{color:var(--text)!important;background:var(--accent-bg)!important;border:1px solid var(--border)!important;border-radius:var(--radius)!important;font-weight:500!important;min-height:2.3rem;font-size:.85rem!important;transition:all .15s}
+.stButton button:hover,.stDownloadButton button:hover{background:#3f3f46!important;border-color:#52525b!important}
+.stButton button:active,.stDownloadButton button:active{transform:translateY(1px)}
+.performer-card{padding:.75rem 1rem;margin:.4rem 0;border-radius:var(--radius);background:var(--card);border:1px solid var(--border);font-size:.88rem}
+.pagination-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:.15rem .4rem;margin:.3rem 0}
+.pagination-wrap .stButton button{background:transparent!important;color:var(--text)!important;border:1px solid var(--border)!important;min-height:1.9rem!important;font-size:.8rem!important;border-radius:calc(var(--radius) - 2px)!important;font-weight:500!important;padding:0 .45rem!important}
+.pagination-wrap .stButton button:disabled{opacity:.25!important}
+.pagination-wrap .stButton button:not(:disabled):hover{background:var(--accent-bg)!important;border-color:var(--border)!important}
 [data-testid="stStatusWidget"],[data-testid="stConnectionStatus"]{display:none!important;visibility:hidden!important}
-@media(max-width:760px){
-[data-testid="block-container"]{padding:1rem .85rem 5rem!important}
-.main-header{font-size:1.45rem!important;text-align:left;margin:.2rem 0 1rem}
-h1{font-size:1.45rem!important}h2{font-size:1.2rem!important}h3{font-size:1.02rem!important}
-[data-testid="stMetric"]{padding:.78rem .85rem}
-.stMetric [data-testid="metric-value"]{font-size:1.08rem!important}
-.stButton button,.stDownloadButton button{width:100%;min-height:2.9rem}
-.stPlotlyChart{background:var(--df-panel);border:1px solid var(--df-border);border-radius:.8rem;padding:.35rem}
-.mobile-table-muted{display:block!important;width:100%!important;max-width:100%!important;max-height:68vh;overflow:auto!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-.mobile-table-muted [data-testid="stDataFrameResizable"]{min-width:760px!important}
-.mobile-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-.stAlert{border-radius:.75rem}iframe{max-width:100%!important}
-}</style>""", unsafe_allow_html=True)
+.stPlotlyChart{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem}
+.stAlert{border-radius:var(--radius);border:1px solid var(--border)}iframe{max-width:100%!important}
+.stDataFrame tbody tr{transition:background-color .12s}
+.stDataFrame tbody tr:hover{background-color:rgba(255,255,255,.03)!important}
+.stDataFrame thead tr th{background:var(--card)!important;border-bottom:1px solid var(--border)!important;color:var(--muted)!important;font-weight:500!important;font-size:.78rem!important;text-transform:uppercase;letter-spacing:.05em;padding:.6rem .8rem!important}
+.stDataFrame tbody tr td{padding:.5rem .8rem!important;font-size:.85rem!important;border-bottom:1px solid rgba(39,39,42,.5)!important}
+.stDataFrame tbody tr:last-child td{border-bottom:none!important}
 
-install_scroll_guard()
-install_table_unfreeze_guard()
+@media(max-width:760px){
+[data-testid="block-container"]{padding:1rem .75rem 5rem!important}
+.main-header{font-size:1.4rem!important;text-align:left;margin:.2rem 0 1rem}
+h1{font-size:1.35rem!important}h2{font-size:1.15rem!important}h3{font-size:1rem!important}
+[data-testid="stMetric"]{padding:.7rem .8rem}
+.stMetric [data-testid="metric-value"]{font-size:1.05rem!important}
+.stButton button,.stDownloadButton button{width:100%;min-height:2.5rem}
+.stPlotlyChart{padding:.3rem}
+.mobile-table-muted{display:block!important;width:100%!important;max-width:100%!important;max-height:75vh;overflow:auto!important;-webkit-overflow-scrolling:touch}
+
+}
+
+
+
+/* Modern sidebar styling */
+.stSidebar{background:#0c0c0f!important;border-right:1px solid var(--border);padding:1rem .5rem}
+.stSidebar .stSelectbox label{font-size:.8rem!important;font-weight:500!important;color:var(--muted)!important}
+.stSidebar .stSelectbox>div{background:var(--card)!important;border-color:var(--border)!important;border-radius:var(--radius)!important}
+.stSidebar .stButton button{width:100%}
+.stSidebar hr{margin:.75rem 0;border-color:var(--border)}
+.stSidebar .sidebar-title{font-size:1.1rem;font-weight:600;margin-bottom:.5rem;display:block}
+
+</style>""", unsafe_allow_html=True)
+
 
 # ================= DATA LOADING =================
 
@@ -153,14 +244,6 @@ def load_app_data():
     return DataProcessor().load_data()
 
 # ================= SIDEBAR HELPERS =================
-
-def create_sidebar_period_selector(df):
-    if df.empty or "periode" not in df.columns: return None, None
-    periods = sorted([str(p) for p in df["periode"].dropna().unique()])
-    st.sidebar.markdown("### 📅 Periode Selection")
-    current = st.sidebar.selectbox("Current Period", periods, index=len(periods)-1 if periods else 0, key="period_current_sidebar")
-    compare = st.sidebar.selectbox("Compare with", ["None"] + [p for p in periods if p != current], key="period_compare_sidebar")
-    return current, (None if compare == "None" else compare)
 
 def safe_unique_str(df: pd.DataFrame, col: str) -> List[str]:
     if col not in df.columns: return []
@@ -179,55 +262,90 @@ def main():
     df = load_app_data()
     if isinstance(df, pd.DataFrame):
         df = df.copy(deep=True)
-
     if not df.empty and "area" in df.columns:
         df["area"] = df["area"].astype(str).replace({"nan": ""})
 
-    st.sidebar.title("📸 backup-dower")
+    # ===== SIDEBAR =====
+    st.sidebar.markdown('<span class="sidebar-title">📸 Difotoin</span>', unsafe_allow_html=True)
     st.sidebar.markdown("---")
     show_logout_button()
+    st.sidebar.markdown("### 📋 Halaman")
 
-    page = st.sidebar.selectbox("Pilih Halaman", [
-        "🏠 Dashboard Utama", "📊 Analisis Trend", "AI Decision", "🔄 Analisis Konversi",
-        "🏆 Ranking Outlet", "🤝 Kemitraan", "📋 Lead Partnership", "📋 Lead Permanen", "📅 Perbandingan Periode",
-        "🗃️ CRUD Data Outlet", "⚙️ Admin Panel", "📤 Upload Data",
-    ])
+    page = st.sidebar.selectbox("", [
+        "\U0001f3e0 Dashboard Utama", "\U0001f4ca Analisis Trend", "AI Decision",
+        "\U0001f504 Analisis Konversi", "\U0001f3c6 Ranking Outlet", "\U0001f91d Kemitraan",
+        "\U0001f4cb Lead Partnership", "\U0001f91d Lead Kemitraan",
+        "\U0001f4cb Lead Permanen",
+        "\U0001f4c5 Perbandingan Periode", "\U0001f5c3\ufe0f CRUD Data Outlet",
+        "\u2699\ufe0f Admin Panel", "\U0001f4e4 Upload Data",
+    ], label_visibility="collapsed")
 
+    # Period selector
     current_period, compare_period = None, None
     if page in ("🏠 Dashboard Utama", "📅 Perbandingan Periode"):
-        current_period, compare_period = create_sidebar_period_selector(df)
-        st.sidebar.markdown("---")
+        if not df.empty and "periode" in df.columns:
+            periods = sorted([str(p) for p in df["periode"].dropna().unique()])
+            if periods:
+                st.sidebar.markdown("### 📅 Periode")
+                current_period = st.sidebar.selectbox("", periods, index=len(periods)-1, key="period_sidebar", label_visibility="collapsed")
+                cmp = st.sidebar.selectbox("", ["-"] + [p for p in periods if p != current_period], key="compare_sidebar", label_visibility="collapsed")
+                compare_period = None if cmp == "-" else cmp
 
-    st.sidebar.markdown("### 🔍 Filter Data")
+    # Filters
+    st.sidebar.markdown("### 🔍 Filter")
     if not df.empty:
         areas = ["Semua"] + safe_unique_str(df, "area")
-        selected_area = st.sidebar.selectbox("Area", areas)
+        selected_area = st.sidebar.selectbox("Area", areas, key="filter_area_sidebar")
         kategoris = ["Semua"] + safe_unique_str(df, "kategori_tempat")
-        selected_kategori = st.sidebar.selectbox("Kategori Tempat", kategoris)
+        selected_kategori = st.sidebar.selectbox("Kategori", kategoris, key="filter_kategori_sidebar")
         tipes = ["Semua"] + safe_unique_str(df, "tipe_tempat")
-        selected_tipe = st.sidebar.selectbox("Tipe Tempat", tipes)
+        selected_tipe = st.sidebar.selectbox("Tipe", tipes, key="filter_tipe_sidebar")
+    else:
+        selected_area = selected_kategori = selected_tipe = "Semua"
+
+    # Apply filters
+    if not df.empty:
         df_for_filter = df.copy(deep=True)
         filtered_full_df = processor.filter_data(df_for_filter.copy(deep=True), selected_area, selected_kategori, selected_tipe, None) if hasattr(processor, "filter_data") else df_for_filter.copy(deep=True)
         filtered_df = processor.filter_data(df_for_filter, selected_area, selected_kategori, selected_tipe, current_period) if hasattr(processor, "filter_data") else df_for_filter
     else:
         filtered_df = filtered_full_df = df
 
-    page_router = {
-        "🏠 Dashboard Utama": lambda: show_main_dashboard(filtered_df, config, processor, viz, current_period, compare_period, full_df=filtered_full_df),
-        "📊 Analisis Trend": lambda: show_trend_analysis_v2(filtered_df, config, processor, viz),
-        "AI Decision": lambda: show_ai_decision_center(filtered_full_df, config),
-        "🔄 Analisis Konversi": lambda: show_conversion_analysis(filtered_df, config, processor, viz),
-        "🏆 Ranking Outlet": lambda: show_outlet_ranking(filtered_df, config, processor),
-        "🤝 Kemitraan": lambda: show_kemitraan_page(filtered_full_df, config, processor),
-        "📋 Lead Partnership": lambda: show_lead_partnership_page(),
-        "📋 Lead Permanen": lambda: show_lead_permanen_page(),
-        "📅 Perbandingan Periode": lambda: show_period_comparison(filtered_df, config, processor, viz, current_period, compare_period),
-        "🗃️ CRUD Data Outlet": lambda: show_outlet_crud_v2(df, config, processor),
-        "⚙️ Admin Panel": lambda: show_admin_panel(config),
-        "📤 Upload Data": lambda: show_upload_data(config),
-    }
-    if page in page_router:
-        page_router[page]()
+    # ===== TOP BAR (branding) =====
+    st.markdown('<div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 0">'
+                '<span style="font-size:1.5rem">📸</span>'
+                '<span style="font-size:1.25rem;font-weight:600;color:var(--text)">difotoin.id</span>'
+                '<span style="color:var(--muted);font-size:.85rem;margin-left:.25rem">— Dashboard</span>'
+                '</div>', unsafe_allow_html=True)
+    st.markdown("---")
+
+    # ===== PAGE ROUTER =====
+    if page == "🏠 Dashboard Utama":
+        show_main_dashboard(filtered_df, config, processor, viz, current_period, compare_period, full_df=filtered_full_df)
+    elif page == "📊 Analisis Trend":
+        show_trend_analysis_v2(filtered_df, config, processor, viz)
+    elif page == "AI Decision":
+        show_ai_decision_center(filtered_full_df, config)
+    elif page == "🔄 Analisis Konversi":
+        show_conversion_analysis(filtered_df, config, processor, viz)
+    elif page == "🏆 Ranking Outlet":
+        show_outlet_ranking(filtered_df, config, processor)
+    elif page == "🤝 Kemitraan":
+        show_kemitraan_page(filtered_full_df, config, processor)
+    elif page == "\U0001f4cb Lead Partnership":
+        show_lead_partnership_page()
+    elif page == "\U0001f91d Lead Kemitraan":
+        show_lead_kemitraan_page()
+    elif page == "\U0001f4cb Lead Permanen":
+        show_lead_permanen_page()
+    elif page == "📅 Perbandingan Periode":
+        show_period_comparison(filtered_df, config, processor, viz, current_period, compare_period)
+    elif page == "🗃️ CRUD Data Outlet":
+        show_outlet_crud_v2(df, config, processor)
+    elif page == "⚙️ Admin Panel":
+        show_admin_panel(config)
+    elif page == "📤 Upload Data":
+        show_upload_data(config)
 
 if __name__ == "__main__":
     main()

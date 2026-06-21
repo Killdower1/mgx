@@ -1,135 +1,140 @@
-outlet_name,outlet_id,area,kategori_tempat,sub_kategori_tempat,tipe_tempat,outlet_status_master,partner_share,broker_share,sharing_bagi_hasil,ownership_status,investor_name,harga_beli_kemitraan,harga_mesin,monthly_rent,minimum_payment,created_at
-Aeon Deltamas - Entrance,182,Bekasi,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,1600000.0,2024-10-17 12:05:07
-Aeon Deltamas - LED,183,Bekasi,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,500000.0,2024-10-17 12:08:54
-Aloha - PIK 2,142,Jakarta,Permanent,,Permanent,Active,0.25,,0.75,kemitraan,-,,,0.0,4500000.0,2024-07-04 10:59:28
-Ancol LB,6,Jakarta,Permanent,,Permanent,Active,0.45,,0.55,kemitraan,-,,,0.0,5500000.0,
-Ancol LB 2,44,Jakarta,Permanent,,Permanent,Active,0.45,,0.55,kemitraan,-,,,0.0,5500000.0,2023-11-29 10:30:20
-Ancol Point,9,Jakarta,Permanent,,Permanent,Inactive,0.45,,0.55,kemitraan,-,,,,,
-ARYADUTA Lippo Village,304,Jakarta,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2025-08-09 14:02:31
-ASHTA Disctrict 8,101,Jakarta,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2024-04-03 16:16:33
-Ayodya Resort,191,Bali,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2024-10-29 16:21:03
-Batamu Space,407,Bogor,Permanent,,Permanent,Active,0.15,,0.85,kemitraan,-,,,0.0,,2026-04-28 07:55:06
-Batavia PIK,87,Jakarta,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,9061224.0,2024-02-28 11:02:27
-Batavia PIK - Jembatan Kota Intan,350,Jakarta,Franchise,,Franchise,Active,0.8,,0.19999999999999996,kemitraan,Go Fredy,150000000.0,150000000.0,5500000.0,,2025-11-06 09:48:16
-Beachwalk Mall Kuta - Gate,88,Bali,Permanent,,Permanent,Active,0.3,0.05,0.6499999999999999,kemitraan,-,,,0.0,,2024-02-29 16:33:16
-Beachwalk Mall Kuta - Rooftop,90,Bali,Permanent,,Permanent,Inactive,0.3,0.05,0.6499999999999999,kemitraan,-,,,0.0,,2024-03-08 09:52:59
-Beachwalk Vacation,232,Bali,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,,2024-12-28 13:21:40
-Buy Local Creative Zone by JXB,190,Jakarta,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,4000000.0,2024-10-28 22:22:29
-Central Park 1,45,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,16150500.0,,2023-11-29 14:08:09
-Chariot Bar & Lounge,81,Bali,Permanent,,Permanent,Inactive,0.3,,0.7,kemitraan,-,,,0.0,,2024-02-15 16:43:12
-Citra Niaga Samarinda,405,Samarinda,Franchise,,Franchise,Active,0.8,,0.19999999999999996,kemitraan,Widi Official,125000000.0,125000000.0,300000.0,,2026-04-17 16:33:14
-City Plaza Jatinegara,166,Jakarta,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2024-08-20 13:34:01
-Colosseum Kintamani,78,Bali,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2024-02-09 14:59:45
-Cove Pantai Indah Kapuk,65,Jakarta,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2024-01-09 16:50:20
-CPI (Sunset Quay A),413,Makassar,Franchise,,Franchise,Active,0.7,0.1,0.20000000000000004,kemitraan,Go Fredy,150000000.0,150000000.0,0.0,,2026-05-22 15:09:34
-CPI (Sunset Quay B),414,Makassar,Permanent,,Permanent,Active,0.0,0.1,0.9,kemitraan,-,,,0.0,,2026-05-22 15:20:34
-Discovery Mall Beach Area,91,Bali,Permanent,,Permanent,Inactive,0.25,,0.75,kemitraan,-,,,0.0,,2024-03-13 10:01:38
-Discovery Mall Icon,92,Bali,Permanent,,Permanent,Active,0.25,,0.75,kemitraan,-,,,0.0,3000000.0,2024-03-13 10:06:47
-Discovery Mall Vacation,247,Bali,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,,,2025-02-11 11:29:04
-Entertainment District PIK 2,338,Jakarta,Permanent,,Permanent,Inactive,0.8,,0.19999999999999996,kemitraan,Go Fredy,,,3885000.0,,2025-10-08 11:38:26
-Flavor Bliss & Broadway Alam Sutera,253,Jakarta,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,,2025-03-11 11:15:00
-Flavor Bliss Vacation,248,Jakarta,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,,,2025-02-13 18:19:45
-Florawisata D'Castello,220,Bandung,Permanent,,Permanent,Inactive,0.3,,0.7,kemitraan,-,,,0.0,,2024-12-16 13:09:13
-Fort Williem I - Benteng Ambarawa,374,Semarang,Franchise,,Franchise,Active,0.5,0.3,0.2,kemitraan,CSN,135000000.0,135000000.0,0.0,,2025-12-26 15:03:51
-Freelance Difotoin Vacation Hotel,294,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,,,2025-06-26 15:24:21
-Grand Galaxy Park,164,Jakarta,Permanent,,Permanent,Inactive,0.1,,0.9,kemitraan,-,,,0.0,,2024-08-20 11:42:22
-Grand Puncak Sari,86,Bali,Permanent,,Permanent,Inactive,0.3,,0.7,kemitraan,-,,,0.0,,2024-02-28 10:44:42
-Grand Puncak Sari - Tegukopi,89,Bali,Permanent,,Permanent,Inactive,0.3,,0.7,kemitraan,-,,,0.0,,2024-03-04 16:19:16
-Grand Waterfront - Sedayu City,366,Jakarta,Permanent,,Permanent,Active,0.15,,0.85,kemitraan,-,,,0.0,,2025-12-04 16:22:45
-GWK Area Fieldtrip,106,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,,,2024-04-08 14:03:52
-GWK Area Garuda,104,-,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,,,2024-04-08 14:02:18
-GWK Lotus,103,Bali,Permanent,,Permanent,Inactive,0.4,0.05,0.5499999999999999,kemitraan,-,,,0.0,,2024-04-08 14:01:17
-GWK Utama,105,-,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,,,2024-04-08 14:03:16
-GWK Vacation,237,Bali,Permanent,,Permanent,Inactive,0.7,,0.30000000000000004,kemitraan,-,,,,,2025-01-12 18:22:44
-HeHa Sky View - Drop Off,225,Jogja,Permanent,,Permanent,Inactive,0.3,0.5,0.19999999999999996,kemitraan,-,,,0.0,,2024-12-23 10:53:50
-HeHa Sky View - Love Lock,226,Jogja,Permanent,,Permanent,Inactive,0.5,0.3,0.2,kemitraan,Gani Mukti,,,0.0,,2024-12-23 11:06:05
-HeHa Sky View - Sky Lolli,284,Jogja,Permanent,,Permanent,Inactive,0.3,0.5,0.19999999999999996,kemitraan,-,,,0.0,,2025-06-12 10:38:11
-HeHa Waterfall,259,Bogor,Permanent,,Permanent,Inactive,0.3,,0.7,kemitraan,-,,,0.0,,2025-03-25 10:08:07
-Hoolu Burger,308,Samarinda,Permanent,,Permanent,Inactive,0.6,0.2,0.2,kemitraan,Widi Official,125000000.0,125000000.0,0.0,,2025-08-14 21:37:43
-I Gusti Ngurah Rai Airport,410,Bali,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,,2026-05-19 13:47:51
-Ibarbo Park,260,Jogja,Permanent,,Permanent,Inactive,0.4,0.4,0.19999999999999996,kemitraan,-,,,0.0,,2025-03-25 19:34:01
-ITDC Nusa Dua Vacation,240,Bali,Permanent,,Permanent,Inactive,0.1,,0.9,kemitraan,-,,,,,2025-01-14 10:00:35
-Jakarta International Stadium (JIS),392,Jakarta,Permanent,,Permanent,Active,0.2,0.05,0.75,kemitraan,-,,,0.0,,2026-03-10 09:27:32
-Jakarta Vacation,243,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,0.0,,2025-01-24 13:07:22
-JakartaLoc,310,Samarinda,Permanent,,Permanent,Inactive,0.7,0.1,0.20000000000000004,kemitraan,Widi Official,,,0.0,,2025-08-16 22:51:04
-JGC,7,Jakarta,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,
-Jogja Pasaraya Malioboro,358,Jogja,Permanent,,Permanent,Inactive,0.6,0.2,0.2,kemitraan,Liliana,,,0.0,,2025-11-13 18:09:33
-K3MART SCBD,192,Jakarta,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2024-10-31 11:18:53
-Kayumanis Seaside Sanur,303,Bali,Permanent,,Permanent,Inactive,0.6,0.2,0.2,kemitraan,Gani Mukti,,,0.0,,2025-08-06 09:21:30
-Kebun Raya Bedugul Vacation,236,Bali,Permanent,,Permanent,Inactive,0.1,,0.9,kemitraan,-,,,0.0,,2025-01-11 11:32:33
-Kembali Ke Alam Kampung Rimba,351,Bogor,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2025-11-06 10:30:13
-Kembali Ke Alam Puncak,227,Bogor,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,,2024-12-26 14:12:51
-Kemuning Sky Hills,385,Karanganyar,Franchise,,Franchise,Active,0.5,0.3,0.2,kemitraan,CSN,135000000.0,135000000.0,0.0,,2026-02-25 13:30:57
-Kian Social House,417,Jogja,Franchise,,Franchise,Active,0.7,0.1,0.20000000000000004,kemitraan,CSN,135000000.0,135000000.0,0.0,,2026-05-28 15:17:04
-KKuwa Koffie & Space,373,Bogor,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,,2025-12-25 23:00:38
-Kopi Daong - Hutan Pinus,199,Bogor,Permanent,,Permanent,Active,0.25,,0.75,kemitraan,-,,,0.0,,2024-11-13 11:21:26
-Kopi Ngegasss,339,Samarinda,Permanent,,Permanent,Inactive,0.7,0.0,0.30000000000000004,kemitraan,Widi Official,,,0.0,,2025-10-13 14:09:11
-Kopi Tubing Pamijahan,421,Bogor,Permanent,,Permanent,Active,0.15,,0.85,kemitraan,-,,,0.0,,2026-06-13 12:12:21
-Kopi Tubing Sentul,380,Bogor,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,,2026-02-11 16:19:46
-Kuwa Koffie x Mulih Ka Uwa,302,Bogor,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2025-08-05 11:04:31
-Lawu Kala Senja,386,Karanganyar,Franchise,,Franchise,Active,0.5,0.3,0.2,kemitraan,CSN,135000000.0,135000000.0,0.0,,2026-02-25 13:56:45
-Lippo Mall Puri,56,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,0.0,,2023-12-15 14:00:41
-Living World Denpasar,242,Bali,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,3000000.0,2025-01-22 09:29:14
-Malang Skyland,390,Malang,Franchise,,Franchise,Active,0.65,0.15,0.19999999999999998,kemitraan,-,,,0.0,,2026-03-04 13:11:21
-Malaya Kopitiam,348,Samarinda,Permanent,,Permanent,Inactive,0.7,0.1,0.20000000000000004,kemitraan,Widi Official,,,0.0,,2025-11-03 09:33:06
-Mall Bali Icon,149,Bali,Permanent,,Permanent,Active,0.0,,1.0,kemitraan,-,,,8325000.0,,2024-07-10 14:27:19
-Mirror Club,82,Bali,Permanent,,Permanent,Inactive,0.3,,0.7,kemitraan,-,,,0.0,,2024-02-16 21:15:24
-Museum Mandiri Jakarta,178,Jakarta,Permanent,,Permanent,Active,0.1,,0.9,kemitraan,-,,,0.0,,2024-10-10 12:58:23
-Myloc Coffe & Cafe,270,Bandung,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2025-05-05 15:35:11
-Neo Soho Skywalk,102,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,10000000.0,,2024-04-07 10:25:30
-Nicole's River Park,208,Jakarta,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,0.0,2024-11-28 12:55:22
-Nimo Eye,181,Bandung,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2024-10-15 14:32:45
-Obelix Sea View,379,Jogja,Franchise,,Franchise,Active,0.6,0.2,0.2,kemitraan,Gani Mukti,100000000.0,100000000.0,0.0,,2026-02-11 16:10:46
-Obelix Village,381,Jogja,Franchise,,Franchise,Active,0.6,0.2,0.2,kemitraan,Liliana,175000000.0,175000000.0,0.0,,2026-02-17 07:15:47
-Oculus Cafe Kintamani,84,Bali,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2024-02-26 16:48:34
-Omman Kopi Temanggung - Tugu Jogja,328,Jogja,Franchise,,Franchise,Active,0.6,0.2,0.2,kemitraan,Gani Mukti,100000000.0,100000000.0,0.0,,2025-09-12 09:53:53
-Omman Tugu Jogja,372,Jogja,Franchise,,Franchise,Active,0.6,0.2,0.2,kemitraan,Gani Mukti,100000000.0,100000000.0,0.0,,2025-12-24 10:07:27
-Pantai Akkarena,412,Makassar,Permanent,,Permanent,Active,0.1,,0.9,kemitraan,-,,,0.0,,2026-05-22 15:06:08
-Pantai Kuta Vacation,231,Bali,Permanent,,Permanent,Inactive,0.1,,0.9,kemitraan,-,,,0.0,,2024-12-28 13:20:52
-Pantai Sanur Sans Juro,347,Bali,Permanent,,Permanent,Active,0.25,,0.75,kemitraan,-,,,0.0,,2025-10-31 10:55:58
-Pantjoran Pantai Indah Kapuk,55,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,10000000.0,,2023-12-15 13:55:14
-Pantjoran Pantai Indah Kapuk 2,64,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,10000000.0,,2024-01-09 16:38:14
-Perpustakaan Universitas Indonesia,376,Depok,Permanent,,Permanent,Active,0.1,,0.9,kemitraan,-,,,1000000.0,,2026-01-16 16:31:59
-Sacra | Stuja Ubud,329,Bali,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2025-09-12 19:46:19
-SAJA Sports Club,420,Samarinda,Franchise,,Franchise,Active,0.7,0.1,0.20000000000000004,kemitraan,Widi Official,130000000.0,130000000.0,0.0,,2026-06-10 17:00:14
-Sarinah Dewata,2,Jakarta,Permanent,,Permanent,Active,0.3,,0.7,kemitraan,-,,,,,
-Sarinah Kolam,4,Jakarta,Permanent,,Permanent,Active,0.3,,0.7,kemitraan,-,,,,,
-Secret Garden Village,184,Jakarta,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2024-10-22 16:20:13
-Semarang Zoo,389,Semarang,Permanent,,Permanent,Active,0.0,,1.0,kemitraan,-,,,417000.0,,2026-03-04 13:04:26
-Senayan Park,15,Jakarta,Permanent,,Permanent,Active,0.25,,0.75,kemitraan,-,,,0.0,,2023-08-02 11:34:11
-Senayan Park 2,16,Jakarta,Permanent,,Permanent,Active,0.25,,0.75,kemitraan,-,,,0.0,,2023-08-02 15:44:00
-Sender PKU Jogja,403,Jogja,Franchise,,Franchise,Active,0.55,0.25,0.19999999999999996,kemitraan,CSN,135000000.0,135000000.0,0.0,,2026-04-13 13:13:25
-Sky Dining,5,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,,,
-Skywalk Central Park 2,416,Jakarta,Permanent,,Permanent,Active,0.3,,0.7,kemitraan,-,,,0.0,11100000.0,2026-05-26 14:51:17
-Stuja Di Pantai,271,Bali,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,,2025-05-09 20:52:14
-Sunset Avenue Citra 8,356,Jakarta,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,2500000.0,2025-11-13 16:24:58
-Taman Bendera Pusaka,393,Jakarta,Franchise,,Franchise,Active,0.6,0.2,0.2,kemitraan,-,,,0.0,4000000.0,2026-03-12 15:18:48
-Taman Bendera Pusaka 2,408,Jakarta,Permanent,,Permanent,Active,0.6,0.2,0.2,kemitraan,-,,,0.0,4000000.0,2026-05-12 13:08:17
-Taman Ismail Marzuki,41,Jakarta,Permanent,,Permanent,Active,0.0,,1.0,kemitraan,-,,,2650000.0,,2023-11-09 13:12:06
-Taman Lapangan Banteng,250,Jakarta,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,4000000.0,2025-02-20 09:34:25
-Taman Lego-Lego,415,Makassar,Franchise,,Franchise,Active,0.65,0.15,0.19999999999999998,kemitraan,-,,,0.0,,2026-05-22 15:30:18
-Taman Literasi Jakarta,252,Jakarta,Permanent,,Permanent,Inactive,0.3,,0.7,kemitraan,-,,,0.0,1000000.0,2025-03-03 14:17:23
-Taman Mini Indonesia Indah,343,Jakarta,Permanent,,Permanent,Active,0.3,,0.7,kemitraan,-,,,0.0,,2025-10-21 09:21:47
-Tepian Laut Merak,384,Jakarta,Permanent,,Permanent,Active,0.15,,0.85,kemitraan,-,,,0.0,,2026-02-24 15:31:29
-Teras Samarinda,289,Samarinda,Franchise,,Franchise,Active,0.8,0.0,0.19999999999999996,kemitraan,Widi Official,150000000.0,150000000.0,0.0,,2025-06-20 21:53:56
-tes,219,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,0.0,,2024-12-12 13:27:21
-test duplicate,394,Semarang,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,417000.0,,2026-03-23 16:51:39
-test2,395,Jakarta,Permanent,,Permanent,Inactive,0.0,0.0,1.0,kemitraan,-,,,0.0,1.0,2026-03-23 16:53:44
-The Alana Hotel & Conference Center Sentul City,301,Bogor,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2025-08-01 09:26:10
-The Keranjang Bali,276,Bali,Permanent,,Permanent,Active,0.2,,0.8,kemitraan,-,,,0.0,,2025-05-20 14:33:06
-Tip Tap Toe Vacation,371,Jogja,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2025-12-22 09:34:05
-Tipsy Lion,398,Bali,Permanent,,Permanent,Inactive,0.1,,0.9,kemitraan,-,,,0.0,,2026-04-03 18:02:06
-TMII (Istana Anak),400,Jakarta,Franchise,,Franchise,Active,0.5,0.3,0.2,kemitraan,Go Fredy,150000000.0,150000000.0,0.0,,2026-04-04 20:35:26
-TMII (Menara Pandang Saujana),375,Jakarta,Permanent,,Permanent,Inactive,0.5,0.3,0.2,kemitraan,Go Fredy,,,0.0,,2026-01-06 11:40:41
-TMII (Museum Indonesia),365,Jakarta,Franchise,,Franchise,Active,0.5,0.3,0.2,kemitraan,-,,,0.0,,2025-12-02 13:38:58
-Toko Liman Malioboro,357,Jogja,Franchise,,Franchise,Active,0.7,0.1,0.20000000000000004,kemitraan,Liliana,175000000.0,175000000.0,0.0,,2025-11-13 18:09:26
-Tokyo Hub,228,Jakarta,Permanent,,Permanent,Inactive,0.25,,0.75,kemitraan,-,,,0.0,,2024-12-26 17:15:43
-Transjakarta - Halte CSW,173,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,8500000.0,,2024-09-27 13:14:28
-Transjakarta - Halte Tosari,174,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,8500000.0,,2024-09-27 15:13:35
-Vacation Hotel Sheraton,291,Bali,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2025-06-26 00:57:55
-Vilo Gelato Citra 8,133,Jakarta,Permanent,,Permanent,Inactive,0.0,,1.0,kemitraan,-,,,8000000.0,,2024-06-19 11:19:37
-Widi Coffee,274,Samarinda,Franchise,,Franchise,Active,0.8,0.0,0.19999999999999996,kemitraan,Widi Official,125000000.0,125000000.0,0.0,,2025-05-17 14:24:45
-Wooly,261,Bogor,Permanent,,Permanent,Inactive,0.2,,0.8,kemitraan,-,,,0.0,,2025-03-30 17:15:47
-Yogyakarta International Airport,363,Jogja,Permanent,,Permanent,Active,0.35,,0.65,kemitraan,-,,,0.0,,2025-11-30 20:00:40
-Yogyakarta International Airport (Arrival),406,Jogja,Permanent,,Permanent,Active,0.38,,0.62,kemitraan,-,,,0.0,,2026-04-21 07:04:00
-Zonablu x Gofit,217,Jakarta,Permanent,,Permanent,Active,0.25,,0.75,kemitraan,-,,,500000.0,,2024-12-09 14:44:04
+outlet_name,area,kategori_tempat,sub_kategori_tempat,tipe_tempat
+ARYADUTA Lippo Village,Jakarta,Permanent,,Permanent
+ASHTA Disctrict 8,Jakarta,Permanent,,Permanent
+Aeon Deltamas - Entrance,Bekasi,Permanent,,Permanent
+Aeon Deltamas - LED,Bekasi,Permanent,,Permanent
+Aloha - PIK 2,Jakarta,Permanent,,Permanent
+Ancol LB,Jakarta,Permanent,,Permanent
+Ancol LB 2,Jakarta,Permanent,,Permanent
+Ancol Point,Jakarta,Permanent,,Permanent
+Ayodya Resort,Bali,Permanent,,Permanent
+Batamu Space,Bogor,Permanent,,Permanent
+Batavia BDuck,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi
+Batavia PIK,Jakarta,Permanent,,Permanent
+Batavia PIK - Jembatan Kota Intan,Jakarta,Franchise,,Franchise
+Beachwalk Mall Kuta - Gate,Bali,Permanent,,Permanent
+Beachwalk Mall Kuta - Rooftop,Bali,Permanent,,Permanent
+Beachwalk Vacation,Bali,Permanent,,Permanent
+Buy Local Creative Zone by JXB,Jakarta,Permanent,,Permanent
+CPI (Sunset Quay A),Makassar,Franchise,,Franchise
+CPI (Sunset Quay B),Makassar,Permanent,,Permanent
+Central Park 1,Jakarta,Permanent,,Permanent
+Chariot Bar & Lounge,Bali,Permanent,,Permanent
+Citra Niaga Samarinda,Samarinda,Franchise,,Franchise
+City Plaza Jatinegara,Jakarta,Permanent,,Permanent
+Colosseum Kintamani,Bali,Permanent,,Permanent
+Cove Pantai Indah Kapuk,Jakarta,Permanent,,Permanent
+Digimap sunset road Bali,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi
+Discovery Mall Beach Area,Bali,Permanent,,Permanent
+Discovery Mall Icon,Bali,Permanent,,Permanent
+Discovery Mall Vacation,Bali,Permanent,,Permanent
+Entertainment District PIK 2,Jakarta,Permanent,,Permanent
+Flavor Bliss & Broadway Alam Sutera,Jakarta,Permanent,,Permanent
+Flavor Bliss Vacation,Jakarta,Permanent,,Permanent
+Florawisata D'Castello,Bandung,Permanent,,Permanent
+Fort Williem I - Benteng Ambarawa,Semarang,Franchise,,Franchise
+Freelance,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi
+Freelance Difotoin Vacation Hotel,Jakarta,Permanent,,Permanent
+GWK Area Fieldtrip,Jakarta,Permanent,,Permanent
+GWK Area Garuda,-,Permanent,,Permanent
+GWK Lotus,Bali,Permanent,,Permanent
+GWK Utama,-,Permanent,,Permanent
+GWK Vacation,Bali,Permanent,,Permanent
+Grand Galaxy Park,Jakarta,Permanent,,Permanent
+Grand Puncak Sari,Bali,Permanent,,Permanent
+Grand Puncak Sari - Tegukopi,Bali,Permanent,,Permanent
+Grand Waterfront - Sedayu City,Jakarta,Permanent,,Permanent
+HeHa Sky View - Drop Off,Jogja,Permanent,,Permanent
+HeHa Sky View - Love Lock,Jogja,Permanent,,Permanent
+HeHa Sky View - Sky Lolli,Jogja,Permanent,,Permanent
+HeHa Sky View - Skyglass,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi
+HeHa Waterfall,Bogor,Permanent,,Permanent
+Hoolu Buerger,,Tidak Terkategorisasi,Tidak Terkategorisasi,Tidak Terkategorisasi
+Hoolu Burger,Samarinda,Permanent,,Permanent
+I Gusti Ngurah Rai Airport,Bali,Permanent,,Permanent
+ITDC Nusa Dua Vacation,Bali,Permanent,,Permanent
+Ibarbo Park,Jogja,Permanent,,Permanent
+JGC,Jakarta,Permanent,,Permanent
+Jakarta International Stadium (JIS),Jakarta,Permanent,,Permanent
+Jakarta Vacation,Jakarta,Permanent,,Permanent
+JakartaLoc,Samarinda,Permanent,,Permanent
+Jogja Pasaraya Malioboro,Jogja,Permanent,,Permanent
+K3MART SCBD,Jakarta,Permanent,,Permanent
+KKuwa Koffie & Space,Bogor,Permanent,,Permanent
+Kayumanis Seaside Sanur,Bali,Permanent,,Permanent
+Kebun Raya Bedugul Vacation,Bali,Permanent,,Permanent
+Kembali Ke Alam Kampung Rimba,Bogor,Permanent,,Permanent
+Kembali Ke Alam Puncak,Bogor,Permanent,,Permanent
+Kemuning Sky Hills,Karanganyar,Franchise,,Franchise
+Kian Social House,Jogja,Franchise,,Franchise
+Kopi Daong - Hutan Pinus,Bogor,Permanent,,Permanent
+Kopi Ngegasss,Samarinda,Permanent,,Permanent
+Kopi Tubing Pamijahan,Bogor,Permanent,,Permanent
+Kopi Tubing Sentul,Bogor,Permanent,,Permanent
+Kuwa Koffie x Mulih Ka Uwa,Bogor,Permanent,,Permanent
+Lawu Kala Senja,Karanganyar,Franchise,,Franchise
+Lippo Mall Puri,Jakarta,Permanent,,Permanent
+Living World Denpasar,Bali,Permanent,,Permanent
+Malang Skyland,Malang,Franchise,,Franchise
+Malaya Kopitiam,Samarinda,Permanent,,Permanent
+Mall Bali Icon,Bali,Permanent,,Permanent
+Mirror Club,Bali,Permanent,,Permanent
+Museum Mandiri Jakarta,Jakarta,Permanent,,Permanent
+Myloc Coffe & Cafe,Bandung,Permanent,,Permanent
+Neo Soho Skywalk,Jakarta,Permanent,,Permanent
+Nicole's River Park,Jakarta,Permanent,,Permanent
+Nimo Eye,Bandung,Permanent,,Permanent
+Obelix Sea View,Jogja,Franchise,,Franchise
+Obelix Village,Jogja,Franchise,,Franchise
+Oculus Cafe Kintamani,Bali,Permanent,,Permanent
+Omman Kopi Temanggung - Tugu Jogja,Jogja,Franchise,,Franchise
+Omman Tugu Jogja,Jogja,Franchise,,Franchise
+Pantai Akkarena,Makassar,Permanent,,Permanent
+Pantai Kuta Vacation,Bali,Permanent,,Permanent
+Pantai Sanur Sans Juro,Bali,Permanent,,Permanent
+Pantjoran Pantai Indah Kapuk,Jakarta,Permanent,,Permanent
+Pantjoran Pantai Indah Kapuk 2,Jakarta,Permanent,,Permanent
+Perpustakaan Universitas Indonesia,Depok,Permanent,,Permanent
+SAJA Sports Club,Samarinda,Franchise,,Franchise
+Sacra | Stuja Ubud,Bali,Permanent,,Permanent
+Sarinah Dewata,Jakarta,Permanent,,Permanent
+Sarinah Kolam,Jakarta,Permanent,,Permanent
+Secret Garden Village,Jakarta,Permanent,,Permanent
+Semarang Zoo,Semarang,Permanent,,Permanent
+Senayan Park,Jakarta,Permanent,,Permanent
+Senayan Park 2,Jakarta,Permanent,,Permanent
+Sender PKU Jogja,Jogja,Franchise,,Franchise
+Sky Dining,Jakarta,Permanent,,Permanent
+Skywalk Central Park 2,Jakarta,Permanent,,Permanent
+Stuja Di Pantai,Bali,Permanent,,Permanent
+Sunset Avenue Citra 8,Jakarta,Permanent,,Permanent
+TMII (Istana Anak),Jakarta,Franchise,,Franchise
+TMII (Menara Pandang Saujana),Jakarta,Permanent,,Permanent
+TMII (Museum Indonesia),Jakarta,Franchise,,Franchise
+Taman Bendera Pusaka,Jakarta,Franchise,,Franchise
+Taman Bendera Pusaka 2,Jakarta,Permanent,,Permanent
+Taman Ismail Marzuki,Jakarta,Permanent,,Permanent
+Taman Lapangan Banteng,Jakarta,Permanent,,Permanent
+Taman Lego-Lego,Makassar,Franchise,,Franchise
+Taman Literasi Jakarta,Jakarta,Permanent,,Permanent
+Taman Mini Indonesia Indah,Jakarta,Permanent,,Permanent
+Tepian Laut Merak,Jakarta,Permanent,,Permanent
+Teras Samarinda,Samarinda,Franchise,,Franchise
+The Alana Hotel & Conference Center Sentul City,Bogor,Permanent,,Permanent
+The Keranjang Bali,Bali,Permanent,,Permanent
+Tip Tap Toe Vacation,Jogja,Permanent,,Permanent
+Tipsy Lion,Bali,Permanent,,Permanent
+Toko Liman Malioboro,Jogja,Franchise,,Franchise
+Tokyo Hub,Jakarta,Permanent,,Permanent
+Transjakarta - Halte CSW,Jakarta,Permanent,,Permanent
+Transjakarta - Halte Tosari,Jakarta,Permanent,,Permanent
+Vacation Hotel Sheraton,Bali,Permanent,,Permanent
+Vilo Gelato Citra 8,Jakarta,Permanent,,Permanent
+Widi Coffee,Samarinda,Franchise,,Franchise
+Wooly,Bogor,Permanent,,Permanent
+Yogyakarta International Airport,Jogja,Permanent,,Permanent
+Yogyakarta International Airport (Arrival),Jogja,Permanent,,Permanent
+Zonablu x Gofit,Jakarta,Permanent,,Permanent
+tes,Jakarta,Permanent,,Permanent
+test duplicate,Semarang,Permanent,,Permanent
+test2,Jakarta,Permanent,,Permanent

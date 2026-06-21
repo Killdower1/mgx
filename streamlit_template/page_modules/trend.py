@@ -303,7 +303,7 @@ def show_trend_analysis_v2(df, config, processor, viz):
             base[col] = pd.to_numeric(base[col], errors="coerce").fillna(0.0)
     base["periode"] = base["periode"].astype(str)
 
-    from app import _sort_periods_str
+    from services.aggregation import _sort_periods_str
     periods = _sort_periods_str(base["periode"].dropna().astype(str).unique().tolist()) if "periode" in base.columns else []
     if not periods:
         st.error("Data periode tidak tersedia.")

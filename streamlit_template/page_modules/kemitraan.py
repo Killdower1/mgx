@@ -38,16 +38,10 @@ def show_kemitraan_page(df: pd.DataFrame, config: Config, processor: DataProcess
 
     section = st.radio(
         "Menu Kemitraan",
-        ["Ringkasan Dashboard", "Kemitraan All", "Kemitraan Satuan", "Setting Kemitraan"],
+        ["Kemitraan Satuan", "Setting Kemitraan"],
         horizontal=True,
         key="kemitraan_section",
     )
-
-    if section == "Ringkasan Dashboard":
-        _show_kemitraan_ringkasan(df, config, selected_period, kemitraan, sharing_master)
-
-    if section == "Kemitraan All":
-        _show_kemitraan_all(kemitraan, config)
 
     if section == "Kemitraan Satuan":
         _show_kemitraan_satuan(kemitraan, config)
