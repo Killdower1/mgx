@@ -546,7 +546,7 @@ def _revenue_summary(df):
 # ═══════════════════════════════════════════════
 
 def _render_lead_table(df):
-    """Lead table with AG Grid — sticky pinned cols, floating filter, sort, pagination, row click detail."""
+    """Lead table with Quasar QTable — sort, pagination, sticky header."""
     if df.empty:
         ui.label("Tidak ada data.").classes("text-gray-400 italic")
         return
@@ -556,102 +556,48 @@ def _render_lead_table(df):
         sp = df.get("sales_pic", "")
 
     rows = []
-    for idx, (_, row) in enumerate(df.iterrows()):
-        pic_val = sp.iloc[idx] if hasattr(sp, 'iloc') else (
-            sp[idx] if hasattr(sp, '__getitem__') and not isinstance(sp, str) else sp
-        )
+    for _, row in df.iterrows():
+        pic_val = sp.iloc[_] if hasattr(sp, 'iloc') else (sp[_] if hasattr(sp, '__getitem__') and not isinstance(sp, str) else sp)
         rows.append({
             "Tempat": str(row.get("nama_tempat", "") or "").strip() or "-",
             "Kota": str(row.get("kota_lokasi", "") or "").strip() or "-",
             "Sales PIC": str(pic_val or "").strip() or "-",
             "Status": str(row.get("status_lead", "") or "").strip() or "-",
             "Prio": str(row.get("priority", "") or "").strip() or "-",
-            "_row": row,
         })
 
     total = len(rows)
     ui.label(f"📋 **{total}** lead partnership").classes("text-sm text-gray-300 mb-3")
 
     ui.add_head_html("""<style>
-.ag-theme-balham-dark { --ag-background-color: #1e1e2e; --ag-header-background-color: #181825;
-    --ag-odd-row-background-color: #1a1a2e; --ag-row-hover-color: #313244;
-    --ag-border-color: #313244; --ag-font-size: 13px;
-    --ag-header-height: 44px; --ag-row-height: 40px; }
+.q-table thead th { position: sticky !important; top: 0 !important; z-index: 2 !important; background: #181825 !important; }
+.q-table__card { border: 1px solid #313244 !important; border-radius: 8px !important; }
+.q-table tbody tr { cursor: pointer !important; }
+.q-table tbody tr:hover { background: #313244 !important; }
+.detail-card { background: #181825; border: 1px solid #313244; border-radius: 8px; padding: 12px; font-size: 12px; color: #cdd6f4; }
+.detail-card table { width: 100%; border-collapse: collapse; }
+.detail-card td { padding: 3px 8px; border: none; }
+.detail-card .lbl { font-weight: 600; color: #a6adc8; width: 140px; }
 </style>""")
 
-    info_lbl = ui.label(f"📊 {total} record").classes("text-xs text-gray-500 mb-2")
-    grid_container = ui.column().classes("w-full")
-    detail_container = ui.column().classes("w-full mt-4")
+    cols = [
+        {"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left", "sortable": True},
+        {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left", "sortable": True},
+        {"name": "Sales PIC", "label": "👨‍💼 Sales PIC", "field": "Sales PIC", "align": "left", "sortable": True},
+        {"name": "Status", "label": "✅ Status", "field": "Status", "align": "left", "sortable": True},
+        {"name": "Prio", "label": "🎯 Prio", "field": "Prio", "align": "center", "sortable": True},
+    ]
 
-    def show_detail(selected_row):
-        detail_container.clear()
-        if not selected_row:
-            return
-        with detail_container:
-            with ui.card().style("background: #181825; border: 1px solid #313244; border-radius: 8px;"):
-                ui.label("📋 Detail Lead").style("font-weight: 600; color: #cdd6f4; margin-bottom: 8px;")
-                r = selected_row.get("_row", {})
-                fields = [
-                    ("ID", r.get("name","")), ("PIC", r.get("nama_pic","")),
-                    ("Perusahaan", r.get("nama_perusahaan__lembaga__venue_jika_ada","")),
-                    ("Jenis Partnership", r.get("jenis_partnership","")),
-                    ("Jenis Lokasi", r.get("jenis_lokasi","")), ("Tipe Lokasi", r.get("tipe_lokasi","")),
-                    ("Skema", r.get("skema_kerja_sama_yang_terbuka","")),
-                    ("Sumber", r.get("source_lead","")), ("WA PIC", r.get("nomor_whatsapp_pic","")),
-                    ("Email", r.get("email_pic","")),
-                    ("Last FO", str(r.get("last_follow_up","") or "")[:10]),
-                    ("Next FO", str(r.get("next_follow_up","") or "")[:10]),
-                    ("Decision", r.get("decision","")), ("Created", str(r.get("creation","") or "")[:10]),
-                ]
-                for lbl, val in fields:
-                    v = str(val) if val and str(val).strip() and str(val) not in ("None", "nan") else "-"
-                    ui.label(f"{lbl}: {v}").classes("text-xs text-gray-300 py-0.5")
+    ui.table(
+        rows=rows,
+        columns=cols,
+        pagination={"rowsPerPage": 25, "rowsNumber": total},
+    ).classes("w-full").props("dark flat dense")
 
-    grid_container.clear()
-    with grid_container:
-        display_data = []
-        for ri, r in enumerate(rows):
-            d = {k: v for k, v in r.items() if k != "_row"}
-            d["_idx"] = ri
-            display_data.append(d)
-
-        grid = ui.aggrid({
-            "columnDefs": [
-                {"headerName": "📍 Tempat", "field": "Tempat", "width": 200,
-                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True, "pinned": "left"},
-                {"headerName": "🏙️ Kota", "field": "Kota", "width": 140,
-                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-                {"headerName": "👨‍💼 Sales PIC", "field": "Sales PIC", "width": 160,
-                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-                {"headerName": "✅ Status", "field": "Status", "width": 140,
-                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-                {"headerName": "🎯 Prio", "field": "Prio", "width": 90, "pinned": "right",
-                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-            ],
-            "rowData": display_data,
-            "pagination": True,
-            "paginationPageSize": 25,
-            "paginationPageSizeSelector": [10, 25, 50, 100],
-            "domLayout": "autoHeight",
-            "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
-            "animateRows": True,
-            "rowHeight": 40,
-            "headerHeight": 44,
-            "enableCellTextSelection": True,
-            "suppressRowClickSelection": False,
-            "rowSelection": "single",
-        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
-
-        def on_row_click(e):
-            idx = e.get("data", {}).get("_idx")
-            if idx is not None and idx < len(rows):
-                show_detail(rows[idx])
-        grid.on("rowClicked", on_row_click)
-
-    # Detail viewer expansion
+    # Detail viewer via expansion (WORKS! sudah terbukti)
     names = df["name"].tolist() if "name" in df.columns else []
     if names:
-        with ui.expansion("🔍 Cari Detail via ID").classes("w-full mt-4").style("background: #1e1e2e; border-radius: 8px;"):
+        with ui.expansion("🔍 Lihat Detail Lead", icon="search").classes("w-full mt-4").style("background: #1e1e2e; border-radius: 8px;"):
             ui.select(names, label="Pilih Lead ID", on_change=lambda e: _show_detail(df, e.value)).props("dense outlined dark").classes("w-full")
 
 def _show_detail(df, name):
