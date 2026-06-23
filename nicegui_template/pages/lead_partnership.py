@@ -7,11 +7,18 @@ from typing import Optional
 
 from nicegui import ui
 import pandas as pd
+import requests
+import json
+from pathlib import Path
 
 from services.erpnext_adapter import (
     load_lp_data,
     get_cache_info,
 )
+
+# ── Constants for ERPNext fetch ──
+CONFIG_PATH = Path("/var/www/difotoin-dashboard/streamlit_template/config/erpnext_config.json")
+LP_CACHE_PATH = Path("/var/www/difotoin-dashboard/streamlit_template/data/lead_partnership_cache.json")
 
 # ── Colors ──
 STATUS_COLORS = {
@@ -34,6 +41,56 @@ def _fmt(n) -> str:
         return str(n)
 
 
+# ═══════════════════════════════════════════════
+#  ERPNext Fetch (like lead_kemitraan)
+# ═══════════════════════════════════════════════
+
+def _fetch_from_erpnext() -> pd.DataFrame:
+    """Fetch fresh Lead Partnership data from ERPNext API and update cache."""
+    try:
+        with open(CONFIG_PATH) as f:
+            cfg = json.load(f)
+        headers = {"Authorization": f"token {cfg['api_key']}:{cfg['api_secret']}"}
+        url = cfg["url"]
+        all_data = []
+        offset = 0
+        while True:
+            r = requests.get(
+                f"{url}/api/resource/Lead%20Partnership",
+                headers=headers,
+                params={"limit_page_length": 200, "offset": offset, "fields": json.dumps(["*"])},
+                timeout=60,
+            )
+            if r.status_code != 200:
+                break
+            data = r.json().get("data", [])
+            if not data:
+                break
+            all_data.extend(data)
+            offset += 200
+        cache = {"last_sync": datetime.now().isoformat(), "records": all_data}
+        with open(LP_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False)
+        return pd.DataFrame(all_data)
+    except Exception as e:
+        ui.notify(f"Gagal fetch: {e}", type="negative")
+        return pd.DataFrame()
+
+
+def _fetch_and_rebuild(container):
+    """Fetch from ERPNext, update cache, then rebuild entire page."""
+    ui.notify("Mengambil data dari ERPNext...", type="info")
+    df = _fetch_from_erpnext()
+    if not df.empty:
+        ui.notify(f"Berhasil: {len(df)} record!", type="positive")
+    container.clear()
+    create_page(container)
+
+
+# ═══════════════════════════════════════════════
+#  MAIN PAGE
+# ═══════════════════════════════════════════════
+
 def create_page(container: ui.column):
     """Build the Lead Partnership page."""
     container.clear()
@@ -48,6 +105,11 @@ def create_page(container: ui.column):
 
         if df.empty:
             ui.label("Belum ada data Lead Partnership dari ERPNext.").classes("text-gray-400 italic")
+            if ci.get("last_sync"):
+                ui.label(f"Terakhir sync: {ci['last_sync'][:16]}").classes("text-xs text-gray-500")
+            with ui.row().classes("mt-4"):
+                ui.button("📥 Fetch ERPNext", on_click=lambda: _fetch_and_rebuild(container)).props(
+                    "dense flat text-white bg-green-700")
             return
 
         # ── Filters ──
@@ -57,18 +119,23 @@ def create_page(container: ui.column):
             ssel = ui.select(sopts, value="Semua Status", label="Status").props("dense outlined dark").classes("flex-1")
             jopts = ["Semua Jenis"] + sorted(df["jenis_partnership"].dropna().unique().tolist())
             jsel = ui.select(jopts, value="Semua Jenis", label="Jenis Partnership").props("dense outlined dark").classes("flex-1")
+            refresh_btn = ui.button("🔄 Refresh", on_click=lambda: (container.clear(), create_page(container))).props(
+                "dense flat text-white").classes("self-end")
+            fetch_btn = ui.button("📥 Fetch ERPNext", on_click=lambda: _fetch_and_rebuild(container)).props(
+                "dense flat text-white bg-green-700").classes("self-end ml-2")
 
+        # Cache info
         ct = f"💾 Data lokal: {len(df)} record"
         if ci.get("last_sync"):
             try:
-                ct += f" — sync {datetime.fromisoformat(ci['last_sync']).strftime('%d/%m %H:%M')}"
+                sync_dt = datetime.fromisoformat(ci["last_sync"])
+                ct += f" — terakhir sync {sync_dt.strftime('%d/%m/%Y %H:%M')}"
             except Exception:
-                ct += f" — sync {ci['last_sync'][:16]}"
+                ct += f" — terakhir sync {ci['last_sync'][:16]}"
         ui.label(ct).classes("text-xs text-gray-500 mb-4")
 
         # ── Filter function ──
         def get_filtered():
-            """Compute filtered DataFrame from current widget values."""
             fdf = df.copy()
             sq = search_inp.value.strip().lower()
             fs = ssel.value
@@ -88,37 +155,37 @@ def create_page(container: ui.column):
                 fdf = fdf[mask].copy()
             return fdf
 
-        # ── Content area (replaced on filter change) ──
-        content_col = ui.column().classes("w-full")
-
         # ── Tabs ──
         tabs = ui.tabs().classes("w-full")
         panels = ui.tab_panels(tabs, value="dash").classes("w-full")
         with tabs:
             ui.tab("dash", label="📊 Dashboard Lead Partnership")
             ui.tab("list", label="📋 Daftar Lead")
+            ui.tab("master", label="📋 Master Data")
 
         with panels:
             with ui.tab_panel("dash"):
                 _dash_container = ui.column().classes("w-full")
             with ui.tab_panel("list"):
                 _list_container = ui.column().classes("w-full")
+            with ui.tab_panel("master"):
+                _master_container = ui.column().classes("w-full")
 
         def update_content():
-            """Rebuild tab content with current filter."""
+            fdf = get_filtered()
             _dash_container.clear()
             _list_container.clear()
-            fdf = get_filtered()
+            _master_container.clear()
             with _dash_container:
                 _render_dashboard(fdf)
             with _list_container:
                 _render_lead_table(fdf)
+            with _master_container:
+                _render_master_data(fdf)
 
-        # Wire up filter changes
         for w in [search_inp, ssel, jsel]:
             w.on("change", update_content)
 
-        # Initial render
         update_content()
 
 
@@ -209,6 +276,63 @@ def _render_dashboard(df):
     # Row 7: Raw data
     with ui.expansion("📋 Lihat Semua Data", icon="description").classes("w-full mb-6"):
         _render_compact_table(df)
+
+
+# ═══════════════════════════════════════════════
+#  MASTER DATA (like lead_kemitraan)
+# ═══════════════════════════════════════════════
+
+def _render_master_data(df):
+    """Show ALL data in a comprehensive table with search."""
+    if df.empty:
+        with ui.column():
+            ui.label("Belum ada data.").classes("text-gray-400 italic")
+        return
+
+    skip_cols = {"_user_tags", "_comments", "_assign", "_liked_by", "_seen",
+                 "idx", "docstatus", "disabled", "unsubscribed", "blog_subscriber", "naming_series"}
+    cols = [c for c in df.columns if c not in skip_cols]
+    display_df = df[cols].copy()
+
+    # Format datetime columns
+    for c in ["creation", "modified", "last_follow_up", "next_follow_up", "datetime_contact",
+              "datetime_qualified", "datetime_negotiation", "datetime_approved", "datetime_live", "datetime_lost"]:
+        if c in display_df.columns:
+            display_df[c] = pd.to_datetime(display_df[c], errors="coerce").dt.strftime("%d/%m/%Y %H:%M")
+
+    # Format currency columns
+    for c in ["harga_sewa", "minimum_payment"]:
+        if c in display_df.columns:
+            display_df[c] = display_df[c].apply(
+                lambda x: f"Rp{x:,.0f}".replace(",", ".") if pd.notna(x) and isinstance(x, (int, float)) and x > 0 else x
+            )
+
+    with ui.column().classes("w-full"):  # noqa: E999
+        srch = ui.input("🔍 Cari di semua kolom...").props("dense outlined dark").classes("w-full mb-3")
+        info = ui.label(f"Total: {len(display_df)} record, {len(display_df.columns)} kolom").classes("text-xs text-gray-500 mb-2")
+        tc = ui.column().classes("w-full")
+
+        def rebuild():
+            q = srch.value.strip().lower()
+            fd = display_df.copy()
+            if q:
+                mask = fd.astype(str).apply(
+                    lambda r: r.str.lower().str.contains(q, na=False).any(), axis=1
+                )
+                fd = fd[mask]
+            info.text = f"Total: {len(fd)} record (dari {len(display_df)}) — {len(display_df.columns)} kolom"
+            tc.clear()
+            with tc:
+                cd = [{"name": c, "label": c, "field": c, "align": "left", "sortable": True} for c in fd.columns]
+                ui.table(
+                    rows=fd.to_dict("records"),
+                    columns=cd,
+                    row_key="name",
+                    pagination={"rowsPerPage": 25, "rowsNumber": len(fd)},
+                ).props("dense dark flat bordered").classes("w-full")
+
+        srch.on("update:model-value", rebuild)
+        rebuild()
 
 
 # ═══════════════════════════════════════════════
@@ -415,7 +539,7 @@ def _revenue_summary(df):
 
 
 # ═══════════════════════════════════════════════
-#  LEAD TABLE
+#  LEAD TABLE & DETAIL
 # ═══════════════════════════════════════════════
 
 def _render_lead_table(df):
@@ -437,7 +561,6 @@ def _render_lead_table(df):
     display_df = df[order].copy()
     display_df = display_df.rename(columns={k: v for k, v in avail})
 
-    # Format currency
     for col_key, lbl in [("harga_sewa", "Sewa"), ("potensi_revenue", "Revenue")]:
         if lbl in display_df.columns:
             display_df[lbl] = display_df[lbl].apply(
@@ -450,7 +573,6 @@ def _render_lead_table(df):
         pagination={"rowsPerPage": 15, "rowsNumber": len(df)},
     ).classes("w-full").props("dark flat dense")
 
-    # Detail viewer
     names = df["name"].tolist() if "name" in df.columns else []
     if names:
         with ui.expansion("🔍 Lihat Detail Lead", icon="search").classes("w-full mt-4"):
@@ -458,7 +580,6 @@ def _render_lead_table(df):
 
 
 def _show_detail(df, name):
-    """Show lead detail in an inline card within the expansion."""
     if not name:
         return
     row = df[df["name"] == name]
