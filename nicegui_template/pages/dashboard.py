@@ -11,7 +11,7 @@ ML="font-size:0.8rem;color:#a6adc8;text-transform:uppercase;letter-spacing:0.5px
 ST="font-size:1.1rem;font-weight:600;color:#cdd6f4;margin-bottom:12px;"
 SC={"Keeper":"#10b981","Optimasi":"#f59e0b","Relocate":"#ef4444","Tidak Aktif":"#94a3b8"}
 ECHART={"backgroundColor":"#1e1e2e","textStyle":{"color":"#cdd6f4"},"title":{"textStyle":{"color":"#cdd6f4"}},"legend":{"textStyle":{"color":"#a6adc8"}},"xAxis":{"axisLabel":{"color":"#a6adc8"},"axisLine":{"lineStyle":{"color":"#45475a"}}},"yAxis":{"axisLabel":{"color":"#a6adc8"},"splitLine":{"lineStyle":{"color":"#313244"}}}}
-TBL_CSS="""<style>.tbl-wrap{max-height:420px;overflow:auto;border-radius:8px;border:1px solid #313244;margin-bottom:8px;width:100%}.tbl-wrap table{border-collapse:separate;border-spacing:0;font-size:0.78rem;width:100%;min-width:100%}.tbl-wrap thead{position:sticky;top:0;z-index:10}.tbl-wrap thead th{background:#1e1e2e;color:#cdd6f4;font-weight:600;padding:10px 10px;border-bottom:2px solid #45475a;white-space:nowrap}.tbl-wrap tbody tr{background:#181825}.tbl-wrap tbody tr:nth-child(even){background:#1e1e2e}.tbl-wrap tbody tr:hover{background:#262637!important}.tbl-wrap tbody td{padding:7px 10px;border-bottom:1px solid #313244;color:#a6adc8;white-space:nowrap}.tbl-wrap tbody td:first-child{color:#cdd6f4;font-weight:500;position:sticky;left:0;z-index:2;background:#181825;min-width:150px}.tbl-wrap tbody tr:nth-child(even) td:first-child{background:#1e1e2e}.tbl-wrap tbody tr:hover td:first-child{background:#262637!important}.tbl-gr{color:#a6e3a1!important;font-weight:600}.tbl-rd{color:#f38ba8!important;font-weight:600}.tbl-gd{color:#f9e2af!important;font-weight:600}</style>"""
+TBL_CSS="""<style>.tbl-wrap{max-height:600px;overflow:auto;border-radius:8px;border:1px solid #313244;margin-bottom:8px;width:100%}.tbl-wrap table{border-collapse:separate;border-spacing:0;font-size:0.85rem;width:100%;min-width:max-content}.tbl-wrap thead{position:sticky;top:0;z-index:10}.tbl-wrap thead th{background:#1e1e2e;color:#cdd6f4;font-weight:600;padding:12px 14px;border-bottom:2px solid #45475a;white-space:nowrap}.tbl-wrap tbody tr{background:#181825}.tbl-wrap tbody tr:nth-child(even){background:#1e1e2e}.tbl-wrap tbody tr:hover{background:#262637!important}.tbl-wrap tbody td{padding:9px 14px;border-bottom:1px solid #313244;color:#a6adc8;white-space:nowrap}.tbl-wrap tbody td:first-child{color:#cdd6f4;font-weight:600;position:sticky;left:0;z-index:2;background:#181825;min-width:200px}.tbl-wrap tbody tr:nth-child(even) td:first-child{background:#1e1e2e}.tbl-wrap tbody tr:hover td:first-child{background:#262637!important}.tbl-gr{color:#a6e3a1!important;font-weight:600}.tbl-rd{color:#f38ba8!important;font-weight:600}.tbl-gd{color:#f9e2af!important;font-weight:600}.tbl-wrap::-webkit-scrollbar{height:8px;width:8px}.tbl-wrap::-webkit-scrollbar-track{background:#181825;border-radius:4px}.tbl-wrap::-webkit-scrollbar-thumb{background:#45475a;border-radius:4px}.tbl-wrap::-webkit-scrollbar-thumb:hover{background:#585b70}</style>"""
 
 _df=None;_ff=None;_cp=None;_cmp=None;_content=None
 _act_sel=None;_cmp_sel=None;_periods=[]
@@ -28,11 +28,11 @@ def _p(v):
     except: return "0,0%"
 
 def _html_tbl(cols,rows,tid="t1",rc=None):
-    th="".join(f'<th style="text-align:{c[1]};">{c[0]}</th>' for c in cols)
+    th="".join(f'<th style="text-align:{"left" if c[1]=="l" else "right"};">{c[0]}</th>' for c in cols)
     tr=""
     for i,r in enumerate(rows):
         bg=f' style="background:{rc[i]}!important;"' if rc and i<len(rc) and rc[i] else ""
-        td="".join(f'<td style="text-align:{c[1]};">{r.get(c[0],"")}</td>' for c in cols)
+        td="".join(f'<td style="text-align:{"left" if c[1]=="l" else "right"};">{r.get(c[0],"")}</td>' for c in cols)
         tr+=f"<tr{bg}>{td}</tr>"
     ui.html(f'<div class="tbl-wrap" id="{tid}"><table><thead><tr>{th}</tr></thead><tbody>{tr}</tbody></table></div>')
 
