@@ -203,7 +203,7 @@ def _build_outlet_table(cpv,cmv):
         if ols:
             tr=a.build_trend_table(_ff,_cp,ols,12)
             if tr["has_data"]:
-                vc=tr["value_cols"]; ad=tr["active_df"].head(20); idf=tr["inactive_df"].head(10)
+                vc=tr["value_cols"]; ad=tr["active_df"]; idf=tr["inactive_df"]
                 with ui.expansion("📆 Tren Omset Outlet (12 Bulan)", icon="trending_up").classes("w-full mb-4"):
                     if not ad.empty:
                         ui.label("Outlet Aktif").classes("text-sm font-semibold text-green-400 mt-2 mb-2")
@@ -523,7 +523,7 @@ def _build_outlet_table(cpv,cmv):
         if ols:
             tr=a.build_trend_table(_ff,_cp,ols,12)
             if tr["has_data"]:
-                vc=tr["value_cols"]; ad=tr["active_df"].head(20); idf=tr["inactive_df"].head(10)
+                vc=tr["value_cols"]; ad=tr["active_df"]; idf=tr["inactive_df"]
                 with ui.expansion("📆 Tren Omset Outlet (12 Bulan)", icon="trending_up").classes("w-full mb-4"):
                     if not ad.empty:
                         ui.label("Outlet Aktif").classes("text-sm font-semibold text-green-400 mt-2 mb-2")
