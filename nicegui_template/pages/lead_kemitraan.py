@@ -3,7 +3,6 @@
 Read-only — data comes from ERPNext cache.
 """
 from datetime import datetime
-from typing import Optional
 
 from nicegui import ui
 import pandas as pd
@@ -14,8 +13,17 @@ from pathlib import Path
 from services.erpnext_adapter import (
     load_lk_data,
     get_cache_info,
-    compute_dashboard_stats,
+    filter_by_staff,
 )
+from pages.login import get_current_email, get_current_name, get_current_role
+
+# ── ERPNext URL for detail links ──
+_ERP_URL = ""
+try:
+    with open("/var/www/difotoin-dashboard/streamlit_template/config/erpnext_config.json") as _f:
+        _ERP_URL = __import__("json").load(_f).get("url", "").rstrip("/")
+except Exception:
+    pass
 
 # ── Styling ──
 CARD = "background-color: #1e1e2e; border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"
@@ -98,6 +106,19 @@ def create_page(container: ui.column):
         df = load_lk_data()
         cache_info = get_cache_info().get("lead_kemitraan", {})
 
+        # Staff filtering: non-admin/manager only see their assigned leads
+        _user_email = get_current_email()
+        _user_name = get_current_name()
+        _role = get_current_role()
+        if _role not in ("admin", "manager") and not df.empty:
+            filtered = filter_by_staff(df, _user_email, _user_name)
+            if filtered.empty:
+                ui.label("Tidak ada lead yang di-assign ke Anda.").classes("text-xs text-yellow-400 mb-2")
+            else:
+                ui.label(f"Menampilkan {len(filtered)} lead yang di-assign ke {_user_name or _user_email}").classes(
+                    "text-xs text-yellow-400 mb-2")
+            df = filtered
+
         if df.empty:
             ui.label("Belum ada data Lead Kemitraan dari ERPNext.").classes("text-gray-400 italic")
             if cache_info.get("last_sync"):
@@ -118,9 +139,9 @@ def create_page(container: ui.column):
             prio_opts = ["Semua Prioritas"] + sorted(df["priority"].dropna().unique().tolist())
             prio_select = ui.select(prio_opts, value="Semua Prioritas", label="Prioritas").props(
                 "dense outlined dark").classes("flex-1")
-            refresh_btn = ui.button("🔄 Refresh", on_click=lambda: (container.clear(), create_page(container))).props(
+            ui.button("🔄 Refresh", on_click=lambda: (container.clear(), create_page(container))).props(
                 "dense flat text-white").classes("self-end")
-            fetch_btn = ui.button("📥 Fetch ERPNext", on_click=lambda: _fetch_and_rebuild(container)).props(
+            ui.button("📥 Fetch ERPNext", on_click=lambda: _fetch_and_rebuild(container)).props(
                 "dense flat text-white bg-green-700").classes("self-end ml-2")
 
         cache_txt = f"💾 Data lokal: {len(df)} record"
@@ -202,8 +223,8 @@ def _render_dashboard(container: ui.column, df):
     total_investasi = pd.to_numeric(fdf.get("harga_investasi_dibahas", 0), errors="coerce").fillna(0).astype(float).sum()
     kota_col = fdf.get("kota_penempatan_mesin", fdf.get("kota_domisili", ""))
     unique_kota = kota_col.dropna().astype(str).nunique() if not kota_col.empty else 0
-    total_unit = fdf.get("jumlah_unit_final", "").dropna().values
-    sudah_lokasi = len(fdf[fdf.get("sudah_punya_lokasi", "").astype(str).str.strip() == "Sudah"])
+    fdf.get("jumlah_unit_final", "").dropna().values
+    len(fdf[fdf.get("sudah_punya_lokasi", "").astype(str).str.strip() == "Sudah"])
     sales_pics = fdf.get("sales_pic", "").dropna().nunique()
     total_investasi_fmt = f"Rp{total_investasi:,.0f}".replace(",", ".") if total_investasi > 0 else "-"
 
@@ -708,7 +729,14 @@ def _render_master_data(container: ui.column, df):
                     parts.append("<td style='color:#cdd6f4'>" + val + "</td></tr>")
                 parts.append("</table>")
                 ui.html("".join(parts)).classes("w-full")
-                ui.button("Tutup", on_click=dialog.close).props("flat").classes("mt-4")
+                with ui.row().classes("mt-4 gap-2 items-center"):
+                    if _ERP_URL:
+                        _rid = str(row.get("name", "") or "")
+                        if _rid:
+                            ui.link("\U0001f517 Buka di ERPNext",
+                                    f"{_ERP_URL}/app/lead-kemitraan/{_rid}",
+                                    new_tab=True).classes("text-sm text-blue-400 hover:text-blue-300")
+                    ui.button("Tutup", on_click=dialog.close).props("flat")
             dialog.open()
 
         # Build AG Grid rows

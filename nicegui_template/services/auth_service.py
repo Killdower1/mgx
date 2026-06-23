@@ -1,6 +1,7 @@
 """
 Pure Python auth service for NiceGUI dashboard.
 User & Role CRUD, password hashing, permission checks.
+Supports local users.json + ERPNext session-based authentication.
 Uses same config directory as streamlit_template for data persistence.
 """
 import os
@@ -11,12 +12,15 @@ import time
 from pathlib import Path
 from typing import Optional, List
 
+import requests
+
 # Path: .../difotoin-dashboard/nicegui_template/services/auth_service.py
 # We need: .../difotoin-dashboard/streamlit_template/config/
 BASE_DIR = Path(__file__).resolve().parent.parent.parent / "streamlit_template"
 CONFIG_DIR = BASE_DIR / "config"
 USERS_PATH = CONFIG_DIR / "users.json"
 ROLES_PATH = CONFIG_DIR / "roles.json"
+ERPNEXT_CONFIG_PATH = CONFIG_DIR / "erpnext_config.json"
 
 # ── All known NAV routes ──
 ALL_ROUTES = [
@@ -59,6 +63,42 @@ def _verify_password(password: str, salt: str, password_hash: str) -> bool:
 
 
 # ═══════════════════════════════════════════════
+#  ERPNEXT AUTH HELPERS
+# ═══════════════════════════════════════════════
+
+ERPNEXT_ROLE_MAPPING = {
+    "System Manager": "admin",
+    "Sales Manager": "manager",
+    "Sales User": "staff",
+    "Dashboard Read Only": "viewer",
+}
+
+
+def _load_erpnext_config() -> dict:
+    """Load ERPNext connection config."""
+    try:
+        with open(ERPNEXT_CONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _map_erpnext_role(erpnext_roles: list) -> str:
+    """Map ERPNext roles to dashboard role. Most permissive wins."""
+    if not erpnext_roles:
+        return "viewer"
+    priority = ["admin", "manager", "staff", "viewer"]
+    mapped_rank = 3  # viewer default
+    for er_role in erpnext_roles:
+        dash_role = ERPNEXT_ROLE_MAPPING.get(er_role, "")
+        if dash_role in priority:
+            rank = priority.index(dash_role)
+            if rank < mapped_rank:
+                mapped_rank = rank
+    return priority[mapped_rank]
+
+
+# ═══════════════════════════════════════════════
 #  USERS
 # ═══════════════════════════════════════════════
 
@@ -79,22 +119,92 @@ def save_users(users: List[dict]) -> None:
 
 
 def authenticate_user(email: str, password: str) -> Optional[dict]:
-    """Authenticate user. Returns user dict or None."""
+    """Authenticate user. Tries: local users.json -> ERPNext -> env var admin."""
     email_norm = _normalize_email(email)
+
+    # 1. Try local users.json
     for user in load_users():
         if (_normalize_email(user.get("email", "")) == email_norm
                 and _verify_password(password, user.get("salt", ""), user.get("password_hash", ""))):
             user_dict = dict(user)
             user_dict.pop("salt", None)
             user_dict.pop("password_hash", None)
+            user_dict["source"] = "local"
             return user_dict
-    # Fallback to env var admin
+
+    # 2. Try ERPNext session login
+    erpnext_user = _erpnext_authenticate(email, password)
+    if erpnext_user:
+        return erpnext_user
+
+    # 3. Fallback to env var admin
     admin_email = os.getenv("DIFOTOIN_ADMIN_EMAIL")
     admin_pass = os.getenv("DIFOTOIN_ADMIN_PASSWORD")
     if admin_email and admin_pass:
         if _normalize_email(admin_email) == email_norm and password == admin_pass:
             return {"name": "Admin", "email": admin_email, "role": "admin", "source": "env"}
     return None
+
+
+def _erpnext_authenticate(email: str, password: str) -> Optional[dict]:
+    """Authenticate via ERPNext session login.
+
+    Calls ERPNext /api/method/login to verify credentials,
+    then fetches the user's roles to determine dashboard permissions.
+
+    Returns user dict with source='erpnext', or None on failure.
+    """
+    cfg = _load_erpnext_config()
+    erp_url = cfg.get("url", "").rstrip("/")
+    if not erp_url:
+        return None
+
+    session = requests.Session()
+    try:
+        # Step 1: Login to ERPNext
+        r = session.post(
+            f"{erp_url}/api/method/login",
+            json={"usr": email, "pwd": password},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return None
+
+        # Verify login was successful
+        resp_json = r.json()
+        if resp_json.get("message") != "Logged In":
+            return None
+
+        # Get full_name from login response
+        full_name = resp_json.get("full_name", email)
+
+        # Step 2: Fetch user record with roles
+        r2 = session.get(
+            f"{erp_url}/api/resource/User/{email}",
+            timeout=15,
+        )
+        erp_roles = []
+        if r2.status_code == 200:
+            user_data = r2.json().get("data", {})
+            roles_list = user_data.get("roles", [])
+            erp_roles = [r.get("role", "") for r in roles_list if r.get("role")]
+
+        # Step 3: Map ERPNext roles to dashboard role
+        dash_role = _map_erpnext_role(erp_roles)
+
+        return {
+            "name": full_name,
+            "email": email,
+            "role": dash_role,
+            "source": "erpnext",
+            "erpnext_roles": erp_roles,
+        }
+    except requests.exceptions.ConnectionError:
+        return None  # ERPNext unreachable — let caller fall through
+    except requests.exceptions.Timeout:
+        return None
+    except Exception:
+        return None
 
 
 def create_user(name: str, email: str, password: str, role: str = "viewer") -> Optional[dict]:

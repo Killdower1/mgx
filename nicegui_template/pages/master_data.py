@@ -297,3 +297,5 @@ def _render_table_section(cat_name, cat, sub=False):
         row_key="field",
         pagination={"rowsPerPage": 25, "rowsNumber": total},
     ).classes("w-full mb-6").props("dark flat dense")
+
+# test

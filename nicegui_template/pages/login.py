@@ -62,7 +62,7 @@ def create_page(container: ui.column):
                 ui.button("🔐 Masuk", on_click=do_login, color="primary"
                           ).props("rounded").classes("w-full h-11 text-base font-bold mt-2")
 
-                ui.label("Gunakan akun yang terdaftar di Admin Panel.").classes(
+                ui.label("Gunakan akun ERPNext (email & password) atau akun yang terdaftar di Admin Panel.").classes(
                     "text-xs text-gray-500 text-center mt-4")
                 ui.label("Kredensial dari environment variable tetap bisa dipakai.").classes(
                     "text-xs text-gray-500 text-center")
@@ -94,3 +94,13 @@ def is_authenticated() -> bool:
 def get_current_role() -> str:
     """Get current user's role. Returns 'viewer' as fallback."""
     return app.storage.user.get("role", "viewer")
+
+
+def get_current_email() -> str:
+    """Get current user's email. Returns empty string if not logged in."""
+    return app.storage.user.get("email", "")
+
+
+def get_current_name() -> str:
+    """Get current user's display name. Returns empty string if not logged in."""
+    return app.storage.user.get("name", "")

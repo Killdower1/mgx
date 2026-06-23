@@ -7,17 +7,10 @@ with optional fresh-fetch fallback.
 """
 import sys
 import json
-import os
 from pathlib import Path
-from datetime import datetime
-from typing import Optional
 
 import pandas as pd
-import os
 import importlib.util
-from pathlib import Path
-from datetime import datetime
-from typing import Optional
 STREAMLIT_DIR = Path(__file__).resolve().parent.parent.parent / "streamlit_template"
 
 # Add to sys.path so we can import erpnext directly
@@ -76,6 +69,64 @@ def load_outlet_mapping() -> pd.DataFrame:
         return pd.read_csv(OUTLET_MAPPING_PATH)
     except Exception:
         return pd.DataFrame()
+
+
+def filter_by_staff(df: pd.DataFrame, user_email: str, user_name: str) -> pd.DataFrame:
+    """Filter leads DataFrame to only show records assigned to this staff member.
+
+    Matches against sales_pic (name or email), sales_pic_full (name),
+    and lead_owner (email). Returns empty DataFrame for non-staff roles
+    (admin/manager see all data — this function should only be called for staff).
+
+    If no matches found, returns DataFrame with zero rows (not original df).
+    """
+    if df.empty:
+        return df
+
+    email_lower = (user_email or "").strip().lower()
+    name_lower = (user_name or "").strip().lower()
+    # Normalize whitespace — collapse multiple spaces (e.g. "Suci  Lestari" -> "suci lestari")
+    name_normalized = " ".join(name_lower.split())
+    email_normalized = " ".join(email_lower.split())
+
+    if not email_lower and not name_lower:
+        return pd.DataFrame()  # Not logged in — show nothing
+
+    # Build match mask — try all known assignment fields
+    mask = pd.Series(False, index=df.index)
+    query = None
+
+    # Helper: collapse multiple spaces in string series
+    def _norm(sr):
+        return sr.str.strip().str.lower().str.replace(r"\s+", " ", regex=True)
+
+    # sales_pic: may contain employee ID (HR-EMP-xxx), full name, or email
+    if "sales_pic" in df.columns:
+        sp = _norm(df["sales_pic"])
+        if email_normalized:
+            query = (sp == email_normalized)
+        if name_normalized and (query is None or not query.any()):
+            query = (sp == name_normalized)
+        if query is not None:
+            mask = mask | query
+
+    # sales_pic_full: usually the full name
+    if "sales_pic_full" in df.columns and (query is None or not query.any()):
+        spf = _norm(df["sales_pic_full"])
+        if name_normalized:
+            query = (spf == name_normalized)
+            if query.any():
+                mask = mask | query
+
+    # lead_owner: usually an email
+    if "lead_owner" in df.columns and (query is None or not query.any()):
+        lo = _norm(df["lead_owner"])
+        if email_normalized:
+            query = (lo == email_normalized)
+            if query.any():
+                mask = mask | query
+
+    return df[mask].copy()
 
 
 def get_cache_info() -> dict:
