@@ -690,18 +690,7 @@ def get_lk_cache_info() -> dict:
 
 # ================= LEAD KEMITRAAN FUNCTIONS =================
 
-LEAD_KEMITRAAN_FIELDS = [
-    "name", "nama_lengkap", "nomor_whatsapp", "email",
-    "kota_domisili", "pekerjaan_bisnis_saat_ini", "kota_penempatan_mesin",
-    "sudah_punya_lokasi", "tempat_instalasi", "jumlah_unit_diminati",
-    "kapan_ingin_mulai", "dari_mana_tahu_difotoin", "source_lead",
-    "priority", "status_lead", "disposition",
-    "budget_investasi", "jumlah_unit_final", "harga_investasi_dibahas",
-    "skema_pembayaran", "kesiapan_dp", "target_bep",
-    "status_lokasi", "jenis_lokasi", "potensi_lokasi",
-    "next_follow_up", "hasil_follow_up_terakhir", "next_step",
-    "sales_pic", "creation", "modified",
-]
+LEAD_KEMITRAAN_FIELDS = ["*"]
 
 
 def fetch_lead_kemitraan(limit: int = 5000) -> pd.DataFrame:

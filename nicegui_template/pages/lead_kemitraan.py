@@ -188,6 +188,9 @@ def _render_dashboard(container: ui.column, df):
             with ui.card().classes("flex-1").style(CARD):
                 ui.label("📢 Sumber Lead").style(SECTION_T)
                 _chart_bar_top(fdf, "source_lead", "Sumber")
+            with ui.card().classes("flex-1").style(CARD):
+                ui.label("💻 Tipe Meeting").style(SECTION_T)
+                _chart_pie(fdf, "tipe_meeting", None, "Tipe Meeting")
 
         ui.separator().classes("mb-4")
 
@@ -319,7 +322,8 @@ def _chart_funnel(df):
 
 def _chart_monthly_trend(df):
     """Monthly lead trend line chart."""
-    creation = df.get("creation", "")
+    date_col = "tanggal_masuk" if "tanggal_masuk" in df.columns and not df["tanggal_masuk"].dropna().empty else "creation"
+    creation = df.get(date_col, "")
     if creation.empty or creation.dropna().empty:
         ui.label("Belum ada data tanggal.").classes("text-gray-400 italic text-xs")
         return
@@ -575,6 +579,8 @@ def _render_compact_table(df):
         "source_lead": "Source", "sales_pic": "Sales PIC",
         "creation": "Dibuat", "budget_investasi": "Budget",
         "jumlah_unit_final": "Unit", "next_follow_up": "FO Berikut",
+        "tanggal_masuk": "Tgl Masuk", "tipe_meeting": "Meeting",
+        "last_follow_up": "FO Terakhir", "alamat": "Alamat",
     }
     avail_cols = [(k, v) for k, v in display_cols.items() if k in df.columns]
 
