@@ -53,12 +53,12 @@ def _fetch_from_erpnext() -> pd.DataFrame:
         headers = {"Authorization": f"token {cfg['api_key']}:{cfg['api_secret']}"}
         url = cfg["url"]
         all_data = []
-        offset = 0
+        limit_start = 0
         while True:
             r = requests.get(
                 f"{url}/api/resource/Lead%20Partnership",
                 headers=headers,
-                params={"limit_page_length": 200, "offset": offset, "fields": json.dumps(["*"])},
+                params={"limit_page_length": 200, "limit_start": limit_start, "fields": json.dumps(["*"])},
                 timeout=60,
             )
             if r.status_code != 200:
@@ -67,7 +67,7 @@ def _fetch_from_erpnext() -> pd.DataFrame:
             if not data:
                 break
             all_data.extend(data)
-            offset += 200
+            limit_start += 200
         cache = {"last_sync": datetime.now().isoformat(), "records": all_data}
         with open(LP_CACHE_PATH, "w", encoding="utf-8") as f:
             json.dump(cache, f, indent=2, ensure_ascii=False)
@@ -217,8 +217,8 @@ def _render_dashboard(df):
             ui.label("🔄 Funnel Konversi").style(ST)
             _echart_funnel(df)
         with ui.card().classes("flex-1").style(CARD):
-            ui.label("📈 Tren per Bulan").style(ST)
-            _echart_trend(df)
+            ui.label("🏙️ Kota & Qty").style(ST)
+            _render_kota_table(df)
 
     # Row 2: Status, Priority, Jenis Partnership
     with ui.row().classes("w-full gap-4 mb-6"):
@@ -343,6 +343,36 @@ def _dk():
     return {"backgroundColor": "transparent", "textStyle": {"color": "#cdd6f4"}}
 
 
+def _render_kota_table(df):
+    """Render city table with partnership counts."""
+    kota = df.get("kota_lokasi", "").dropna()
+    if kota.empty:
+        ui.label("−").classes("text-gray-400 italic text-xs")
+        return
+    counts = kota.value_counts().reset_index()
+    counts.columns = ["Kota", "Jumlah"]
+    counts = counts.sort_values("Jumlah", ascending=False)
+    
+    # Format dengan nomor urut
+    total = counts["Jumlah"].sum()
+    columns = [
+        {"name": "#", "label": "#", "field": "#", "align": "center"},
+        {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left"},
+        {"name": "Jumlah", "label": "📋 Qty", "field": "Jumlah", "align": "center"},
+    ]
+    rows = []
+    for i, (_, row) in enumerate(counts.iterrows(), 1):
+        rows.append({"#": i, "Kota": row["Kota"], "Jumlah": int(row["Jumlah"])})
+    # Add total row
+    rows.append({"#": "", "Kota": "**Total**", "Jumlah": int(total)})
+    
+    ui.table(
+        rows=rows,
+        columns=columns,
+        pagination={"rowsPerPage": 20, "rowsNumber": len(rows)},
+    ).classes("w-full").props("dark flat dense")
+
+
 def _echart_funnel(df):
     order = ["New", "Contact", "Need Info", "Qualified", "Negotiation", "Approved", "Live"]
     counts = [int((df.get("status_lead", "").astype(str).str.strip() == s).sum()) for s in order]
@@ -363,33 +393,6 @@ def _echart_funnel(df):
                     "data": items}],
         **_dk(),
     }).classes("w-full h-[280px]")
-
-
-def _echart_trend(df):
-    c = df.get("creation", "")
-    if c.dropna().empty:
-        ui.label("−").classes("text-gray-400 italic text-xs")
-        return
-    m = pd.to_datetime(c, errors="coerce").dropna().dt.to_period("M").value_counts().sort_index()
-    if m.empty:
-        ui.label("−").classes("text-gray-400 italic text-xs")
-        return
-    ui.echart({
-        "tooltip": {"trigger": "axis"},
-        "grid": {"left": "3%", "right": "4%", "bottom": "15%", "containLabel": True},
-        "xAxis": {"type": "category", "data": [str(k) for k in m.index],
-                  "axisLabel": {"color": "#a6adc8"}, "axisLine": {"lineStyle": {"color": "#45475a"}}},
-        "yAxis": {"type": "value", "axisLabel": {"color": "#a6adc8"},
-                  "splitLine": {"lineStyle": {"color": "#313244"}}},
-        "series": [{"type": "line", "data": m.values.tolist(), "smooth": True,
-                    "symbol": "circle", "symbolSize": 6,
-                    "lineStyle": {"color": "#89b4fa", "width": 2},
-                    "areaStyle": {"color": {"type": "linear", "x": 0, "y": 0, "x2": 0, "y2": 1,
-                                            "colorStops": [{"offset": 0, "color": "rgba(137,180,250,0.3)"},
-                                                           {"offset": 1, "color": "rgba(137,180,250,0.01)"}]}},
-                    "itemStyle": {"color": "#89b4fa"}}],
-        **_dk(),
-    }).classes("w-full h-[250px]")
 
 
 def _echart_bar(df, col, cmap):
