@@ -215,14 +215,15 @@ def _build_outlet_table(cpv,cmv):
                         tr_cols=[{"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True}]
                         tr_cols.append({"name":"Rata-rata","label":"Rata-rata","field":"Rata-rata","align":"right","sortable":True})
                         for p in vc: tr_cols.append({"name":p,"label":p,"field":p,"align":"right"})
-                        # Color each month value green/red vs previous month
-                        trend_html_indices = []
+                        # Color each month value green/red vs prev month
+                        trend_html_indices = list(range(2, 2 + len(vc)))
                         for ri in rr:
                             prev_val = None
                             for p in vc:
                                 raw = ri.get(p, "Rp 0")
                                 try:
-                                    cur = float(raw.replace("Rp ", "").replace(".", "").strip())
+                                    s = raw.replace("Rp ", "").strip()
+                                    cur = float(s.replace(".", "").replace(",", ""))
                                 except:
                                     cur = 0
                                 if prev_val is not None and cur != 0 and raw != "Rp 0":
@@ -231,7 +232,6 @@ def _build_outlet_table(cpv,cmv):
                                     elif cur < prev_val:
                                         ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
                                 prev_val = cur
-                                trend_html_indices.append(len(trend_html_indices))
                         ui.aggrid({
                             "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":180,"flex":2,"sortable":True},
                                             {"headerName":"Rata-rata","field":"Rata-rata","minWidth":130,"flex":1,"sortable":True}] +
@@ -253,13 +253,14 @@ def _build_outlet_table(cpv,cmv):
                             d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
                             for p in vc: d[p]=str(rd.get(p,"Rp 0"))
                             rr.append(d)
-                        trend_html_indices2 = []
+                        trend_html_indices2 = list(range(2, 2 + len(vc)))
                         for ri in rr:
                             prev_val = None
                             for p in vc:
                                 raw = ri.get(p, "Rp 0")
                                 try:
-                                    cur = float(raw.replace("Rp ", "").replace(".", "").strip())
+                                    s = raw.replace("Rp ", "").strip()
+                                    cur = float(s.replace(".", "").replace(",", ""))
                                 except:
                                     cur = 0
                                 if prev_val is not None and cur != 0 and raw != "Rp 0":
@@ -268,7 +269,6 @@ def _build_outlet_table(cpv,cmv):
                                     elif cur < prev_val:
                                         ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
                                 prev_val = cur
-                                trend_html_indices2.append(len(trend_html_indices2))
                         ui.aggrid({
                             "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":180,"flex":2,"sortable":True},
                                             {"headerName":"Rata-rata","field":"Rata-rata","minWidth":130,"flex":1,"sortable":True}] +
@@ -518,14 +518,15 @@ def _build_outlet_table(cpv,cmv):
                         tr_cols=[{"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True}]
                         tr_cols.append({"name":"Rata-rata","label":"Rata-rata","field":"Rata-rata","align":"right","sortable":True})
                         for p in vc: tr_cols.append({"name":p,"label":p,"field":p,"align":"right"})
-                        # Color each month value green/red vs previous month
-                        trend_html_indices = []
+                        # Color each month value green/red vs prev month
+                        trend_html_indices = list(range(2, 2 + len(vc)))
                         for ri in rr:
                             prev_val = None
                             for p in vc:
                                 raw = ri.get(p, "Rp 0")
                                 try:
-                                    cur = float(raw.replace("Rp ", "").replace(".", "").strip())
+                                    s = raw.replace("Rp ", "").strip()
+                                    cur = float(s.replace(".", "").replace(",", ""))
                                 except:
                                     cur = 0
                                 if prev_val is not None and cur != 0 and raw != "Rp 0":
@@ -534,7 +535,6 @@ def _build_outlet_table(cpv,cmv):
                                     elif cur < prev_val:
                                         ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
                                 prev_val = cur
-                                trend_html_indices.append(len(trend_html_indices))
                         ui.aggrid({
                             "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":180,"flex":2,"sortable":True},
                                             {"headerName":"Rata-rata","field":"Rata-rata","minWidth":130,"flex":1,"sortable":True}] +
@@ -556,13 +556,14 @@ def _build_outlet_table(cpv,cmv):
                             d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
                             for p in vc: d[p]=str(rd.get(p,"Rp 0"))
                             rr.append(d)
-                        trend_html_indices2 = []
+                        trend_html_indices2 = list(range(2, 2 + len(vc)))
                         for ri in rr:
                             prev_val = None
                             for p in vc:
                                 raw = ri.get(p, "Rp 0")
                                 try:
-                                    cur = float(raw.replace("Rp ", "").replace(".", "").strip())
+                                    s = raw.replace("Rp ", "").strip()
+                                    cur = float(s.replace(".", "").replace(",", ""))
                                 except:
                                     cur = 0
                                 if prev_val is not None and cur != 0 and raw != "Rp 0":
@@ -571,7 +572,6 @@ def _build_outlet_table(cpv,cmv):
                                     elif cur < prev_val:
                                         ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
                                 prev_val = cur
-                                trend_html_indices2.append(len(trend_html_indices2))
                         ui.aggrid({
                             "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":180,"flex":2,"sortable":True},
                                             {"headerName":"Rata-rata","field":"Rata-rata","minWidth":130,"flex":1,"sortable":True}] +
