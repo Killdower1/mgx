@@ -546,7 +546,7 @@ def _revenue_summary(df):
 # ═══════════════════════════════════════════════
 
 def _render_lead_table(df):
-    ui.label(f"**{len(df)}** lead partnership ditemukan.").classes("text-sm text-gray-300 mb-4")
+    """Daftar Lead table with filters, search, sort, and pagination."""
     if df.empty:
         ui.label("Tidak ada data.").classes("text-gray-400 italic")
         return
@@ -555,20 +555,35 @@ def _render_lead_table(df):
     out = pd.DataFrame()
     out["Tempat"] = df.get("nama_tempat", "").fillna("-")
     out["Kota"] = df.get("kota_lokasi", "").fillna("-")
-    # Sales PIC: prefer full name, fallback to code
     sp = df.get("sales_pic_full", "")
     if sp.dropna().empty:
         sp = df.get("sales_pic", "")
     out["Sales PIC"] = sp.fillna("-")
     out["Status"] = df.get("status_lead", "").fillna("-")
     out["Prio"] = df.get("priority", "").fillna("-")
-
-    # Add ID hidden behind for detail link
     out["_id"] = df.get("name", "")
 
-    # Search input
-    search_inp = ui.input("🔍 Cari (tempat, kota, PIC, status...)").props("dense outlined dark").classes("w-full mb-3")
-    info_lbl = ui.label(f"Total: {len(out)} record").classes("text-xs text-gray-500 mb-2")
+    # Total info
+    total_all = len(out)
+    info_lbl = ui.label(f"📋 **{total_all}** lead partnership").classes("text-sm text-gray-300 mb-3")
+
+    # ── Filter row ──
+    with ui.row().classes("w-full gap-3 items-center mb-3"):
+        search_inp = ui.input("🔍 Cari").props("dense outlined dark").classes("flex-1")
+        
+        # Status filter
+        status_opts = ["Semua Status"] + sorted(out["Status"].unique().tolist())
+        status_filter = ui.select(status_opts, value="Semua Status", label="Status").props("dense outlined dark").classes("min-w-[140px]")
+        
+        # Kota filter
+        kota_opts = ["Semua Kota"] + sorted(out["Kota"].unique().tolist())
+        kota_filter = ui.select(kota_opts, value="Semua Kota", label="Kota").props("dense outlined dark").classes("min-w-[140px]")
+        
+        # Prio filter
+        prio_opts = ["Semua Prioritas"] + sorted(out["Prio"].unique().tolist())
+        prio_filter = ui.select(prio_opts, value="Semua Prioritas", label="Prioritas").props("dense outlined dark").classes("min-w-[140px]")
+
+    # ── Table container ──
     tc = ui.column().classes("w-full")
 
     columns_def = [
@@ -579,31 +594,44 @@ def _render_lead_table(df):
         {"name": "Prio", "label": "🎯 Prio", "field": "Prio", "align": "center", "sortable": True},
     ]
 
-    def rebuild_table():
-        q = search_inp.value.strip().lower()
-        fd = out.copy()
-        if q:
-            mask = fd[["Tempat", "Kota", "Sales PIC", "Status", "Prio"]].astype(str).apply(
-                lambda r: r.str.lower().str.contains(q, na=False).any(), axis=1
+    def rebuild():
+        fdf = out.copy()
+        sq = search_inp.value.strip().lower()
+        fs = status_filter.value
+        fk = kota_filter.value
+        fp = prio_filter.value
+        
+        if fs and fs != "Semua Status":
+            fdf = fdf[fdf["Status"] == fs]
+        if fk and fk != "Semua Kota":
+            fdf = fdf[fdf["Kota"] == fk]
+        if fp and fp != "Semua Prioritas":
+            fdf = fdf[fdf["Prio"] == fp]
+        if sq:
+            mask = fdf[["Tempat", "Kota", "Sales PIC", "Status", "Prio"]].astype(str).apply(
+                lambda r: r.str.lower().str.contains(sq, na=False).any(), axis=1
             )
-            fd = fd[mask]
-        info_lbl.text = f"Total: {len(fd)} record (dari {len(out)})"
+            fdf = fdf[mask]
+        
+        info_lbl.text = f"📋 **{len(fdf)}** lead partnership (dari {total_all})"
         tc.clear()
         with tc:
             ui.table(
-                rows=fd[["Tempat", "Kota", "Sales PIC", "Status", "Prio"]].to_dict("records"),
+                rows=fdf[["Tempat", "Kota", "Sales PIC", "Status", "Prio"]].to_dict("records"),
                 columns=columns_def,
-                pagination={"rowsPerPage": 15, "rowsNumber": len(fd)},
+                pagination={"rowsPerPage": 25, "rowsNumber": len(fdf)},
             ).classes("w-full").props("dark flat dense")
 
-    search_inp.on("update:model-value", rebuild_table)
-    rebuild_table()
+    for w in [search_inp, status_filter, kota_filter, prio_filter]:
+        w.on("change", rebuild)
+    rebuild()
 
     # Detail viewer
     names = df["name"].tolist() if "name" in df.columns else []
     if names:
         with ui.expansion("🔍 Lihat Detail Lead", icon="search").classes("w-full mt-4"):
             sel = ui.select(names, label="Pilih Lead", on_change=lambda e: _show_detail(df, e.value)).props("dense outlined dark").classes("w-full")
+
 
 
 def _show_detail(df, name):
