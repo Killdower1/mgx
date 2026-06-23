@@ -22,15 +22,15 @@ ROLES_PATH = CONFIG_DIR / "roles.json"
 ALL_ROUTES = [
     "/", "/trend", "/ai-decision", "/conversion", "/ranking",
     "/kemitraan", "/lead-partnership", "/lead-kemitraan",
-    "/comparison", "/crud", "/admin", "/upload",
+    "/comparison", "/crud", "/admin", "/upload", "/master-data",
 ]
 
 # ── Default roles (used as fallback) ──
 DEFAULT_ROLES = {
     "admin": ALL_ROUTES,
     "manager": ["/", "/trend", "/conversion", "/ranking", "/kemitraan",
-                "/lead-partnership", "/lead-kemitraan", "/comparison"],
-    "staff": ["/", "/ranking", "/kemitraan", "/lead-partnership", "/lead-kemitraan"],
+                "/lead-partnership", "/lead-kemitraan", "/comparison", "/master-data"],
+    "staff": ["/", "/ranking", "/kemitraan", "/lead-partnership", "/lead-kemitraan", "/master-data"],
     "viewer": ["/"],
 }
 

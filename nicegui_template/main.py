@@ -26,6 +26,7 @@ from pages.upload import create_page as create_upload_page
 from pages.kemitraan import create_page as create_kemitraan_page
 from pages.admin import create_page as create_admin_page
 from pages.crud import create_page as create_crud_page
+from pages.master_data import create_page as create_master_data_page
 from pages.login import create_page as create_login_page, show_logout_button, do_logout, is_authenticated, get_current_role
 
 
@@ -164,6 +165,7 @@ ALL_NAV_ITEMS = [
     ("📅 Perbandingan", "/comparison"),
     ("🗃️ CRUD Outlet", "/crud"),
     ("⚙️ Admin", "/admin"),
+    ("[MD] Master Data", "/master-data"),
     ("📤 Upload Data", "/upload"),
 ]
 
@@ -373,6 +375,17 @@ def admin():
     build_nav("/admin")
     container = ui.column().classes("w-full p-6")
     create_admin_page(container)
+
+
+@ui.page("/master-data")
+def master_data():
+    """Master Data page — database field reference."""
+    _auth_guard()
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/master-data")
+    container = ui.column().classes("w-full p-6")
+    create_master_data_page(container)
 
 
 @ui.page("/upload")
