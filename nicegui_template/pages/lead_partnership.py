@@ -575,16 +575,18 @@ def _render_lead_table(df):
 .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .detail-table td { padding: 6px 10px; border: none; }
 .detail-table .lbl { font-weight: 600; color: #a6adc8; width: 150px; }
-</style>""");
 
-    # ── Mobile horizontal scroll ──
-    ui.add_head_html("""<style>
+/* Mobile responsive: hide floating filters, bigger rows */
 @media (max-width: 768px) {
-  .nicegui-aggrid { overflow-x: auto !important; max-width: 100vw !important; }
-  .nicegui-aggrid .ag-body-viewport { overflow-x: auto !important; }
-  .nicegui-aggrid .ag-center-cols-container { min-width: 800px !important; }
+  .ag-floating-filter { display: none !important; }
+  .ag-header-cell-label .ag-icon { display: none !important; }
+  .ag-theme-balham-dark { --ag-row-height: 52px !important; --ag-font-size: 12px !important; }
+  .ag-cell { line-height: 44px !important; }
 }
-</style>""")
+@media (max-width: 480px) {
+  .nicegui-aggrid { font-size: 11px !important; }
+}
+</style>""");
 
     def show_dialog(row):
         tempat = str(row.get("nama_tempat", "") or "").strip() or "-"
@@ -635,15 +637,15 @@ def _render_lead_table(df):
 
     grid = ui.aggrid({
         "columnDefs": [
-            {"headerName": "📍 Tempat", "field": "Tempat", "width": 200,
+            {"headerName": "📍 Tempat", "field": "Tempat", "minWidth": 160, "flex": 2,
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True, "pinned": "left",
              "cellStyle": {"color": "#89b4fa", "textDecoration": "underline", "cursor": "pointer", "fontWeight": "600"},
              "tooltipField": "Tempat"},
-            {"headerName": "🏙️ Kota", "field": "Kota", "width": 140,
+            {"headerName": "🏙️ Kota", "field": "Kota", "minWidth": 120, "flex": 1,
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-            {"headerName": "👨‍💼 Sales PIC", "field": "Sales PIC", "width": 160,
+            {"headerName": "👨‍💼 Sales PIC", "field": "Sales PIC", "minWidth": 130, "flex": 1,
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-            {"headerName": "✅ Status", "field": "Status", "width": 140,
+            {"headerName": "✅ Status", "field": "Status", "minWidth": 100, "flex": 1,
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
             {"headerName": "🎯 Prio", "field": "Prio", "width": 90, "pinned": "right",
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
@@ -655,7 +657,7 @@ def _render_lead_table(df):
         "domLayout": "autoHeight",
         "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
         "animateRows": True,
-        "rowHeight": 40,
+        "rowHeight": 44,
         "headerHeight": 44,
         "enableCellTextSelection": True,
     }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
