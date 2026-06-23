@@ -117,27 +117,45 @@ def _build_outlet_table(cpv,cmv):
                 "Conv":_p(cnv),"Delta Conv":_dp("conversion_rate"),
             })
         if rows:
-            tbl_cols=[
-                {"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True},
-                {"name":"Area","label":"Area","field":"Area","align":"left","sortable":True},
-                {"name":"Status","label":"Status","field":"Status","align":"left","sortable":True},
-                {"name":"Omset","label":"Omset","field":"Omset","align":"right","sortable":True},
-            ]
-            if cmv: tbl_cols.append({"name":"Delta Omset","label":"Δ Omset","field":"Delta Omset","align":"right"})
-            tbl_cols+=[{"name":"Foto","label":"Foto","field":"Foto","align":"right","sortable":True}]
-            if cmv: tbl_cols.append({"name":"Delta Foto","label":"Δ Foto","field":"Delta Foto","align":"right"})
-            tbl_cols+=[{"name":"Unlock","label":"Unlock","field":"Unlock","align":"right","sortable":True}]
-            if cmv: tbl_cols.append({"name":"Delta Unlock","label":"Δ Unlock","field":"Delta Unlock","align":"right"})
-            tbl_cols+=[{"name":"Print","label":"Print","field":"Print","align":"right","sortable":True}]
-            if cmv: tbl_cols.append({"name":"Delta Print","label":"Δ Print","field":"Delta Print","align":"right"})
-            tbl_cols+=[{"name":"Conv","label":"Conv","field":"Conv","align":"right","sortable":True}]
-            if cmv: tbl_cols.append({"name":"Delta Conv","label":"Δ Conv","field":"Delta Conv","align":"right"})
-            for c in tbl_cols:
-                if c["name"] in ("Status",) or c["name"].startswith("Delta"):
-                    c["escape"]=False
-            pag={"rowsPerPage":50,"sortBy":"Omset","descending":True}
-            ui.table(rows=rows,columns=tbl_cols,row_key="Outlet",pagination=pag
-                ).props("dense dark flat bordered").classes("w-full")
+            html_col_indices = []
+            col_defs = []
+            col_defs.append({"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":160,"flex":2,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Area","field":"Area","minWidth":100,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Status","field":"Status","minWidth":100,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":120,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"600"}})
+            if cmv:
+                col_defs.append({"headerName":"Δ Omset","field":"Delta Omset","minWidth":100,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            if cmv:
+                col_defs.append({"headerName":"Δ Foto","field":"Delta Foto","minWidth":80,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            if cmv:
+                col_defs.append({"headerName":"Δ Unlock","field":"Delta Unlock","minWidth":80,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Print","field":"Print","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            if cmv:
+                col_defs.append({"headerName":"Δ Print","field":"Delta Print","minWidth":80,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":80,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            if cmv:
+                col_defs.append({"headerName":"Δ Conv","field":"Delta Conv","minWidth":80,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            ui.aggrid({
+                "columnDefs": col_defs,
+                "rowData": rows,
+                "pagination": True,
+                "paginationPageSize": 50,
+                "paginationPageSizeSelector": [25, 50, 100],
+                "domLayout": "autoHeight",
+                "defaultColDef": {"resizable": True},
+                "animateRows": True,
+                "rowHeight": 40,
+                "headerHeight": 40,
+                "enableCellTextSelection": True,
+            }, theme="balham", html_columns=html_col_indices).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
         else: ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
         
         if md.empty: return
@@ -358,27 +376,45 @@ def _build_outlet_table(cpv,cmv):
                 "Conv":_p(cnv),"Delta Conv":_dp("conversion_rate"),
             })
         if rows:
-            tbl_cols=[
-                {"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True},
-                {"name":"Area","label":"Area","field":"Area","align":"left","sortable":True},
-                {"name":"Status","label":"Status","field":"Status","align":"left","sortable":True},
-                {"name":"Omset","label":"Omset","field":"Omset","align":"right","sortable":True},
-            ]
-            if cmv: tbl_cols.append({"name":"Delta Omset","label":"Δ Omset","field":"Delta Omset","align":"right"})
-            tbl_cols+=[{"name":"Foto","label":"Foto","field":"Foto","align":"right","sortable":True}]
-            if cmv: tbl_cols.append({"name":"Delta Foto","label":"Δ Foto","field":"Delta Foto","align":"right"})
-            tbl_cols+=[{"name":"Unlock","label":"Unlock","field":"Unlock","align":"right","sortable":True}]
-            if cmv: tbl_cols.append({"name":"Delta Unlock","label":"Δ Unlock","field":"Delta Unlock","align":"right"})
-            tbl_cols+=[{"name":"Print","label":"Print","field":"Print","align":"right","sortable":True}]
-            if cmv: tbl_cols.append({"name":"Delta Print","label":"Δ Print","field":"Delta Print","align":"right"})
-            tbl_cols+=[{"name":"Conv","label":"Conv","field":"Conv","align":"right","sortable":True}]
-            if cmv: tbl_cols.append({"name":"Delta Conv","label":"Δ Conv","field":"Delta Conv","align":"right"})
-            for c in tbl_cols:
-                if c["name"] in ("Status",) or c["name"].startswith("Delta"):
-                    c["escape"]=False
-            pag={"rowsPerPage":50,"sortBy":"Omset","descending":True}
-            ui.table(rows=rows,columns=tbl_cols,row_key="Outlet",pagination=pag
-                ).props("dense dark flat bordered").classes("w-full")
+            html_col_indices = []
+            col_defs = []
+            col_defs.append({"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":160,"flex":2,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Area","field":"Area","minWidth":100,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Status","field":"Status","minWidth":100,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":120,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"600"}})
+            if cmv:
+                col_defs.append({"headerName":"Δ Omset","field":"Delta Omset","minWidth":100,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            if cmv:
+                col_defs.append({"headerName":"Δ Foto","field":"Delta Foto","minWidth":80,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            if cmv:
+                col_defs.append({"headerName":"Δ Unlock","field":"Delta Unlock","minWidth":80,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Print","field":"Print","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            if cmv:
+                col_defs.append({"headerName":"Δ Print","field":"Delta Print","minWidth":80,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":80,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            if cmv:
+                col_defs.append({"headerName":"Δ Conv","field":"Delta Conv","minWidth":80,"flex":1})
+                html_col_indices.append(len(col_defs)-1)
+            ui.aggrid({
+                "columnDefs": col_defs,
+                "rowData": rows,
+                "pagination": True,
+                "paginationPageSize": 50,
+                "paginationPageSizeSelector": [25, 50, 100],
+                "domLayout": "autoHeight",
+                "defaultColDef": {"resizable": True},
+                "animateRows": True,
+                "rowHeight": 40,
+                "headerHeight": 40,
+                "enableCellTextSelection": True,
+            }, theme="balham", html_columns=html_col_indices).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
         else: ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
         
         if md.empty: return
