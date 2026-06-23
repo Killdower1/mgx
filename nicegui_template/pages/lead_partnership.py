@@ -546,7 +546,7 @@ def _revenue_summary(df):
 # ═══════════════════════════════════════════════
 
 def _render_lead_table(df):
-    """Lead table with AG Grid — floating filter, sort, pagination, pinned cols."""
+    """Lead table — click any row → popup dialog with detail. Uses QTable native on_select."""
     if df.empty:
         ui.label("Tidak ada data.").classes("text-gray-400 italic")
         return
@@ -555,60 +555,103 @@ def _render_lead_table(df):
     if sp.dropna().empty:
         sp = df.get("sales_pic", "")
 
-    rows = []
+    detail_data = []
     for _, row in df.iterrows():
         pic_val = sp.iloc[_] if hasattr(sp, 'iloc') else (sp[_] if hasattr(sp, '__getitem__') and not isinstance(sp, str) else sp)
-        rows.append({
-            "Tempat": str(row.get("nama_tempat", "") or "").strip() or "-",
-            "Kota": str(row.get("kota_lokasi", "") or "").strip() or "-",
-            "Sales PIC": str(pic_val or "").strip() or "-",
-            "Status": str(row.get("status_lead", "") or "").strip() or "-",
-            "Prio": str(row.get("priority", "") or "").strip() or "-",
-        })
+        row_data = {k: row.get(k, "") for k in row.index}
+        row_data["_pic"] = str(pic_val or "").strip() or "-"
+        detail_data.append(row_data)
 
-    total = len(rows)
+    total = len(detail_data)
     ui.label(f"📋 **{total}** lead partnership").classes("text-sm text-gray-300 mb-3")
 
-    # AG Grid dark theme
     ui.add_head_html("""<style>
-.ag-theme-balham-dark { --ag-background-color: #1e1e2e; --ag-header-background-color: #181825;
-    --ag-odd-row-background-color: #1a1a2e; --ag-row-hover-color: #313244;
-    --ag-border-color: #313244; --ag-font-size: 13px;
-    --ag-header-height: 44px; --ag-row-height: 40px; }
+.q-table thead th { position: sticky !important; top: 0 !important; z-index: 2 !important; background: #181825 !important; }
+.q-table__card { border: 1px solid #313244 !important; border-radius: 8px !important; }
+.q-table tbody tr { cursor: pointer !important; }
+.q-table tbody tr:hover { background: #313244 !important; }
+.detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.detail-table td { padding: 6px 10px; border: none; }
+.detail-table .lbl { font-weight: 600; color: #a6adc8; width: 150px; }
 </style>""")
 
-    info_lbl = ui.label(f"📊 {total} record").classes("text-xs text-gray-500 mb-2")
+    def show_dialog(row):
+        """Open dialog with detail data."""
+        tempat = str(row.get("nama_tempat", "") or "").strip() or "-"
+        fields = [
+            ("ID", row.get("name","")), ("PIC", row.get("nama_pic","")),
+            ("Perusahaan", row.get("nama_perusahaan__lembaga__venue_jika_ada","")),
+            ("Jenis Partnership", row.get("jenis_partnership","")),
+            ("Jenis Lokasi", row.get("jenis_lokasi","")), ("Tipe Lokasi", row.get("tipe_lokasi","")),
+            ("Skema", row.get("skema_kerja_sama_yang_terbuka","")),
+            ("Sumber", row.get("source_lead","")), ("WA PIC", row.get("nomor_whatsapp_pic","")),
+            ("Email", row.get("email_pic","")), ("Area", row.get("area_penempatan","")),
+            ("Jabatan", row.get("jabatan_pic","")),
+            ("Pengunjung/hari", row.get("estimasi_pengunjung_per_hari","")),
+            ("Space", row.get("space_tersedia","")), ("Listrik", row.get("listrik_tersedia","")),
+            ("Kelayakan Space", row.get("kelayakan_space","")),
+            ("Kelayakan Listrik", row.get("kelayakan_listrik","")),
+            ("Kelayakan Operasional", row.get("kelayakan_operasional","")),
+            ("Last FO", str(row.get("last_follow_up","") or "")[:10]),
+            ("Next FO", str(row.get("next_follow_up","") or "")[:10]),
+            ("Hasil FO", row.get("hasil_follow_up","")),
+            ("Decision", row.get("decision","")), ("Created", str(row.get("creation","") or "")[:10]),
+        ]
+        with ui.dialog() as dialog, ui.card().style("background: #1e1e2e; border: 1px solid #313244; border-radius: 12px; padding: 20px; min-width: 520px;"):
+            ui.label(f"📋 {tempat}").classes("text-lg font-bold text-white mb-4")
+            html = "<table class='detail-table'>"
+            for i, (lbl, val) in enumerate(fields):
+                v = str(val) if val and str(val).strip() and str(val) not in ("None", "nan", "") else "-"
+                bg = ";background:#1e1e2e" if i % 2 == 0 else ""
+                html += f"<tr style='{bg}'><td class='lbl'>{lbl}</td><td style='color:#cdd6f4'>{v}</td></tr>"
+            html += "</table>"
+            ui.html(html).classes("w-full")
+            ui.button("Tutup", on_click=dialog.close).props("flat").classes("mt-4")
+        dialog.open()
 
-    ui.aggrid({
-        "columnDefs": [
-            {"headerName": "📍 Tempat", "field": "Tempat", "width": 200,
-             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True, "pinned": "left"},
-            {"headerName": "🏙️ Kota", "field": "Kota", "width": 140,
-             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-            {"headerName": "👨‍💼 Sales PIC", "field": "Sales PIC", "width": 160,
-             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-            {"headerName": "✅ Status", "field": "Status", "width": 140,
-             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-            {"headerName": "🎯 Prio", "field": "Prio", "width": 90, "pinned": "right",
-             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-        ],
-        "rowData": rows,
-        "pagination": True,
-        "paginationPageSize": 25,
-        "paginationPageSizeSelector": [10, 25, 50, 100],
-        "domLayout": "autoHeight",
-        "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
-        "animateRows": True,
-        "rowHeight": 40,
-        "headerHeight": 44,
-        "enableCellTextSelection": True,
-        "rowSelection": "single",
-    }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
+    # Build rows for QTable with index
+    table_rows = []
+    for idx, r in enumerate(detail_data):
+        table_rows.append({
+            "name": f"r{idx}",
+            "Tempat": str(r.get("nama_tempat", "") or "").strip() or "-",
+            "Kota": str(r.get("kota_lokasi", "") or "").strip() or "-",
+            "Sales PIC": r["_pic"],
+            "Status": str(r.get("status_lead", "") or "").strip() or "-",
+            "Prio": str(r.get("priority", "") or "").strip() or "-",
+            "_idx": idx,
+        })
 
-    # Detail viewer via expansion — WORKS
+    cols = [
+        {"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left", "sortable": True},
+        {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left", "sortable": True},
+        {"name": "Sales PIC", "label": "👨‍💼 Sales PIC", "field": "Sales PIC", "align": "left", "sortable": True},
+        {"name": "Status", "label": "✅ Status", "field": "Status", "align": "left", "sortable": True},
+        {"name": "Prio", "label": "🎯 Prio", "field": "Prio", "align": "center", "sortable": True},
+    ]
+
+    info_lbl = ui.label(f"📊 {total} record — klik baris untuk lihat detail").classes("text-xs text-gray-500 mb-2")
+
+    def on_select(e):
+        selected = e.selection
+        if selected:
+            idx = selected[0].get("_idx", -1)
+            if 0 <= idx < len(detail_data):
+                show_dialog(detail_data[idx])
+
+    ui.table(
+        rows=table_rows,
+        columns=cols,
+        row_key="name",
+        selection="single",
+        on_select=on_select,
+        pagination={"rowsPerPage": 25, "rowsNumber": total},
+    ).classes("w-full").props("dark flat dense")
+
+    # Fallback: detail via ID
     names = df["name"].tolist() if "name" in df.columns else []
     if names:
-        with ui.expansion("🔍 Lihat Detail Lead", icon="search").classes("w-full mt-4").style("background: #1e1e2e; border-radius: 8px;"):
+        with ui.expansion("🔍 Cari Detail via ID").classes("w-full mt-4").style("background: #1e1e2e; border-radius: 8px;"):
             ui.select(names, label="Pilih Lead ID", on_change=lambda e: _show_detail(df, e.value)).props("dense outlined dark").classes("w-full")
 
 def _show_detail(df, name):
