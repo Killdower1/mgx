@@ -11,7 +11,7 @@ ML="font-size:0.8rem;color:#a6adc8;text-transform:uppercase;letter-spacing:0.5px
 ST="font-size:1.1rem;font-weight:600;color:#cdd6f4;margin-bottom:12px;"
 SC={"Keeper":"#10b981","Optimasi":"#f59e0b","Relocate":"#ef4444","Tidak Aktif":"#94a3b8"}
 ECHART={"backgroundColor":"#1e1e2e","textStyle":{"color":"#cdd6f4"},"title":{"textStyle":{"color":"#cdd6f4"}},"legend":{"textStyle":{"color":"#a6adc8"}},"xAxis":{"axisLabel":{"color":"#a6adc8"},"axisLine":{"lineStyle":{"color":"#45475a"}}},"yAxis":{"axisLabel":{"color":"#a6adc8"},"splitLine":{"lineStyle":{"color":"#313244"}}}}
-TBL_CSS="""<style>.tbl-wrap{max-height:420px;overflow:auto;border-radius:8px;border:1px solid #313244;margin-bottom:8px;width:100%}.tbl-wrap table{border-collapse:separate;border-spacing:0;font-size:0.78rem;width:100%;min-width:100%}.tbl-wrap thead{position:sticky;top:0;z-index:10}.tbl-wrap thead th{background:#1e1e2e;color:#cdd6f4;font-weight:600;padding:10px 10px;border-bottom:2px solid #45475a;white-space:nowrap}.tbl-wrap tbody tr{background:#181825}.tbl-wrap tbody tr:nth-child(even){background:#1e1e2e}.tbl-wrap tbody tr:hover{background:#262637!important}.tbl-wrap tbody td{padding:7px 10px;border-bottom:1px solid #313244;color:#a6adc8;white-space:nowrap}.tbl-wrap tbody td:first-child{color:#cdd6f4;font-weight:500;position:sticky;left:0;z-index:2;background:#181825;min-width:150px}.tbl-wrap tbody tr:nth-child(even) td:first-child{background:#1e1e2e}.tbl-wrap tbody tr:hover td:first-child{background:#262637!important}.tbl-gr{color:#a6e3a1!important;font-weight:600}.tbl-rd{color:#f38ba8!important;font-weight:600}.tbl-gd{color:#f9e2af!important;font-weight:600}</style>"""
+TBL_CSS="""<style>.tbl-wrap{max-height:600px;overflow:auto;border-radius:8px;border:1px solid #313244;margin-bottom:8px;width:100%}.tbl-wrap table{border-collapse:separate;border-spacing:0;font-size:0.85rem;width:100%;min-width:max-content}.tbl-wrap thead{position:sticky;top:0;z-index:10}.tbl-wrap thead th{background:#1e1e2e;color:#cdd6f4;font-weight:600;padding:12px 14px;border-bottom:2px solid #45475a;white-space:nowrap}.tbl-wrap tbody tr{background:#181825}.tbl-wrap tbody tr:nth-child(even){background:#1e1e2e}.tbl-wrap tbody tr:hover{background:#262637!important}.tbl-wrap tbody td{padding:9px 14px;border-bottom:1px solid #313244;color:#a6adc8;white-space:nowrap}.tbl-wrap tbody td:first-child{color:#cdd6f4;font-weight:600;position:sticky;left:0;z-index:2;background:#181825;min-width:200px}.tbl-wrap tbody tr:nth-child(even) td:first-child{background:#1e1e2e}.tbl-wrap tbody tr:hover td:first-child{background:#262637!important}.tbl-gr{color:#a6e3a1!important;font-weight:600}.tbl-rd{color:#f38ba8!important;font-weight:600}.tbl-gd{color:#f9e2af!important;font-weight:600}.tbl-wrap::-webkit-scrollbar{height:8px;width:8px}.tbl-wrap::-webkit-scrollbar-track{background:#181825;border-radius:4px}.tbl-wrap::-webkit-scrollbar-thumb{background:#45475a;border-radius:4px}.tbl-wrap::-webkit-scrollbar-thumb:hover{background:#585b70}</style>"""
 
 _df=None;_ff=None;_cp=None;_cmp=None;_content=None
 _act_sel=None;_cmp_sel=None;_periods=[]
@@ -28,11 +28,11 @@ def _p(v):
     except: return "0,0%"
 
 def _html_tbl(cols,rows,tid="t1",rc=None):
-    th="".join(f'<th style="text-align:{c[1]};">{c[0]}</th>' for c in cols)
+    th="".join(f'<th style="text-align:{"left" if c[1]=="l" else "right"};">{c[0]}</th>' for c in cols)
     tr=""
     for i,r in enumerate(rows):
         bg=f' style="background:{rc[i]}!important;"' if rc and i<len(rc) and rc[i] else ""
-        td="".join(f'<td style="text-align:{c[1]};">{r.get(c[0],"")}</td>' for c in cols)
+        td="".join(f'<td style="text-align:{"left" if c[1]=="l" else "right"};">{r.get(c[0],"")}</td>' for c in cols)
         tr+=f"<tr{bg}>{td}</tr>"
     ui.html(f'<div class="tbl-wrap" id="{tid}"><table><thead><tr>{th}</tr></thead><tbody>{tr}</tbody></table></div>')
 
@@ -180,42 +180,44 @@ def _build_outlet_table(cpv,cmv):
                 with ui.card().classes("w-full mb-2").style("background:#181825;border-left:3px solid #89b4fa;border-radius:8px;padding:12px 16px;"):
                     ui.label(i).classes("text-sm text-gray-300")
         else: ui.label("Tidak ada insight.").classes("text-gray-400 italic")
-        ui.separator().classes("my-4")
+        ui.separator().classes("my-6")
         ols=md["outlet_name"].dropna().unique().tolist() if "outlet_name" in md.columns else []
-        ui.label("📆 Tren Omset Outlet (12 Bulan)").style(ST)
-        if not ols: ui.label("Tidak ada outlet.").classes("text-gray-400 italic"); return
-        tr=a.build_trend_table(_ff,_cp,ols,12)
-        if not tr["has_data"]: ui.label("Data tidak cukup.").classes("text-gray-400 italic"); return
-        vc=tr["value_cols"]; ad=tr["active_df"]; idf=tr["inactive_df"]
-        if not ad.empty:
-            ui.label("Outlet Aktif").classes("text-sm font-semibold text-green-400 mt-4 mb-2")
-            rr=[]; rc=[]
-            for _,rd in ad.iterrows():
-                d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
-                nums=[]
-                for p in vc:
-                    raw=str(rd.get(p,"Rp 0")); d[p]=raw
-                    try: nums.append(float(raw.replace("Rp ","").replace(",","")))
-                    except: nums.append(0.0)
-                if len(nums)>=2:
-                    if nums[-1]>nums[-2]: rc.append("rgba(166,227,161,0.25)")
-                    elif nums[-1]<nums[-2]: rc.append("rgba(243,139,168,0.25)")
-                    else: rc.append("")
-                else: rc.append("")
-                rr.append(d)
-            cl=[("Outlet","l"),("Rata-rata","r")]+[(p,"r") for p in vc]
-            _html_tbl(cl,rr,"tt",rc=rc)
-        else: ui.label("Tidak ada outlet aktif.").classes("text-gray-400 italic")
-        if not idf.empty:
-            ui.label("Outlet Tidak Aktif").classes("text-sm font-semibold text-gray-400 mt-2 mb-2")
-            rr=[]
-            for _,rd in idf.iterrows():
-                d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
-                for p in vc: d[p]=str(rd.get(p,"Rp 0"))
-                rr.append(d)
-            cl=[("Outlet","l"),("Rata-rata","r")]+[(p,"r") for p in vc]
-            _html_tbl(cl,rr,"tti")
-        ui.label("Nilai kosong = 0. Rata-rata dari 12 bulan, hanya omset > 0 dihitung.").classes("text-[10px] text-gray-500 italic")
+        if ols:
+            tr=a.build_trend_table(_ff,_cp,ols,12)
+            if tr["has_data"]:
+                vc=tr["value_cols"]; ad=tr["active_df"].head(20); idf=tr["inactive_df"].head(10)
+                with ui.expansion("📆 Tren Omset Outlet (12 Bulan)", icon="trending_up").classes("w-full mb-4"):
+                    if not ad.empty:
+                        ui.label("Outlet Aktif").classes("text-sm font-semibold text-green-400 mt-2 mb-2")
+                        rr=[]; rc=[]
+                        for _,rd in ad.iterrows():
+                            d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
+                            nums=[]
+                            for p in vc:
+                                raw=str(rd.get(p,"Rp 0")); d[p]=raw
+                                try: nums.append(float(raw.replace("Rp ","").replace(",","")))
+                                except: nums.append(0.0)
+                            if len(nums)>=2:
+                                if nums[-1]>nums[-2]: rc.append("rgba(166,227,161,0.25)")
+                                elif nums[-1]<nums[-2]: rc.append("rgba(243,139,168,0.25)")
+                                else: rc.append("")
+                            else: rc.append("")
+                            rr.append(d)
+                        cl=[("Outlet","l"),("Rata-rata","r")]+[(p,"r") for p in vc]
+                        _html_tbl(cl,rr,"tt",rc=rc)
+                    else: ui.label("Tidak ada outlet aktif.").classes("text-gray-400 italic")
+                    if not idf.empty:
+                        ui.label("Outlet Tidak Aktif").classes("text-sm font-semibold text-gray-400 mt-2 mb-2")
+                        rr=[]
+                        for _,rd in idf.iterrows():
+                            d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
+                            for p in vc: d[p]=str(rd.get(p,"Rp 0"))
+                            rr.append(d)
+                        cl=[("Outlet","l"),("Rata-rata","r")]+[(p,"r") for p in vc]
+                        _html_tbl(cl,rr,"tti")
+                    ui.label("Nilai kosong = 0. Rata-rata dari 12 bulan, hanya omset > 0 dihitung.").classes("text-[10px] text-gray-500 italic")
+        else:
+            ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
 
 def set_filters(df,fdf,cp,cmp,area="Semua",kat="Semua",tip="Semua"):
     global _df,_ff,_cp,_cmp
