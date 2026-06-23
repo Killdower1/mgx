@@ -546,93 +546,172 @@ def _revenue_summary(df):
 # ═══════════════════════════════════════════════
 
 def _render_lead_table(df):
-    """Daftar Lead table with filters, search, sort, and pagination."""
+    """Lead table with AG Grid — sticky header, collapsible detail, sort, filter, pagination."""
     if df.empty:
         ui.label("Tidak ada data.").classes("text-gray-400 italic")
         return
 
-    # Build display columns: Tempat, Kota, Sales PIC, Status, Prio
-    out = pd.DataFrame()
-    out["Tempat"] = df.get("nama_tempat", "").fillna("-")
-    out["Kota"] = df.get("kota_lokasi", "").fillna("-")
     sp = df.get("sales_pic_full", "")
     if sp.dropna().empty:
         sp = df.get("sales_pic", "")
-    out["Sales PIC"] = sp.fillna("-")
-    out["Status"] = df.get("status_lead", "").fillna("-")
-    out["Prio"] = df.get("priority", "").fillna("-")
-    out["_id"] = df.get("name", "")
 
-    # Total info
-    total_all = len(out)
-    info_lbl = ui.label(f"📋 **{total_all}** lead partnership").classes("text-sm text-gray-300 mb-3")
+    # Column definitions - Tempat & Status pinned (sticky)
+    column_defs = [
+        {"headerName": "📍 Tempat", "field": "Tempat", "width": 200, "pinned": "left",
+         "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+        {"headerName": "🏙️ Kota", "field": "Kota", "width": 140,
+         "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+        {"headerName": "👨‍💼 Sales PIC", "field": "Sales PIC", "width": 160,
+         "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+        {"headerName": "✅ Status", "field": "Status", "width": 140,
+         "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True,
+         "cellStyle": {"fontWeight": "bold"}},
+        {"headerName": "🎯 Prio", "field": "Prio", "width": 90, "pinned": "right",
+         "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+    ]
+
+    # Build rows
+    all_rows = []
+    for idx, (_, row) in enumerate(df.iterrows()):
+        tempat = str(row.get("nama_tempat", "") or "").strip() or "-"
+        kota = str(row.get("kota_lokasi", "") or "").strip() or "-"
+        pic_val = sp.iloc[idx] if hasattr(sp, 'iloc') else (
+            sp[idx] if hasattr(sp, '__getitem__') and not isinstance(sp, str) else sp
+        )
+        pic = str(pic_val or row.get("sales_pic_full", row.get("sales_pic", "") or "") or "").strip() or "-"
+        status = str(row.get("status_lead", "") or "").strip() or "-"
+        prio = str(row.get("priority", "") or "").strip() or "-"
+
+        all_rows.append({
+            "Tempat": tempat,
+            "Kota": kota,
+            "Sales PIC": pic,
+            "Status": status,
+            "Prio": prio,
+        })
+
+    total_all = len(all_rows)
+    ui.label(f"📋 **{total_all}** lead partnership").classes("text-sm text-gray-300 mb-3")
+
+    # ── Sticky header CSS ──
+    ui.add_head_html("""<style>
+.ag-theme-balham-dark .ag-header {
+    position: sticky !important; top: 0 !important; z-index: 100 !important;
+    border-bottom: 1px solid #45475a !important;
+}
+.ag-theme-balham-dark {
+    --ag-header-height: 44px; --ag-row-height: 40px;
+    --ag-background-color: #1e1e2e;
+    --ag-header-background-color: #181825;
+    --ag-odd-row-background-color: #1a1a2e;
+    --ag-row-hover-color: #313244;
+    --ag-border-color: #313244;
+    --ag-font-size: 13px;
+    --ag-font-family: inherit;
+}
+.ag-theme-balham-dark .ag-row-hover { background-color: #313244 !important; }
+.ag-theme-balham-dark .ag-row-selected { background-color: #2a2a4e !important; }
+.ag-theme-balham-dark .ag-header-cell-label { font-weight: 600; color: #cdd6f4; }
+.ag-theme-balham-dark .ag-floating-filter { background: #181825; }
+.ag-theme-balham-dark .ag-floating-filter-input { background: #313244; color: #cdd6f4; border: none; border-radius: 4px; }
+</style>""")
 
     # ── Filter row ──
     with ui.row().classes("w-full gap-3 items-center mb-3"):
-        search_inp = ui.input("🔍 Cari").props("dense outlined dark").classes("flex-1")
-        
-        # Status filter
-        status_opts = ["Semua Status"] + sorted(out["Status"].unique().tolist())
-        status_filter = ui.select(status_opts, value="Semua Status", label="Status").props("dense outlined dark").classes("min-w-[140px]")
-        
-        # Kota filter
-        kota_opts = ["Semua Kota"] + sorted(out["Kota"].unique().tolist())
-        kota_filter = ui.select(kota_opts, value="Semua Kota", label="Kota").props("dense outlined dark").classes("min-w-[140px]")
-        
-        # Prio filter
-        prio_opts = ["Semua Prioritas"] + sorted(out["Prio"].unique().tolist())
-        prio_filter = ui.select(prio_opts, value="Semua Prioritas", label="Prioritas").props("dense outlined dark").classes("min-w-[140px]")
+        search_inp = ui.input("🔍 Cari cepat").props("dense outlined dark").classes("flex-1")
+        status_opts = ["Semua"] + sorted(df["status_lead"].dropna().unique().tolist())
+        status_filter = ui.select(status_opts, value="Semua", label="Status").props("dense outlined dark").classes("min-w-[140px]")
+        kota_opts = ["Semua"] + sorted(df["kota_lokasi"].dropna().unique().tolist())
+        kota_filter = ui.select(kota_opts, value="Semua", label="Kota").props("dense outlined dark").classes("min-w-[140px]")
 
-    # ── Table container ──
-    tc = ui.column().classes("w-full")
+    info_lbl = ui.label(f"📊 {total_all} record").classes("text-xs text-gray-500 mb-2")
+    grid_container = ui.column().classes("w-full")
+    detail_container = ui.column().classes("w-full mt-4")
 
-    columns_def = [
-        {"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left", "sortable": True},
-        {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left", "sortable": True},
-        {"name": "Sales PIC", "label": "👨‍💼 Sales PIC", "field": "Sales PIC", "align": "left", "sortable": True},
-        {"name": "Status", "label": "✅ Status", "field": "Status", "align": "left", "sortable": True},
-        {"name": "Prio", "label": "🎯 Prio", "field": "Prio", "align": "center", "sortable": True},
-    ]
+    def show_detail_row(selected):
+        """Show selected row detail."""
+        detail_container.clear()
+        if not selected:
+            return
+        with detail_container:
+            with ui.card().style("background: #181825; border: 1px solid #313244; border-radius: 8px;"):
+                ui.label("📋 Detail Lead").style("font-weight: 600; color: #cdd6f4; margin-bottom: 8px;")
+                # Find the original row data by matching Tempat+Kota+Status
+                match = df[(df.get("nama_tempat","").fillna("").astype(str).str.strip() == selected.get("Tempat","")) & 
+                          (df.get("kota_lokasi","").fillna("").astype(str).str.strip() == selected.get("Kota","")) &
+                          (df.get("status_lead","").fillna("").astype(str).str.strip() == selected.get("Status",""))]
+                if match.empty:
+                    ui.label("Detail tidak ditemukan.").classes("text-gray-400 italic text-xs")
+                    return
+                r = match.iloc[0]
+                detail_fields = [
+                    ("ID", r.get("name","")), ("PIC", r.get("nama_pic","")),
+                    ("Perusahaan", r.get("nama_perusahaan__lembaga__venue_jika_ada","")),
+                    ("Jenis Partnership", r.get("jenis_partnership","")),
+                    ("Jenis Lokasi", r.get("jenis_lokasi","")), ("Tipe Lokasi", r.get("tipe_lokasi","")),
+                    ("Skema", r.get("skema_kerja_sama_yang_terbuka","")),
+                    ("Sumber", r.get("source_lead","")), ("WA PIC", r.get("nomor_whatsapp_pic","")),
+                    ("Email", r.get("email_pic","")), ("Jabatan", r.get("jabatan_pic","")),
+                    ("Area", r.get("area_penempatan","")),
+                    ("Pengunjung/hari", r.get("estimasi_pengunjung_per_hari","")),
+                    ("Space", r.get("space_tersedia","")), ("Listrik", r.get("listrik_tersedia","")),
+                    ("Kelayakan Space", r.get("kelayakan_space","")),
+                    ("Kelayakan Listrik", r.get("kelayakan_listrik","")),
+                    ("Kelayakan Operasional", r.get("kelayakan_operasional","")),
+                    ("Last FO", str(r.get("last_follow_up","") or "")[:10]),
+                    ("Next FO", str(r.get("next_follow_up","") or "")[:10]),
+                    ("Hasil FO", r.get("hasil_follow_up","")),
+                    ("Decision", r.get("decision","")), ("Created", str(r.get("creation","") or "")[:10]),
+                ]
+                for lbl, val in detail_fields:
+                    v = str(val) if val is not None and str(val).strip() and str(val) not in ("None", "nan") else "-"
+                    ui.label(f"{lbl}: {v}").classes("text-xs text-gray-300 py-0.5")
 
-    def rebuild():
-        fdf = out.copy()
+    def rebuild_grid():
+        fdf_rows = all_rows[:]
         sq = search_inp.value.strip().lower()
         fs = status_filter.value
         fk = kota_filter.value
-        fp = prio_filter.value
-        
-        if fs and fs != "Semua Status":
-            fdf = fdf[fdf["Status"] == fs]
-        if fk and fk != "Semua Kota":
-            fdf = fdf[fdf["Kota"] == fk]
-        if fp and fp != "Semua Prioritas":
-            fdf = fdf[fdf["Prio"] == fp]
+
+        if fs and fs != "Semua":
+            fdf_rows = [r for r in fdf_rows if r["Status"] == fs]
+        if fk and fk != "Semua":
+            fdf_rows = [r for r in fdf_rows if r["Kota"] == fk]
         if sq:
-            mask = fdf[["Tempat", "Kota", "Sales PIC", "Status", "Prio"]].astype(str).apply(
-                lambda r: r.str.lower().str.contains(sq, na=False).any(), axis=1
-            )
-            fdf = fdf[mask]
-        
-        info_lbl.text = f"📋 **{len(fdf)}** lead partnership (dari {total_all})"
-        tc.clear()
-        with tc:
-            ui.table(
-                rows=fdf[["Tempat", "Kota", "Sales PIC", "Status", "Prio"]].to_dict("records"),
-                columns=columns_def,
-                pagination={"rowsPerPage": 25, "rowsNumber": len(fdf)},
-            ).classes("w-full").props("dark flat dense")
+            fdf_rows = [r for r in fdf_rows if sq in r["Tempat"].lower() or sq in r["Kota"].lower() or sq in r["Sales PIC"].lower()]
 
-    for w in [search_inp, status_filter, kota_filter, prio_filter]:
-        w.on("change", rebuild)
-    rebuild()
+        info_lbl.text = f"📊 {len(fdf_rows)} record (dari {total_all})"
+        grid_container.clear()
+        with grid_container:
+            grid = ui.aggrid({
+                "columnDefs": column_defs,
+                "rowData": fdf_rows,
+                "pagination": True,
+                "paginationPageSize": 25,
+                "paginationPageSizeSelector": [10, 25, 50, 100],
+                "domLayout": "autoHeight",
+                "defaultColDef": {"resizable": True, "filter": True, "floatingFilter": True},
+                "animateRows": True,
+                "rowHeight": 40,
+                "headerHeight": 44,
+                "enableCellTextSelection": True,
+                "suppressRowClickSelection": False,
+                "rowSelection": "single",
+                "theme": "ag-theme-balham-dark",
+            }).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
 
-    # Detail viewer
+            # On row click, show detail
+            grid.on("rowClicked", lambda e: show_detail_row(e.get("data", {})))
+
+    for w in [search_inp, status_filter, kota_filter]:
+        w.on("change", rebuild_grid)
+    rebuild_grid()
+
+    # Also keep the alternate detail selector
     names = df["name"].tolist() if "name" in df.columns else []
     if names:
-        with ui.expansion("🔍 Lihat Detail Lead", icon="search").classes("w-full mt-4"):
-            sel = ui.select(names, label="Pilih Lead", on_change=lambda e: _show_detail(df, e.value)).props("dense outlined dark").classes("w-full")
-
-
+        with ui.expansion("🔍 Cari Detail via ID").classes("w-full mt-4").style("background: #1e1e2e; border-radius: 8px;"):
+            ui.select(names, label="Pilih Lead ID", on_change=lambda e: _show_detail(df, e.value)).props("dense outlined dark").classes("w-full")
 
 def _show_detail(df, name):
     if not name:
