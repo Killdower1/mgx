@@ -546,7 +546,7 @@ def _revenue_summary(df):
 # ═══════════════════════════════════════════════
 
 def _render_lead_table(df):
-    """Lead table with Quasar QTable — sort, pagination, sticky header."""
+    """Lead table with AG Grid — floating filter, sort, pagination, pinned cols."""
     if df.empty:
         ui.label("Tidak ada data.").classes("text-gray-400 italic")
         return
@@ -569,32 +569,43 @@ def _render_lead_table(df):
     total = len(rows)
     ui.label(f"📋 **{total}** lead partnership").classes("text-sm text-gray-300 mb-3")
 
+    # AG Grid dark theme
     ui.add_head_html("""<style>
-.q-table thead th { position: sticky !important; top: 0 !important; z-index: 2 !important; background: #181825 !important; }
-.q-table__card { border: 1px solid #313244 !important; border-radius: 8px !important; }
-.q-table tbody tr { cursor: pointer !important; }
-.q-table tbody tr:hover { background: #313244 !important; }
-.detail-card { background: #181825; border: 1px solid #313244; border-radius: 8px; padding: 12px; font-size: 12px; color: #cdd6f4; }
-.detail-card table { width: 100%; border-collapse: collapse; }
-.detail-card td { padding: 3px 8px; border: none; }
-.detail-card .lbl { font-weight: 600; color: #a6adc8; width: 140px; }
+.ag-theme-balham-dark { --ag-background-color: #1e1e2e; --ag-header-background-color: #181825;
+    --ag-odd-row-background-color: #1a1a2e; --ag-row-hover-color: #313244;
+    --ag-border-color: #313244; --ag-font-size: 13px;
+    --ag-header-height: 44px; --ag-row-height: 40px; }
 </style>""")
 
-    cols = [
-        {"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left", "sortable": True},
-        {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left", "sortable": True},
-        {"name": "Sales PIC", "label": "👨‍💼 Sales PIC", "field": "Sales PIC", "align": "left", "sortable": True},
-        {"name": "Status", "label": "✅ Status", "field": "Status", "align": "left", "sortable": True},
-        {"name": "Prio", "label": "🎯 Prio", "field": "Prio", "align": "center", "sortable": True},
-    ]
+    info_lbl = ui.label(f"📊 {total} record").classes("text-xs text-gray-500 mb-2")
 
-    ui.table(
-        rows=rows,
-        columns=cols,
-        pagination={"rowsPerPage": 25, "rowsNumber": total},
-    ).classes("w-full").props("dark flat dense")
+    ui.aggrid({
+        "columnDefs": [
+            {"headerName": "📍 Tempat", "field": "Tempat", "width": 200,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True, "pinned": "left"},
+            {"headerName": "🏙️ Kota", "field": "Kota", "width": 140,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            {"headerName": "👨‍💼 Sales PIC", "field": "Sales PIC", "width": 160,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            {"headerName": "✅ Status", "field": "Status", "width": 140,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            {"headerName": "🎯 Prio", "field": "Prio", "width": 90, "pinned": "right",
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+        ],
+        "rowData": rows,
+        "pagination": True,
+        "paginationPageSize": 25,
+        "paginationPageSizeSelector": [10, 25, 50, 100],
+        "domLayout": "autoHeight",
+        "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
+        "animateRows": True,
+        "rowHeight": 40,
+        "headerHeight": 44,
+        "enableCellTextSelection": True,
+        "rowSelection": "single",
+    }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
 
-    # Detail viewer via expansion (WORKS! sudah terbukti)
+    # Detail viewer via expansion — WORKS
     names = df["name"].tolist() if "name" in df.columns else []
     if names:
         with ui.expansion("🔍 Lihat Detail Lead", icon="search").classes("w-full mt-4").style("background: #1e1e2e; border-radius: 8px;"):
