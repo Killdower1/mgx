@@ -576,15 +576,23 @@ def _render_lead_table(df):
 .detail-table td { padding: 6px 10px; border: none; }
 .detail-table .lbl { font-weight: 600; color: #a6adc8; width: 150px; }
 
-/* Mobile responsive: hide floating filters, bigger rows */
+/* Mobile responsive */
 @media (max-width: 768px) {
-  .ag-floating-filter { display: none !important; }
-  .ag-header-cell-label .ag-icon { display: none !important; }
   .ag-theme-balham-dark { --ag-row-height: 52px !important; --ag-font-size: 12px !important; }
   .ag-cell { line-height: 44px !important; }
 }
 @media (max-width: 480px) {
   .nicegui-aggrid { font-size: 11px !important; }
+}
+</style>""");
+
+    # ── Popup responsive for mobile ──
+    ui.add_head_html("""<style>
+@media (max-width: 768px) {
+  .responsive-dialog-card .detail-table { font-size: 11px !important; }
+  .responsive-dialog-card .detail-table td { padding: 3px 5px !important; }
+  .responsive-dialog-card .detail-table .lbl { width: 85px !important; font-size: 11px !important; }
+  .responsive-dialog-card .q-card { min-width: 280px !important; }
 }
 </style>""");
 
@@ -609,7 +617,7 @@ def _render_lead_table(df):
             ("Hasil FO", row.get("hasil_follow_up","")),
             ("Decision", row.get("decision","")), ("Created", str(row.get("creation","") or "")[:10]),
         ]
-        with ui.dialog() as dialog, ui.card().style("background: #1e1e2e; border: 1px solid #313244; border-radius: 12px; padding: 20px; min-width: 520px;"):
+        with ui.dialog() as dialog, ui.card().style("background: #1e1e2e; border: 1px solid #313244; border-radius: 12px; padding: 20px; min-width: 320px; max-width: 92vw; width: auto;").classes("responsive-dialog-card"):
             ui.label(f"📋 {tempat}").classes("text-lg font-bold text-white mb-4")
             html = "<table class='detail-table'>"
             for i, (lbl, val) in enumerate(fields):
