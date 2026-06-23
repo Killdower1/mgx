@@ -546,7 +546,7 @@ def _revenue_summary(df):
 # ═══════════════════════════════════════════════
 
 def _render_lead_table(df):
-    """AG Grid display (floating filter, pinned, sort, pagination) + click row → popup dialog detail."""
+    """AG Grid display (floating filter, pinned, sort, pagination) + Tempat sebagai link → klik = popup detail."""
     if df.empty:
         ui.label("Tidak ada data.").classes("text-gray-400 italic")
         return
@@ -565,7 +565,7 @@ def _render_lead_table(df):
     total = len(detail_data)
     ui.label(f"📋 **{total}** lead partnership").classes("text-sm text-gray-300 mb-3")
 
-    # AG Grid dark theme CSS
+    # Dark theme + link-style CSS
     ui.add_head_html("""<style>
 .ag-theme-balham-dark { --ag-background-color: #1e1e2e; --ag-header-background-color: #181825;
     --ag-odd-row-background-color: #1a1a2e; --ag-row-hover-color: #313244;
@@ -610,9 +610,9 @@ def _render_lead_table(df):
             ui.button("Tutup", on_click=dialog.close).props("flat").classes("mt-4")
         dialog.open()
 
-    info_lbl = ui.label(f"📊 {total} record — klik Tempat untuk detail").classes("text-xs text-gray-500 mb-2")
+    ui.label(f"📊 {total} record — klik nama Tempat (biru) untuk detail").classes("text-xs text-gray-500 mb-2")
 
-    # Build row data with _idx for lookup
+    # Build row data
     grid_rows = []
     for idx, r in enumerate(detail_data):
         grid_rows.append({
@@ -627,7 +627,9 @@ def _render_lead_table(df):
     grid = ui.aggrid({
         "columnDefs": [
             {"headerName": "📍 Tempat", "field": "Tempat", "width": 200,
-             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True, "pinned": "left"},
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True, "pinned": "left",
+             "cellStyle": {"color": "#89b4fa", "textDecoration": "underline", "cursor": "pointer", "fontWeight": "600"},
+             "tooltipField": "Tempat"},
             {"headerName": "🏙️ Kota", "field": "Kota", "width": 140,
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
             {"headerName": "👨‍💼 Sales PIC", "field": "Sales PIC", "width": 160,
@@ -647,16 +649,17 @@ def _render_lead_table(df):
         "rowHeight": 40,
         "headerHeight": 44,
         "enableCellTextSelection": True,
-        "rowSelection": "single",
     }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
 
-    # Click handler — try both event types
-    def on_click(e):
-        idx = e.get("data", {}).get("_idx", -1)
-        if 0 <= idx < len(detail_data):
-            show_dialog(detail_data[idx])
+    # Click handler — cuma Tempat aja yg trigger popup
+    def on_cell_click(e):
+        col = e.get("colDef", {}).get("field", "")
+        if col == "Tempat":
+            idx = e.get("data", {}).get("_idx", -1)
+            if 0 <= idx < len(detail_data):
+                show_dialog(detail_data[idx])
 
-    grid.on("cellClicked", on_click)
+    grid.on("cellClicked", on_cell_click)
 
     # Fallback: detail via ID
     names = df["name"].tolist() if "name" in df.columns else []
