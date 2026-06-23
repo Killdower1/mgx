@@ -7,6 +7,9 @@ from typing import Optional
 
 from nicegui import ui
 import pandas as pd
+import requests
+import json
+from pathlib import Path
 
 from services.erpnext_adapter import (
     load_lk_data,
@@ -37,6 +40,50 @@ def _fmt_num(n) -> str:
 
 
 # ── Page ──
+
+CONFIG_PATH = Path("/var/www/difotoin-dashboard/streamlit_template/config/erpnext_config.json")
+LK_CACHE_PATH = Path("/var/www/difotoin-dashboard/streamlit_template/data/lead_kemitraan_cache.json")
+
+def _fetch_from_erpnext() -> pd.DataFrame:
+    """Fetch fresh Lead Kemitraan data from ERPNext API and update cache."""
+    try:
+        with open(CONFIG_PATH) as f:
+            cfg = json.load(f)
+        headers = {"Authorization": f"token {cfg['api_key']}:{cfg['api_secret']}"}
+        url = cfg["url"]
+        all_data = []
+        offset = 0
+        while True:
+            r = requests.get(
+                f"{url}/api/resource/Lead%20Kemitraan",
+                headers=headers,
+                params={"limit_page_length": 200, "offset": offset, "fields": json.dumps(["*"])},
+                timeout=60,
+            )
+            if r.status_code != 200:
+                break
+            data = r.json().get("data", [])
+            if not data:
+                break
+            all_data.extend(data)
+            offset += 200
+        cache = {"last_sync": datetime.now().isoformat(), "records": all_data}
+        with open(LK_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False)
+        return pd.DataFrame(all_data)
+    except Exception as e:
+        ui.notify(f"Gagal fetch: {e}", type="negative")
+        return pd.DataFrame()
+
+def _fetch_and_rebuild(container):
+    """Fetch from ERPNext, update cache, then rebuild entire page."""
+    ui.notify("Mengambil data dari ERPNext...", type="info")
+    df = _fetch_from_erpnext()
+    if not df.empty:
+        ui.notify(f"Berhasil: {len(df)} record!", type="positive")
+    container.clear()
+    create_page(container)
+
 
 def create_page(container: ui.column):
     """Build the Lead Kemitraan page."""
@@ -73,6 +120,8 @@ def create_page(container: ui.column):
                 "dense outlined dark").classes("flex-1")
             refresh_btn = ui.button("🔄 Refresh", on_click=lambda: (container.clear(), create_page(container))).props(
                 "dense flat text-white").classes("self-end")
+            fetch_btn = ui.button("📥 Fetch ERPNext", on_click=lambda: _fetch_and_rebuild(container)).props(
+                "dense flat text-white bg-green-700").classes("self-end ml-2")
 
         cache_txt = f"💾 Data lokal: {len(df)} record"
         if cache_info.get("last_sync"):
@@ -113,18 +162,23 @@ def create_page(container: ui.column):
             widget.on("change", apply_filters)
 
         # ── Tabs ──
-        tab_dash = ui.tabs().classes("w-full")
-        tab_dash_panel = ui.tab_panels(tab_dash, value="dashboard").classes("w-full")
+        tabs = ui.tabs().classes("w-full")
+        tab_panels = ui.tab_panels(tabs, value="dashboard").classes("w-full")
 
-        with tab_dash:
+        with tabs:
             ui.tab("dashboard", label="📊 Dashboard Lead Kemitraan")
-        with tab_dash_panel:
+            ui.tab("master", label="📋 Master Data")
+        with tab_panels:
             with ui.tab_panel("dashboard"):
                 _dash_container = ui.column().classes("w-full")
+            with ui.tab_panel("master"):
+                _master_container = ui.column().classes("w-full")
 
         def rebuild_tabs(filtered_df):
             _dash_container.clear()
             _render_dashboard(_dash_container, filtered_df)
+            _master_container.clear()
+            _render_master_data(_master_container, filtered_df)
 
         # Initial render
         rebuild_tabs(fdf)
@@ -568,6 +622,40 @@ def _chart_sales_pic(df):
         **_echart_opts(),
     }
     ui.echart(options).classes("w-full h-[250px]")
+
+
+def _render_master_data(container: ui.column, df):
+    """Show ALL data in a comprehensive table with search."""
+    if df.empty:
+        with container:
+            ui.label("Belum ada data.").classes("text-gray-400 italic")
+        return
+    skip_cols = {"_user_tags","_comments","_assign","_liked_by","_seen",
+                 "idx","docstatus","disabled","unsubscribed","blog_subscriber","naming_series"}
+    cols = [c for c in df.columns if c not in skip_cols]
+    display_df = df[cols].copy()
+    for c in ["creation","modified","tanggal_masuk","last_follow_up",
+              "status_updated_at","next_follow_up","jadwal_meeting"]:
+        if c in display_df.columns:
+            display_df[c] = pd.to_datetime(display_df[c],errors="coerce").dt.strftime("%d/%m/%Y %H:%M")
+    with container:
+        srch = ui.input("🔍 Cari di semua kolom...").props("dense outlined dark").classes("w-full mb-3")
+        info = ui.label(f"Total: {len(display_df)} record, {len(display_df.columns)} kolom").classes("text-xs text-gray-500 mb-2")
+        tc = ui.column().classes("w-full")
+        def rebuild():
+            q = srch.value.strip().lower()
+            fd = display_df.copy()
+            if q:
+                fd = fd[fd.astype(str).apply(lambda r: r.str.lower().str.contains(q,na=False).any(),axis=1)]
+            info.text = f"Total: {len(fd)} record (dari {len(display_df)}) — {len(display_df.columns)} kolom"
+            tc.clear()
+            with tc:
+                cd = [{"name":c,"label":c,"field":c,"align":"left","sortable":True} for c in fd.columns]
+                ui.table(rows=fd.to_dict("records"),columns=cd,row_key="name",
+                    pagination={"rowsPerPage":25,"rowsNumber":len(fd)}
+                ).props("dense dark flat bordered").classes("w-full")
+        srch.on("update:model-value",rebuild)
+        rebuild()
 
 
 def _render_compact_table(df):
