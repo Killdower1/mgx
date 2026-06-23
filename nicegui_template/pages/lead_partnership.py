@@ -551,31 +551,55 @@ def _render_lead_table(df):
         ui.label("Tidak ada data.").classes("text-gray-400 italic")
         return
 
-    display_cols = {
-        "name": "ID", "nama_pic": "PIC", "nama_perusahaan__lembaga__venue_jika_ada": "Perusahaan",
-        "nama_tempat": "Tempat", "jenis_partnership": "Jenis", "kota_lokasi": "Kota",
-        "status_lead": "Status", "priority": "Prio", "source_lead": "Source", "sales_pic": "Sales",
-        "harga_sewa": "Sewa", "potensi_revenue": "Revenue",
-    }
-    avail = [(k, v) for k, v in display_cols.items() if k in df.columns]
-    preferred = ["name", "nama_pic", "nama_tempat", "jenis_partnership", "kota_lokasi", "status_lead", "priority"]
-    order = [k for k in preferred if k in df.columns] + [k for k, _ in avail if k not in preferred]
+    # Build display columns: Tempat, Kota, Sales PIC, Status, Prio
+    out = pd.DataFrame()
+    out["Tempat"] = df.get("nama_tempat", "").fillna("-")
+    out["Kota"] = df.get("kota_lokasi", "").fillna("-")
+    # Sales PIC: prefer full name, fallback to code
+    sp = df.get("sales_pic_full", "")
+    if sp.dropna().empty:
+        sp = df.get("sales_pic", "")
+    out["Sales PIC"] = sp.fillna("-")
+    out["Status"] = df.get("status_lead", "").fillna("-")
+    out["Prio"] = df.get("priority", "").fillna("-")
 
-    display_df = df[order].copy()
-    display_df = display_df.rename(columns={k: v for k, v in avail})
+    # Add ID hidden behind for detail link
+    out["_id"] = df.get("name", "")
 
-    for col_key, lbl in [("harga_sewa", "Sewa"), ("potensi_revenue", "Revenue")]:
-        if lbl in display_df.columns:
-            display_df[lbl] = display_df[lbl].apply(
-                lambda x: f"Rp{x:,.0f}".replace(",", ".") if pd.notna(x) and isinstance(x, (int, float)) and x > 0 else "-")
+    # Search input
+    search_inp = ui.input("🔍 Cari (tempat, kota, PIC, status...)").props("dense outlined dark").classes("w-full mb-3")
+    info_lbl = ui.label(f"Total: {len(out)} record").classes("text-xs text-gray-500 mb-2")
+    tc = ui.column().classes("w-full")
 
-    columns = [{"name": c, "label": c, "field": c, "align": "left"} for c in display_df.columns]
-    ui.table(
-        rows=display_df.to_dict("records"),
-        columns=columns,
-        pagination={"rowsPerPage": 15, "rowsNumber": len(df)},
-    ).classes("w-full").props("dark flat dense")
+    columns_def = [
+        {"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left", "sortable": True},
+        {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left", "sortable": True},
+        {"name": "Sales PIC", "label": "👨‍💼 Sales PIC", "field": "Sales PIC", "align": "left", "sortable": True},
+        {"name": "Status", "label": "✅ Status", "field": "Status", "align": "left", "sortable": True},
+        {"name": "Prio", "label": "🎯 Prio", "field": "Prio", "align": "center", "sortable": True},
+    ]
 
+    def rebuild_table():
+        q = search_inp.value.strip().lower()
+        fd = out.copy()
+        if q:
+            mask = fd[["Tempat", "Kota", "Sales PIC", "Status", "Prio"]].astype(str).apply(
+                lambda r: r.str.lower().str.contains(q, na=False).any(), axis=1
+            )
+            fd = fd[mask]
+        info_lbl.text = f"Total: {len(fd)} record (dari {len(out)})"
+        tc.clear()
+        with tc:
+            ui.table(
+                rows=fd[["Tempat", "Kota", "Sales PIC", "Status", "Prio"]].to_dict("records"),
+                columns=columns_def,
+                pagination={"rowsPerPage": 15, "rowsNumber": len(fd)},
+            ).classes("w-full").props("dark flat dense")
+
+    search_inp.on("update:model-value", rebuild_table)
+    rebuild_table()
+
+    # Detail viewer
     names = df["name"].tolist() if "name" in df.columns else []
     if names:
         with ui.expansion("🔍 Lihat Detail Lead", icon="search").classes("w-full mt-4"):

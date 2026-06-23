@@ -1,5 +1,5 @@
 {
-  "last_sync": "2026-06-23T13:00:57.136454",
+  "last_sync": "2026-06-23T13:30:10.160864",
   "records": [
     {
       "name": "KM-2026-00001",
@@ -1946,7 +1946,7 @@
       "jenis_lokasi": "",
       "potensi_lokasi": "",
       "catatan_lokasi": null,
-      "_seen": null,
+      "_seen": "[\"octdino@gmail.com\"]",
       "kota_domisili_lainnya": "",
       "kota_penempatan_mesin_lainnya": "",
       "dari_mana_tahu_difotoin_lainnya": "",
