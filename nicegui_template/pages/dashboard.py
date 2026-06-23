@@ -180,42 +180,44 @@ def _build_outlet_table(cpv,cmv):
                 with ui.card().classes("w-full mb-2").style("background:#181825;border-left:3px solid #89b4fa;border-radius:8px;padding:12px 16px;"):
                     ui.label(i).classes("text-sm text-gray-300")
         else: ui.label("Tidak ada insight.").classes("text-gray-400 italic")
-        ui.separator().classes("my-4")
+        ui.separator().classes("my-6")
         ols=md["outlet_name"].dropna().unique().tolist() if "outlet_name" in md.columns else []
-        ui.label("📆 Tren Omset Outlet (12 Bulan)").style(ST)
-        if not ols: ui.label("Tidak ada outlet.").classes("text-gray-400 italic"); return
-        tr=a.build_trend_table(_ff,_cp,ols,12)
-        if not tr["has_data"]: ui.label("Data tidak cukup.").classes("text-gray-400 italic"); return
-        vc=tr["value_cols"]; ad=tr["active_df"]; idf=tr["inactive_df"]
-        if not ad.empty:
-            ui.label("Outlet Aktif").classes("text-sm font-semibold text-green-400 mt-4 mb-2")
-            rr=[]; rc=[]
-            for _,rd in ad.iterrows():
-                d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
-                nums=[]
-                for p in vc:
-                    raw=str(rd.get(p,"Rp 0")); d[p]=raw
-                    try: nums.append(float(raw.replace("Rp ","").replace(",","")))
-                    except: nums.append(0.0)
-                if len(nums)>=2:
-                    if nums[-1]>nums[-2]: rc.append("rgba(166,227,161,0.25)")
-                    elif nums[-1]<nums[-2]: rc.append("rgba(243,139,168,0.25)")
-                    else: rc.append("")
-                else: rc.append("")
-                rr.append(d)
-            cl=[("Outlet","l"),("Rata-rata","r")]+[(p,"r") for p in vc]
-            _html_tbl(cl,rr,"tt",rc=rc)
-        else: ui.label("Tidak ada outlet aktif.").classes("text-gray-400 italic")
-        if not idf.empty:
-            ui.label("Outlet Tidak Aktif").classes("text-sm font-semibold text-gray-400 mt-2 mb-2")
-            rr=[]
-            for _,rd in idf.iterrows():
-                d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
-                for p in vc: d[p]=str(rd.get(p,"Rp 0"))
-                rr.append(d)
-            cl=[("Outlet","l"),("Rata-rata","r")]+[(p,"r") for p in vc]
-            _html_tbl(cl,rr,"tti")
-        ui.label("Nilai kosong = 0. Rata-rata dari 12 bulan, hanya omset > 0 dihitung.").classes("text-[10px] text-gray-500 italic")
+        if ols:
+            tr=a.build_trend_table(_ff,_cp,ols,12)
+            if tr["has_data"]:
+                vc=tr["value_cols"]; ad=tr["active_df"].head(20); idf=tr["inactive_df"].head(10)
+                with ui.expansion("📆 Tren Omset Outlet (12 Bulan)", icon="trending_up").classes("w-full mb-4"):
+                    if not ad.empty:
+                        ui.label("Outlet Aktif").classes("text-sm font-semibold text-green-400 mt-2 mb-2")
+                        rr=[]; rc=[]
+                        for _,rd in ad.iterrows():
+                            d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
+                            nums=[]
+                            for p in vc:
+                                raw=str(rd.get(p,"Rp 0")); d[p]=raw
+                                try: nums.append(float(raw.replace("Rp ","").replace(",","")))
+                                except: nums.append(0.0)
+                            if len(nums)>=2:
+                                if nums[-1]>nums[-2]: rc.append("rgba(166,227,161,0.25)")
+                                elif nums[-1]<nums[-2]: rc.append("rgba(243,139,168,0.25)")
+                                else: rc.append("")
+                            else: rc.append("")
+                            rr.append(d)
+                        cl=[("Outlet","l"),("Rata-rata","r")]+[(p,"r") for p in vc]
+                        _html_tbl(cl,rr,"tt",rc=rc)
+                    else: ui.label("Tidak ada outlet aktif.").classes("text-gray-400 italic")
+                    if not idf.empty:
+                        ui.label("Outlet Tidak Aktif").classes("text-sm font-semibold text-gray-400 mt-2 mb-2")
+                        rr=[]
+                        for _,rd in idf.iterrows():
+                            d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
+                            for p in vc: d[p]=str(rd.get(p,"Rp 0"))
+                            rr.append(d)
+                        cl=[("Outlet","l"),("Rata-rata","r")]+[(p,"r") for p in vc]
+                        _html_tbl(cl,rr,"tti")
+                    ui.label("Nilai kosong = 0. Rata-rata dari 12 bulan, hanya omset > 0 dihitung.").classes("text-[10px] text-gray-500 italic")
+        else:
+            ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
 
 def set_filters(df,fdf,cp,cmp,area="Semua",kat="Semua",tip="Semua"):
     global _df,_ff,_cp,_cmp
