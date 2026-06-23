@@ -167,16 +167,21 @@ def create_page(container: ui.column):
 
         with tabs:
             ui.tab("dashboard", label="📊 Dashboard Lead Kemitraan")
+            ui.tab("daftar", label="Daftar Lead")
             ui.tab("master", label="📋 Master Data")
         with tab_panels:
             with ui.tab_panel("dashboard"):
                 _dash_container = ui.column().classes("w-full")
+            with ui.tab_panel("daftar"):
+                _daftar_container = ui.column().classes("w-full")
             with ui.tab_panel("master"):
                 _master_container = ui.column().classes("w-full")
 
         def rebuild_tabs(filtered_df):
             _dash_container.clear()
             _render_dashboard(_dash_container, filtered_df)
+            _daftar_container.clear()
+            _render_master_data(_daftar_container, filtered_df)
             _master_container.clear()
             _render_master_data(_master_container, filtered_df)
 
@@ -625,39 +630,138 @@ def _chart_sales_pic(df):
 
 
 def _render_master_data(container: ui.column, df):
-    """Show ALL data in a comprehensive table with search."""
+    """Daftar Lead — AG Grid + popup detail, seperti Lead Partnership."""
     if df.empty:
         with container:
             ui.label("Belum ada data.").classes("text-gray-400 italic")
         return
-    skip_cols = {"_user_tags","_comments","_assign","_liked_by","_seen",
-                 "idx","docstatus","disabled","unsubscribed","blog_subscriber","naming_series"}
-    cols = [c for c in df.columns if c not in skip_cols]
-    display_df = df[cols].copy()
-    for c in ["creation","modified","tanggal_masuk","last_follow_up",
-              "status_updated_at","next_follow_up","jadwal_meeting"]:
-        if c in display_df.columns:
-            display_df[c] = pd.to_datetime(display_df[c],errors="coerce").dt.strftime("%d/%m/%Y %H:%M")
+
+    # Sanitize data to avoid surrogate encoding issues
+    def _cln(v):
+        if isinstance(v, str):
+            return v.encode("utf-8", errors="replace").decode("utf-8")
+        return v
+
+    df = df.map(_cln) if hasattr(df, "map") else df.applymap(_cln)
+    total = len(df)
+
     with container:
-        srch = ui.input("🔍 Cari di semua kolom...").props("dense outlined dark").classes("w-full mb-3")
-        info = ui.label(f"Total: {len(display_df)} record, {len(display_df.columns)} kolom").classes("text-xs text-gray-500 mb-2")
-        tc = ui.column().classes("w-full")
-        def rebuild():
-            q = srch.value.strip().lower()
-            fd = display_df.copy()
-            if q:
-                fd = fd[fd.astype(str).apply(lambda r: r.str.lower().str.contains(q,na=False).any(),axis=1)]
-            info.text = f"Total: {len(fd)} record (dari {len(display_df)}) — {len(display_df.columns)} kolom"
-            tc.clear()
-            with tc:
-                cd = [{"name":c,"label":c,"field":c,"align":"left","sortable":True} for c in fd.columns]
-                ui.table(rows=fd.to_dict("records"),columns=cd,row_key="name",
-                    pagination={"rowsPerPage":25,"rowsNumber":len(fd)}
-                ).props("dense dark flat bordered").classes("w-full")
-        srch.on("update:model-value",rebuild)
-        rebuild()
+        ui.label(str(total) + " lead kemitraan").classes("text-sm text-gray-300 mb-3")
 
+        css = (
+            "<style>"
+            ".ag-theme-balham-dark { "
+            "--ag-background-color: #1e1e2e; --ag-header-background-color: #181825; "
+            "--ag-odd-row-background-color: #1a1a2e; --ag-row-hover-color: #313244; "
+            "--ag-border-color: #313244; --ag-font-size: 13px; "
+            "--ag-header-height: 44px; --ag-row-height: 40px; "
+            "--ag-selected-row-background-color: #2a2a4e; }"
+            ".detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }"
+            ".detail-table td { padding: 6px 10px; border: none; }"
+            ".detail-table .lbl { font-weight: 600; color: #a6adc8; width: 150px; }"
+            "@media (max-width: 768px) {"
+            "  .ag-theme-balham-dark { --ag-row-height: 52px !important; --ag-font-size: 12px !important; }"
+            "  .ag-cell { line-height: 44px !important; }"
+            "}"
+            "</style>"
+        )
+        ui.add_head_html(css)
 
+        def show_dialog(row):
+            nama = _cln(str(row.get("nama_lengkap", "") or "").strip()) or _cln(str(row.get("lead_name", "") or "").strip()) or "-"
+            flds = [
+                ("ID", "name"), ("Nama", "nama_lengkap"),
+                ("WhatsApp", "nomor_whatsapp"), ("Email", "email"),
+                ("Kota Domisili", "kota_domisili"),
+                ("Kota Penempatan", "kota_penempatan_mesin"),
+                ("Pekerjaan", "pekerjaan_bisnis_saat_ini"),
+                ("Sumber Info", "dari_mana_tahu_difotoin"),
+                ("Status Lead", "status_lead"), ("Prioritas", "priority"),
+                ("Sales PIC", "sales_pic"),
+                ("Unit Diminati", "jumlah_unit_diminati"),
+                ("Unit Final", "jumlah_unit_final"),
+                ("Budget Investasi", "budget_investasi"),
+                ("Investasi Dibahas", "harga_investasi_dibahas"),
+                ("Skema Bayar", "skema_pembayaran"),
+                ("Kesiapan DP", "kesiapan_dp"),
+                ("Sudah Lokasi", "sudah_punya_lokasi"),
+                ("Jenis Lokasi", "jenis_lokasi"),
+                ("Kapan Mulai", "kapan_ingin_mulai"),
+                ("Last FO", "last_follow_up"),
+                ("Next FO", "next_follow_up"),
+                ("Next Step", "next_step"),
+                ("Created", "creation"),
+            ]
+            with ui.dialog() as dialog, ui.card().style(
+                "background: #1e1e2e; border: 1px solid #313244; border-radius: 12px; "
+                "padding: 20px; min-width: 320px; max-width: 92vw; width: auto;"
+            ).classes("responsive-dialog-card"):
+                ui.label("Detail: " + nama).classes("text-lg font-bold text-white mb-4")
+                parts = ["<table class='detail-table'>"]
+                for i, (lbl, key) in enumerate(flds):
+                    val = _cln(str(row.get(key, "") or ""))
+                    if not val.strip() or val in ("None", "nan"):
+                        val = "-"
+                    bg = ";background:#1e1e2e" if i % 2 == 0 else ""
+                    parts.append("<tr style='" + bg + "'>")
+                    parts.append("<td class='lbl'>" + lbl + "</td>")
+                    parts.append("<td style='color:#cdd6f4'>" + val + "</td></tr>")
+                parts.append("</table>")
+                ui.html("".join(parts)).classes("w-full")
+                ui.button("Tutup", on_click=dialog.close).props("flat").classes("mt-4")
+            dialog.open()
+
+        # Build AG Grid rows
+        grid_rows = []
+        for idx, raw in df.iterrows():
+            nm = _cln(str(raw.get("nama_lengkap", "") or "").strip()) or _cln(str(raw.get("lead_name", "") or "").strip()) or "-"
+            grid_rows.append({
+                "Nama": nm,
+                "WhatsApp": _cln(str(raw.get("nomor_whatsapp", "") or "").strip()) or "-",
+                "Kota": _cln(str(raw.get("kota_penempatan_mesin", "") or "").strip()) or _cln(str(raw.get("kota_domisili", "") or "").strip()) or "-",
+                "Status": _cln(str(raw.get("status_lead", "") or "").strip()) or "-",
+                "Prio": _cln(str(raw.get("priority", "") or "").strip()) or "-",
+                "_idx": idx,
+            })
+
+        ui.label(str(total) + " record | klik Nama (biru) untuk detail").classes("text-xs text-gray-500 mb-2")
+
+        grid = ui.aggrid({
+            "columnDefs": [
+                {"headerName": "Nama", "field": "Nama", "minWidth": 160, "flex": 2,
+                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True, "pinned": "left",
+                 "cellStyle": {"color": "#89b4fa", "textDecoration": "underline", "cursor": "pointer", "fontWeight": "600"}},
+                {"headerName": "WhatsApp", "field": "WhatsApp", "minWidth": 120, "flex": 1,
+                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+                {"headerName": "Kota", "field": "Kota", "minWidth": 120, "flex": 1,
+                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+                {"headerName": "Status", "field": "Status", "minWidth": 100, "flex": 1,
+                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+                {"headerName": "Prio", "field": "Prio", "width": 90, "pinned": "right",
+                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            ],
+            "rowData": grid_rows,
+            "pagination": True,
+            "paginationPageSize": 25,
+            "paginationPageSizeSelector": [10, 25, 50, 100],
+            "domLayout": "autoHeight",
+            "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
+            "animateRows": True,
+            "rowHeight": 44,
+            "headerHeight": 44,
+            "enableCellTextSelection": True,
+        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
+
+        def on_cell_click(e):
+            col = e.args.get("colId", "")
+            if col == "Nama":
+                idx = e.args.get("data", {}).get("_idx", -1)
+                r = df.iloc[idx] if 0 <= idx < len(df) else None
+                if r is not None:
+                    show_dialog(r)
+                grid.run_grid_method("deselectAll")
+
+        grid.on("cellClicked", on_cell_click)
 def _render_compact_table(df):
     """Compact data table with display names."""
     # Map display names
