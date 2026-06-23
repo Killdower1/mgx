@@ -119,29 +119,29 @@ def _build_outlet_table(cpv,cmv):
         if rows:
             html_col_indices = []
             col_defs = []
-            col_defs.append({"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":160,"flex":2,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
-            col_defs.append({"headerName":"Area","field":"Area","minWidth":100,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
-            col_defs.append({"headerName":"Status","field":"Status","minWidth":100,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":200,"flex":3,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Area","field":"Area","minWidth":130,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Status","field":"Status","minWidth":110,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
             html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":120,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"600"}})
+            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":140,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"700","fontSize":"13px"}})
             if cmv:
-                col_defs.append({"headerName":"Δ Omset","field":"Delta Omset","minWidth":100,"flex":1})
+                col_defs.append({"headerName":"Δ Omset","field":"Delta Omset","minWidth":120,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
             if cmv:
-                col_defs.append({"headerName":"Δ Foto","field":"Delta Foto","minWidth":80,"flex":1})
+                col_defs.append({"headerName":"Δ Foto","field":"Delta Foto","minWidth":100,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
             if cmv:
-                col_defs.append({"headerName":"Δ Unlock","field":"Delta Unlock","minWidth":80,"flex":1})
+                col_defs.append({"headerName":"Δ Unlock","field":"Delta Unlock","minWidth":100,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Print","field":"Print","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Print","field":"Print","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
             if cmv:
-                col_defs.append({"headerName":"Δ Print","field":"Delta Print","minWidth":80,"flex":1})
+                col_defs.append({"headerName":"Δ Print","field":"Delta Print","minWidth":100,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":80,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":100,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
             if cmv:
-                col_defs.append({"headerName":"Δ Conv","field":"Delta Conv","minWidth":80,"flex":1})
+                col_defs.append({"headerName":"Δ Conv","field":"Delta Conv","minWidth":100,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
             ui.aggrid({
                 "columnDefs": col_defs,
@@ -225,19 +225,36 @@ def _build_outlet_table(cpv,cmv):
                         tr_cols=[{"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True}]
                         tr_cols.append({"name":"Rata-rata","label":"Rata-rata","field":"Rata-rata","align":"right","sortable":True})
                         for p in vc: tr_cols.append({"name":p,"label":p,"field":p,"align":"right"})
+                        # Color each month value green/red vs previous month
+                        trend_html_indices = []
+                        for ri in rr:
+                            prev_val = None
+                            for p in vc:
+                                raw = ri.get(p, "Rp 0")
+                                try:
+                                    cur = float(raw.replace("Rp ", "").replace(".", "").strip())
+                                except:
+                                    cur = 0
+                                if prev_val is not None and cur != 0 and raw != "Rp 0":
+                                    if cur > prev_val:
+                                        ri[p] = '<span style="color:#a6e3a1;font-weight:600">' + raw + '</span>'
+                                    elif cur < prev_val:
+                                        ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
+                                prev_val = cur
+                                trend_html_indices.append(len(trend_html_indices))
                         ui.aggrid({
-                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":140,"flex":2,"sortable":True},
-                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":100,"flex":1,"sortable":True}] +
-                                            [{"headerName":p,"field":p,"minWidth":80,"flex":1} for p in vc],
+                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":180,"flex":2,"sortable":True},
+                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":130,"flex":1,"sortable":True}] +
+                                            [{"headerName":p,"field":p,"minWidth":110,"flex":1} for p in vc],
                             "rowData": rr,
                             "pagination": True,
                             "paginationPageSize": 10,
                             "domLayout": "autoHeight",
                             "defaultColDef": {"resizable": True},
                             "animateRows": True,
-                            "rowHeight": 38,
-                            "headerHeight": 38,
-                        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+                            "rowHeight": 40,
+                            "headerHeight": 40,
+                        }, theme="balham", html_columns=trend_html_indices).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
                     else: ui.label("Tidak ada outlet aktif.").classes("text-gray-400 italic")
                     if not idf.empty:
                         ui.label("Outlet Tidak Aktif").classes("text-sm font-semibold text-gray-400 mt-2 mb-2")
@@ -246,19 +263,35 @@ def _build_outlet_table(cpv,cmv):
                             d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
                             for p in vc: d[p]=str(rd.get(p,"Rp 0"))
                             rr.append(d)
+                        trend_html_indices2 = []
+                        for ri in rr:
+                            prev_val = None
+                            for p in vc:
+                                raw = ri.get(p, "Rp 0")
+                                try:
+                                    cur = float(raw.replace("Rp ", "").replace(".", "").strip())
+                                except:
+                                    cur = 0
+                                if prev_val is not None and cur != 0 and raw != "Rp 0":
+                                    if cur > prev_val:
+                                        ri[p] = '<span style="color:#a6e3a1;font-weight:600">' + raw + '</span>'
+                                    elif cur < prev_val:
+                                        ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
+                                prev_val = cur
+                                trend_html_indices2.append(len(trend_html_indices2))
                         ui.aggrid({
-                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":140,"flex":2,"sortable":True},
-                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":100,"flex":1,"sortable":True}] +
-                                            [{"headerName":p,"field":p,"minWidth":80,"flex":1} for p in vc],
+                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":180,"flex":2,"sortable":True},
+                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":130,"flex":1,"sortable":True}] +
+                                            [{"headerName":p,"field":p,"minWidth":110,"flex":1} for p in vc],
                             "rowData": rr,
                             "pagination": True,
                             "paginationPageSize": 5,
                             "domLayout": "autoHeight",
                             "defaultColDef": {"resizable": True},
                             "animateRows": True,
-                            "rowHeight": 38,
-                            "headerHeight": 38,
-                        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+                            "rowHeight": 40,
+                            "headerHeight": 40,
+                        }, theme="balham", html_columns=trend_html_indices2).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
                     ui.label("Nilai kosong = 0. Rata-rata dari 12 bulan, hanya omset > 0 dihitung.").classes("text-[10px] text-gray-500 italic")
         else:
             ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
@@ -399,29 +432,29 @@ def _build_outlet_table(cpv,cmv):
         if rows:
             html_col_indices = []
             col_defs = []
-            col_defs.append({"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":160,"flex":2,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
-            col_defs.append({"headerName":"Area","field":"Area","minWidth":100,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
-            col_defs.append({"headerName":"Status","field":"Status","minWidth":100,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":200,"flex":3,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Area","field":"Area","minWidth":130,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Status","field":"Status","minWidth":110,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
             html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":120,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"600"}})
+            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":140,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"700","fontSize":"13px"}})
             if cmv:
-                col_defs.append({"headerName":"Δ Omset","field":"Delta Omset","minWidth":100,"flex":1})
+                col_defs.append({"headerName":"Δ Omset","field":"Delta Omset","minWidth":120,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
             if cmv:
-                col_defs.append({"headerName":"Δ Foto","field":"Delta Foto","minWidth":80,"flex":1})
+                col_defs.append({"headerName":"Δ Foto","field":"Delta Foto","minWidth":100,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
             if cmv:
-                col_defs.append({"headerName":"Δ Unlock","field":"Delta Unlock","minWidth":80,"flex":1})
+                col_defs.append({"headerName":"Δ Unlock","field":"Delta Unlock","minWidth":100,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Print","field":"Print","minWidth":70,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Print","field":"Print","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
             if cmv:
-                col_defs.append({"headerName":"Δ Print","field":"Delta Print","minWidth":80,"flex":1})
+                col_defs.append({"headerName":"Δ Print","field":"Delta Print","minWidth":100,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":80,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
+            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":100,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True})
             if cmv:
-                col_defs.append({"headerName":"Δ Conv","field":"Delta Conv","minWidth":80,"flex":1})
+                col_defs.append({"headerName":"Δ Conv","field":"Delta Conv","minWidth":100,"flex":1})
                 html_col_indices.append(len(col_defs)-1)
             ui.aggrid({
                 "columnDefs": col_defs,
@@ -505,19 +538,36 @@ def _build_outlet_table(cpv,cmv):
                         tr_cols=[{"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True}]
                         tr_cols.append({"name":"Rata-rata","label":"Rata-rata","field":"Rata-rata","align":"right","sortable":True})
                         for p in vc: tr_cols.append({"name":p,"label":p,"field":p,"align":"right"})
+                        # Color each month value green/red vs previous month
+                        trend_html_indices = []
+                        for ri in rr:
+                            prev_val = None
+                            for p in vc:
+                                raw = ri.get(p, "Rp 0")
+                                try:
+                                    cur = float(raw.replace("Rp ", "").replace(".", "").strip())
+                                except:
+                                    cur = 0
+                                if prev_val is not None and cur != 0 and raw != "Rp 0":
+                                    if cur > prev_val:
+                                        ri[p] = '<span style="color:#a6e3a1;font-weight:600">' + raw + '</span>'
+                                    elif cur < prev_val:
+                                        ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
+                                prev_val = cur
+                                trend_html_indices.append(len(trend_html_indices))
                         ui.aggrid({
-                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":140,"flex":2,"sortable":True},
-                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":100,"flex":1,"sortable":True}] +
-                                            [{"headerName":p,"field":p,"minWidth":80,"flex":1} for p in vc],
+                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":180,"flex":2,"sortable":True},
+                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":130,"flex":1,"sortable":True}] +
+                                            [{"headerName":p,"field":p,"minWidth":110,"flex":1} for p in vc],
                             "rowData": rr,
                             "pagination": True,
                             "paginationPageSize": 10,
                             "domLayout": "autoHeight",
                             "defaultColDef": {"resizable": True},
                             "animateRows": True,
-                            "rowHeight": 38,
-                            "headerHeight": 38,
-                        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+                            "rowHeight": 40,
+                            "headerHeight": 40,
+                        }, theme="balham", html_columns=trend_html_indices).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
                     else: ui.label("Tidak ada outlet aktif.").classes("text-gray-400 italic")
                     if not idf.empty:
                         ui.label("Outlet Tidak Aktif").classes("text-sm font-semibold text-gray-400 mt-2 mb-2")
@@ -526,19 +576,35 @@ def _build_outlet_table(cpv,cmv):
                             d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
                             for p in vc: d[p]=str(rd.get(p,"Rp 0"))
                             rr.append(d)
+                        trend_html_indices2 = []
+                        for ri in rr:
+                            prev_val = None
+                            for p in vc:
+                                raw = ri.get(p, "Rp 0")
+                                try:
+                                    cur = float(raw.replace("Rp ", "").replace(".", "").strip())
+                                except:
+                                    cur = 0
+                                if prev_val is not None and cur != 0 and raw != "Rp 0":
+                                    if cur > prev_val:
+                                        ri[p] = '<span style="color:#a6e3a1;font-weight:600">' + raw + '</span>'
+                                    elif cur < prev_val:
+                                        ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
+                                prev_val = cur
+                                trend_html_indices2.append(len(trend_html_indices2))
                         ui.aggrid({
-                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":140,"flex":2,"sortable":True},
-                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":100,"flex":1,"sortable":True}] +
-                                            [{"headerName":p,"field":p,"minWidth":80,"flex":1} for p in vc],
+                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":180,"flex":2,"sortable":True},
+                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":130,"flex":1,"sortable":True}] +
+                                            [{"headerName":p,"field":p,"minWidth":110,"flex":1} for p in vc],
                             "rowData": rr,
                             "pagination": True,
                             "paginationPageSize": 5,
                             "domLayout": "autoHeight",
                             "defaultColDef": {"resizable": True},
                             "animateRows": True,
-                            "rowHeight": 38,
-                            "headerHeight": 38,
-                        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+                            "rowHeight": 40,
+                            "headerHeight": 40,
+                        }, theme="balham", html_columns=trend_html_indices2).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
                     ui.label("Nilai kosong = 0. Rata-rata dari 12 bulan, hanya omset > 0 dihitung.").classes("text-[10px] text-gray-500 italic")
         else:
             ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
