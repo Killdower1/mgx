@@ -19,6 +19,7 @@ TBL_CSS="""<style>
 ::-webkit-scrollbar-track{background:#11111b;border-radius:4px}
 ::-webkit-scrollbar-thumb{background:#45475a;border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:#585b70}
+.ag-theme-balham-dark{--ag-background-color:#1e1e2e;--ag-header-background-color:#181825;--ag-odd-row-background-color:#1a1a2e;--ag-row-hover-color:#313244;--ag-border-color:#313244;--ag-font-size:12px;--ag-header-height:40px;--ag-row-height:40px;--ag-selected-row-background-color:#2a2a4e}
 </style>"""
 
 _df=None;_ff=None;_cp=None;_cmp=None;_content=None
