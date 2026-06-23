@@ -218,18 +218,27 @@ def _build_outlet_table(cpv,cmv):
                         # Color each month value green/red vs prev month
                         trend_html_indices = list(range(2, 2 + len(vc)))
                         for ri in rr:
+                            months = list(vc)
                             prev_val = None
-                            for p in vc:
+                            for i, p in enumerate(months):
                                 raw = ri.get(p, "Rp 0")
                                 try:
                                     s = raw.replace("Rp ", "").strip()
                                     cur = float(s.replace(".", "").replace(",", ""))
                                 except:
                                     cur = 0
-                                if prev_val is not None and cur != 0 and raw != "Rp 0":
-                                    if cur > prev_val:
+                                # For latest month, compare with the next month
+                                cmp_val = prev_val
+                                if i == 0 and len(months) > 1:
+                                    try:
+                                        s2 = ri.get(months[1], "Rp 0").replace("Rp ", "").strip()
+                                        cmp_val = float(s2.replace(".", "").replace(",", ""))
+                                    except:
+                                        pass
+                                if cmp_val is not None and cur != 0:
+                                    if cur > cmp_val:
                                         ri[p] = '<span style="color:#a6e3a1;font-weight:600">' + raw + '</span>'
-                                    elif cur < prev_val:
+                                    elif cur < cmp_val:
                                         ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
                                 prev_val = cur
                         ui.aggrid({
@@ -255,18 +264,26 @@ def _build_outlet_table(cpv,cmv):
                             rr.append(d)
                         trend_html_indices2 = list(range(2, 2 + len(vc)))
                         for ri in rr:
+                            months = list(vc)
                             prev_val = None
-                            for p in vc:
+                            for i, p in enumerate(months):
                                 raw = ri.get(p, "Rp 0")
                                 try:
                                     s = raw.replace("Rp ", "").strip()
                                     cur = float(s.replace(".", "").replace(",", ""))
                                 except:
                                     cur = 0
-                                if prev_val is not None and cur != 0 and raw != "Rp 0":
-                                    if cur > prev_val:
+                                cmp_val = prev_val
+                                if i == 0 and len(months) > 1:
+                                    try:
+                                        s2 = ri.get(months[1], "Rp 0").replace("Rp ", "").strip()
+                                        cmp_val = float(s2.replace(".", "").replace(",", ""))
+                                    except:
+                                        pass
+                                if cmp_val is not None and cur != 0:
+                                    if cur > cmp_val:
                                         ri[p] = '<span style="color:#a6e3a1;font-weight:600">' + raw + '</span>'
-                                    elif cur < prev_val:
+                                    elif cur < cmp_val:
                                         ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
                                 prev_val = cur
                         ui.aggrid({
@@ -521,18 +538,27 @@ def _build_outlet_table(cpv,cmv):
                         # Color each month value green/red vs prev month
                         trend_html_indices = list(range(2, 2 + len(vc)))
                         for ri in rr:
+                            months = list(vc)
                             prev_val = None
-                            for p in vc:
+                            for i, p in enumerate(months):
                                 raw = ri.get(p, "Rp 0")
                                 try:
                                     s = raw.replace("Rp ", "").strip()
                                     cur = float(s.replace(".", "").replace(",", ""))
                                 except:
                                     cur = 0
-                                if prev_val is not None and cur != 0 and raw != "Rp 0":
-                                    if cur > prev_val:
+                                # For latest month, compare with the next month
+                                cmp_val = prev_val
+                                if i == 0 and len(months) > 1:
+                                    try:
+                                        s2 = ri.get(months[1], "Rp 0").replace("Rp ", "").strip()
+                                        cmp_val = float(s2.replace(".", "").replace(",", ""))
+                                    except:
+                                        pass
+                                if cmp_val is not None and cur != 0:
+                                    if cur > cmp_val:
                                         ri[p] = '<span style="color:#a6e3a1;font-weight:600">' + raw + '</span>'
-                                    elif cur < prev_val:
+                                    elif cur < cmp_val:
                                         ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
                                 prev_val = cur
                         ui.aggrid({
@@ -558,18 +584,26 @@ def _build_outlet_table(cpv,cmv):
                             rr.append(d)
                         trend_html_indices2 = list(range(2, 2 + len(vc)))
                         for ri in rr:
+                            months = list(vc)
                             prev_val = None
-                            for p in vc:
+                            for i, p in enumerate(months):
                                 raw = ri.get(p, "Rp 0")
                                 try:
                                     s = raw.replace("Rp ", "").strip()
                                     cur = float(s.replace(".", "").replace(",", ""))
                                 except:
                                     cur = 0
-                                if prev_val is not None and cur != 0 and raw != "Rp 0":
-                                    if cur > prev_val:
+                                cmp_val = prev_val
+                                if i == 0 and len(months) > 1:
+                                    try:
+                                        s2 = ri.get(months[1], "Rp 0").replace("Rp ", "").strip()
+                                        cmp_val = float(s2.replace(".", "").replace(",", ""))
+                                    except:
+                                        pass
+                                if cmp_val is not None and cur != 0:
+                                    if cur > cmp_val:
                                         ri[p] = '<span style="color:#a6e3a1;font-weight:600">' + raw + '</span>'
-                                    elif cur < prev_val:
+                                    elif cur < cmp_val:
                                         ri[p] = '<span style="color:#f38ba8;font-weight:600">' + raw + '</span>'
                                 prev_val = cur
                         ui.aggrid({
