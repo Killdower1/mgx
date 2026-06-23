@@ -52,12 +52,12 @@ def _fetch_from_erpnext() -> pd.DataFrame:
         headers = {"Authorization": f"token {cfg['api_key']}:{cfg['api_secret']}"}
         url = cfg["url"]
         all_data = []
-        offset = 0
+        limit_start = 0
         while True:
             r = requests.get(
                 f"{url}/api/resource/Lead%20Kemitraan",
                 headers=headers,
-                params={"limit_page_length": 200, "offset": offset, "fields": json.dumps(["*"])},
+                params={"limit_page_length": 200, "limit_start": limit_start, "fields": json.dumps(["*"])},
                 timeout=60,
             )
             if r.status_code != 200:
@@ -66,7 +66,7 @@ def _fetch_from_erpnext() -> pd.DataFrame:
             if not data:
                 break
             all_data.extend(data)
-            offset += 200
+            limit_start += 200
         cache = {"last_sync": datetime.now().isoformat(), "records": all_data}
         with open(LK_CACHE_PATH, "w", encoding="utf-8") as f:
             json.dump(cache, f, indent=2, ensure_ascii=False)
