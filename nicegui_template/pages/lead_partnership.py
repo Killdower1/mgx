@@ -653,11 +653,12 @@ def _render_lead_table(df):
 
     # Click handler — cuma Tempat aja yg trigger popup
     def on_cell_click(e):
-        col = e.get("colDef", {}).get("field", "")
+        col = e.args.get("colId", "")
         if col == "Tempat":
-            idx = e.get("data", {}).get("_idx", -1)
+            idx = e.args.get("data", {}).get("_idx", -1)
             if 0 <= idx < len(detail_data):
                 show_dialog(detail_data[idx])
+            grid.run_grid_method("deselectAll")
 
     grid.on("cellClicked", on_cell_click)
 
