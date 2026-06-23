@@ -8,6 +8,12 @@ from nicegui import ui
 import pandas as pd
 import numpy as np
 
+import requests
+import json
+from pathlib import Path
+
+CONFIG_PATH = Path('/var/www/difotoin-dashboard/streamlit_template/config/erpnext_config.json')
+
 from services.kemitraan_adapter import (
     get_sharing_periods,
     load_sharing_outlets,
@@ -235,6 +241,10 @@ def create_page(container: ui.column):
             #  TAB 2: SETTING KEMITRAAN
             # ══════════════════════════════════════════
 
+            with ui.tab_panel("daftar"):
+                with ui.column().classes("w-full p-2") as daftar_container:
+                    _render_daftar_lead(daftar_container)
+
             with ui.tab_panel("setting"):
                 setting_area = ui.column().classes("w-full")
 
@@ -313,6 +323,160 @@ def create_page(container: ui.column):
 
 
 # ═══════════════════════════════════════════════
+
+# --- Daftar Lead (AG Grid + popup) ---
+
+def _fetch_lk_from_erpnext():
+    import requests, json
+    try:
+        with open(CONFIG_PATH) as f:
+            cfg = json.load(f)
+        headers = {"Authorization": "token " + cfg["api_key"] + ":" + cfg["api_secret"]}
+        base_url = cfg["url"]
+        all_data = []
+        limit_start = 0
+        while True:
+            r = requests.get(
+                base_url + "/api/resource/Lead%20Kemitraan",
+                headers=headers,
+                params={"limit_page_length": 200, "limit_start": limit_start, "fields": '["*"]'},
+                timeout=60,
+            )
+            if r.status_code != 200:
+                break
+            data = r.json().get("data", [])
+            if not data:
+                break
+            all_data.extend(data)
+            limit_start += 200
+        if all_data:
+            return pd.DataFrame(all_data)
+        return pd.DataFrame()
+    except Exception as ex:
+        from nicegui import ui
+        ui.notify("Gagal fetch ERPNext: " + str(ex), type="negative")
+        return pd.DataFrame()
+
+
+def _render_daftar_lead(container):
+    df = _fetch_lk_from_erpnext()
+    if df.empty:
+        ui.label("Belum ada data Lead Kemitraan dari ERPNext.").classes("text-gray-400 italic mb-4")
+        return
+
+    total = len(df)
+    ui.label(str(total) + " lead kemitraan").classes("text-sm text-gray-300 mb-3")
+
+    css = (
+        "<style>"
+        ".ag-theme-balham-dark { "
+        "--ag-background-color: #1e1e2e; --ag-header-background-color: #181825; "
+        "--ag-odd-row-background-color: #1a1a2e; --ag-row-hover-color: #313244; "
+        "--ag-border-color: #313244; --ag-font-size: 13px; "
+        "--ag-header-height: 44px; --ag-row-height: 40px; "
+        "--ag-selected-row-background-color: #2a2a4e; }"
+        ".detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }"
+        ".detail-table td { padding: 6px 10px; border: none; }"
+        ".detail-table .lbl { font-weight: 600; color: #a6adc8; width: 150px; }"
+        "</style>"
+    )
+    ui.add_head_html(css)
+
+    def show_dialog(row):
+        nama = str(row.get("nama_lengkap", "") or "").strip() or str(row.get("lead_name", "") or "").strip() or "-"
+        flds = [
+            ("ID", "name"), ("Nama", "nama_lengkap"),
+            ("WhatsApp", "nomor_whatsapp"), ("Email", "email"),
+            ("Kota Domisili", "kota_domisili"),
+            ("Kota Penempatan", "kota_penempatan_mesin"),
+            ("Pekerjaan", "pekerjaan_bisnis_saat_ini"),
+            ("Sumber Info", "dari_mana_tahu_difotoin"),
+            ("Status Lead", "status_lead"), ("Prioritas", "priority"),
+            ("Sales PIC", "sales_pic"),
+            ("Unit Diminati", "jumlah_unit_diminati"),
+            ("Unit Final", "jumlah_unit_final"),
+            ("Budget Investasi", "budget_investasi"),
+            ("Investasi Dibahas", "harga_investasi_dibahas"),
+            ("Skema Bayar", "skema_pembayaran"),
+            ("Kesiapan DP", "kesiapan_dp"),
+            ("Sudah Punya Lokasi", "sudah_punya_lokasi"),
+            ("Jenis Lokasi", "jenis_lokasi"),
+            ("Kapan Mulai", "kapan_ingin_mulai"),
+            ("Hasil Follow Up", "hasil_follow_up_terakhir"),
+            ("Last FO", "last_follow_up"), ("Next FO", "next_follow_up"),
+            ("Next Step", "next_step"), ("Created", "creation"),
+        ]
+        with ui.dialog() as dialog, ui.card().style(
+            "background: #1e1e2e; border: 1px solid #313244; border-radius: 12px; "
+            "padding: 20px; min-width: 320px; max-width: 92vw; width: auto;"
+        ).classes("responsive-dialog-card"):
+            ui.label("Detail: " + nama).classes("text-lg font-bold text-white mb-4")
+            parts = ["<table class='detail-table'>"]
+            for i, (lbl, key) in enumerate(flds):
+                val = str(row.get(key, "") or "")
+                if not val.strip() or val in ("None", "nan"):
+                    val = "-"
+                bg = ";background:#1e1e2e" if i % 2 == 0 else ""
+                parts.append("<tr style='" + bg + "'>")
+                parts.append("<td class='lbl'>" + lbl + "</td>")
+                parts.append("<td style='color:#cdd6f4'>" + val + "</td></tr>")
+            parts.append("</table>")
+            ui.html("".join(parts)).classes("w-full")
+            ui.button("Tutup", on_click=dialog.close).props("flat").classes("mt-4")
+        dialog.open()
+
+    grid_rows = []
+    for idx, raw in df.iterrows():
+        nm = str(raw.get("nama_lengkap", "") or "").strip() or str(raw.get("lead_name", "") or "").strip() or "-"
+        grid_rows.append({
+            "Nama": nm,
+            "WhatsApp": str(raw.get("nomor_whatsapp", "") or "").strip() or "-",
+            "Kota": str(raw.get("kota_penempatan_mesin", "") or "").strip() or str(raw.get("kota_domisili", "") or "").strip() or "-",
+            "Status": str(raw.get("status_lead", "") or "").strip() or "-",
+            "Prio": str(raw.get("priority", "") or "").strip() or "-",
+            "_idx": idx,
+        })
+
+    ui.label(str(total) + " record | klik Nama untuk detail").classes("text-xs text-gray-500 mb-2")
+
+    grid = ui.aggrid({
+        "columnDefs": [
+            {"headerName": "Nama", "field": "Nama", "minWidth": 160, "flex": 2,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True, "pinned": "left",
+             "cellStyle": {"color": "#89b4fa", "textDecoration": "underline", "cursor": "pointer", "fontWeight": "600"}},
+            {"headerName": "WhatsApp", "field": "WhatsApp", "minWidth": 120, "flex": 1,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            {"headerName": "Kota", "field": "Kota", "minWidth": 120, "flex": 1,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            {"headerName": "Status", "field": "Status", "minWidth": 100, "flex": 1,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            {"headerName": "Prio", "field": "Prio", "width": 90, "pinned": "right",
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+        ],
+        "rowData": grid_rows,
+        "pagination": True,
+        "paginationPageSize": 25,
+        "paginationPageSizeSelector": [10, 25, 50, 100],
+        "domLayout": "autoHeight",
+        "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
+        "animateRows": True,
+        "rowHeight": 44,
+        "headerHeight": 44,
+        "enableCellTextSelection": True,
+    }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
+
+    def on_cell_click(e):
+        col = e.args.get("colId", "")
+        if col == "Nama":
+            idx = e.args.get("data", {}).get("_idx", -1)
+            r = df.iloc[idx] if 0 <= idx < len(df) else None
+            if r is not None:
+                show_dialog(r)
+            grid.run_grid_method("deselectAll")
+
+    grid.on("cellClicked", on_cell_click)
+
+
 #  SHARING UPLOAD HANDLER
 # ═══════════════════════════════════════════════
 
