@@ -225,7 +225,19 @@ def _build_outlet_table(cpv,cmv):
                         tr_cols=[{"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True}]
                         tr_cols.append({"name":"Rata-rata","label":"Rata-rata","field":"Rata-rata","align":"right","sortable":True})
                         for p in vc: tr_cols.append({"name":p,"label":p,"field":p,"align":"right"})
-                        ui.table(rows=rr,columns=tr_cols,row_key="Outlet",pagination={"rowsPerPage":10}).props("dense dark flat bordered").classes("w-full")
+                        ui.aggrid({
+                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":140,"flex":2,"sortable":True},
+                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":100,"flex":1,"sortable":True}] +
+                                            [{"headerName":p,"field":p,"minWidth":80,"flex":1} for p in vc],
+                            "rowData": rr,
+                            "pagination": True,
+                            "paginationPageSize": 10,
+                            "domLayout": "autoHeight",
+                            "defaultColDef": {"resizable": True},
+                            "animateRows": True,
+                            "rowHeight": 38,
+                            "headerHeight": 38,
+                        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
                     else: ui.label("Tidak ada outlet aktif.").classes("text-gray-400 italic")
                     if not idf.empty:
                         ui.label("Outlet Tidak Aktif").classes("text-sm font-semibold text-gray-400 mt-2 mb-2")
@@ -234,10 +246,19 @@ def _build_outlet_table(cpv,cmv):
                             d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
                             for p in vc: d[p]=str(rd.get(p,"Rp 0"))
                             rr.append(d)
-                        tr_cols=[{"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True}]
-                        tr_cols.append({"name":"Rata-rata","label":"Rata-rata","field":"Rata-rata","align":"right","sortable":True})
-                        for p in vc: tr_cols.append({"name":p,"label":p,"field":p,"align":"right"})
-                        ui.table(rows=rr,columns=tr_cols,row_key="Outlet",pagination={"rowsPerPage":5}).props("dense dark flat bordered").classes("w-full")
+                        ui.aggrid({
+                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":140,"flex":2,"sortable":True},
+                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":100,"flex":1,"sortable":True}] +
+                                            [{"headerName":p,"field":p,"minWidth":80,"flex":1} for p in vc],
+                            "rowData": rr,
+                            "pagination": True,
+                            "paginationPageSize": 5,
+                            "domLayout": "autoHeight",
+                            "defaultColDef": {"resizable": True},
+                            "animateRows": True,
+                            "rowHeight": 38,
+                            "headerHeight": 38,
+                        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
                     ui.label("Nilai kosong = 0. Rata-rata dari 12 bulan, hanya omset > 0 dihitung.").classes("text-[10px] text-gray-500 italic")
         else:
             ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
@@ -484,7 +505,19 @@ def _build_outlet_table(cpv,cmv):
                         tr_cols=[{"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True}]
                         tr_cols.append({"name":"Rata-rata","label":"Rata-rata","field":"Rata-rata","align":"right","sortable":True})
                         for p in vc: tr_cols.append({"name":p,"label":p,"field":p,"align":"right"})
-                        ui.table(rows=rr,columns=tr_cols,row_key="Outlet",pagination={"rowsPerPage":10}).props("dense dark flat bordered").classes("w-full")
+                        ui.aggrid({
+                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":140,"flex":2,"sortable":True},
+                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":100,"flex":1,"sortable":True}] +
+                                            [{"headerName":p,"field":p,"minWidth":80,"flex":1} for p in vc],
+                            "rowData": rr,
+                            "pagination": True,
+                            "paginationPageSize": 10,
+                            "domLayout": "autoHeight",
+                            "defaultColDef": {"resizable": True},
+                            "animateRows": True,
+                            "rowHeight": 38,
+                            "headerHeight": 38,
+                        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
                     else: ui.label("Tidak ada outlet aktif.").classes("text-gray-400 italic")
                     if not idf.empty:
                         ui.label("Outlet Tidak Aktif").classes("text-sm font-semibold text-gray-400 mt-2 mb-2")
@@ -493,10 +526,19 @@ def _build_outlet_table(cpv,cmv):
                             d={"Outlet":str(rd.get("Outlet","")),"Rata-rata":str(rd.get("Rata-rata","Rp 0"))}
                             for p in vc: d[p]=str(rd.get(p,"Rp 0"))
                             rr.append(d)
-                        tr_cols=[{"name":"Outlet","label":"Outlet","field":"Outlet","align":"left","sortable":True}]
-                        tr_cols.append({"name":"Rata-rata","label":"Rata-rata","field":"Rata-rata","align":"right","sortable":True})
-                        for p in vc: tr_cols.append({"name":p,"label":p,"field":p,"align":"right"})
-                        ui.table(rows=rr,columns=tr_cols,row_key="Outlet",pagination={"rowsPerPage":5}).props("dense dark flat bordered").classes("w-full")
+                        ui.aggrid({
+                            "columnDefs": [{"headerName":"Outlet","field":"Outlet","pinned":"left","minWidth":140,"flex":2,"sortable":True},
+                                            {"headerName":"Rata-rata","field":"Rata-rata","minWidth":100,"flex":1,"sortable":True}] +
+                                            [{"headerName":p,"field":p,"minWidth":80,"flex":1} for p in vc],
+                            "rowData": rr,
+                            "pagination": True,
+                            "paginationPageSize": 5,
+                            "domLayout": "autoHeight",
+                            "defaultColDef": {"resizable": True},
+                            "animateRows": True,
+                            "rowHeight": 38,
+                            "headerHeight": 38,
+                        }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
                     ui.label("Nilai kosong = 0. Rata-rata dari 12 bulan, hanya omset > 0 dihitung.").classes("text-[10px] text-gray-500 italic")
         else:
             ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
