@@ -575,6 +575,15 @@ def _render_lead_table(df):
 .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .detail-table td { padding: 6px 10px; border: none; }
 .detail-table .lbl { font-weight: 600; color: #a6adc8; width: 150px; }
+</style>""");
+
+    # ── Mobile horizontal scroll ──
+    ui.add_head_html("""<style>
+@media (max-width: 768px) {
+  .nicegui-aggrid { overflow-x: auto !important; max-width: 100vw !important; }
+  .nicegui-aggrid .ag-body-viewport { overflow-x: auto !important; }
+  .nicegui-aggrid .ag-center-cols-container { min-width: 800px !important; }
+}
 </style>""")
 
     def show_dialog(row):
