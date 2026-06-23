@@ -110,11 +110,11 @@ def _build_outlet_table(cpv,cmv):
             rows.append({
                 "Outlet":name,"Area":are,
                 "Status":f'<span style="color:{SC.get(sta,"#94a3b8")};font-weight:600;">{sta}</span>',
-                "Omset":oms,"Delta Omset":delta_oms,
-                "Foto":fot,"Delta Foto":_d("foto_qty",lambda x:int(x)),
-                "Unlock":unl,"Delta Unlock":_d("unlock_qty",lambda x:int(x)),
-                "Print":prn,"Delta Print":_d("print_qty",lambda x:int(x)),
-                "Conv":cnv,"Delta Conv":_dp("conversion_rate"),
+                "Omset":_c(oms),"Delta Omset":delta_oms,
+                "Foto":_n(fot),"Delta Foto":_d("foto_qty",lambda x:_n(int(x))),
+                "Unlock":_n(unl),"Delta Unlock":_d("unlock_qty",lambda x:_n(int(x))),
+                "Print":_n(prn),"Delta Print":_d("print_qty",lambda x:_n(int(x))),
+                "Conv":_p(cnv),"Delta Conv":_dp("conversion_rate"),
             })
         if rows:
             html_col_indices = []
@@ -123,16 +123,16 @@ def _build_outlet_table(cpv,cmv):
             col_defs.append({"headerName":"Area","field":"Area","minWidth":130,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
             col_defs.append({"headerName":"Status","field":"Status","minWidth":110,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
             html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":140,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"700","fontSize":"13px"},":filterValueGetter":"(p)=>Number(p.data.Omset)","comparator":"(a,b)=>Number(a)-Number(b)",":valueFormatter":"(p)=>'Rp '+Math.round(p.value).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,'.')"})
-            if cmv: col_defs.append({"headerName":"\u0394 Omset","field":"Delta Omset","minWidth":120,"flex":1})
-            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":valueFormatter":"(p)=>p.value.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,'.')"})
-            if cmv: col_defs.append({"headerName":"\u0394 Foto","field":"Delta Foto","minWidth":100,"flex":1})
-            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":valueFormatter":"(p)=>p.value.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,'.')"})
-            if cmv: col_defs.append({"headerName":"\u0394 Unlock","field":"Delta Unlock","minWidth":100,"flex":1})
-            col_defs.append({"headerName":"Print","field":"Print","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":valueFormatter":"(p)=>p.value.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,'.')"})
-            if cmv: col_defs.append({"headerName":"\u0394 Print","field":"Delta Print","minWidth":100,"flex":1})
-            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":100,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":valueFormatter":"(p)=>p.value.toFixed(1).replace('.',',')+'%'"})
-            if cmv: col_defs.append({"headerName":"\u0394 Conv","field":"Delta Conv","minWidth":100,"flex":1})
+            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":150,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"700","fontSize":"13px"},":comparator":"(a,b)=>{const x=a.split(' ').slice(-1)[0];const y=b.split(' ').slice(-1)[0];return Number(x?x.split('.').join(''):0)-Number(y?y.split('.').join(''):0)}"})
+            if cmv: col_defs.append({"headerName":"Δ Omset","field":"Delta Omset","minWidth":120,"flex":1})
+            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":comparator":"(a,b)=>{const na=Number(a?a.split('.').join(''):0);const nb=Number(b?b.split('.').join(''):0);return na-nb}"})
+            if cmv: col_defs.append({"headerName":"Δ Foto","field":"Delta Foto","minWidth":100,"flex":1})
+            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":comparator":"(a,b)=>{const na=Number(a?a.split('.').join(''):0);const nb=Number(b?b.split('.').join(''):0);return na-nb}"})
+            if cmv: col_defs.append({"headerName":"Δ Unlock","field":"Delta Unlock","minWidth":100,"flex":1})
+            col_defs.append({"headerName":"Print","field":"Print","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":comparator":"(a,b)=>{const na=Number(a?a.split('.').join(''):0);const nb=Number(b?b.split('.').join(''):0);return na-nb}"})
+            if cmv: col_defs.append({"headerName":"Δ Print","field":"Delta Print","minWidth":100,"flex":1})
+            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":100,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":comparator":"(a,b)=>{const na=Number(a?a.replace('%','').replace(',','.'):0);const nb=Number(b?b.replace('%','').replace(',','.'):0);return na-nb}"})
+            if cmv: col_defs.append({"headerName":"Δ Conv","field":"Delta Conv","minWidth":100,"flex":1})
             ui.aggrid({
                 "columnDefs": col_defs,
                 "rowData": rows,
@@ -413,11 +413,11 @@ def _build_outlet_table(cpv,cmv):
             rows.append({
                 "Outlet":name,"Area":are,
                 "Status":f'<span style="color:{SC.get(sta,"#94a3b8")};font-weight:600;">{sta}</span>',
-                "Omset":oms,"Delta Omset":delta_oms,
-                "Foto":fot,"Delta Foto":_d("foto_qty",lambda x:int(x)),
-                "Unlock":unl,"Delta Unlock":_d("unlock_qty",lambda x:int(x)),
-                "Print":prn,"Delta Print":_d("print_qty",lambda x:int(x)),
-                "Conv":cnv,"Delta Conv":_dp("conversion_rate"),
+                "Omset":_c(oms),"Delta Omset":delta_oms,
+                "Foto":_n(fot),"Delta Foto":_d("foto_qty",lambda x:_n(int(x))),
+                "Unlock":_n(unl),"Delta Unlock":_d("unlock_qty",lambda x:_n(int(x))),
+                "Print":_n(prn),"Delta Print":_d("print_qty",lambda x:_n(int(x))),
+                "Conv":_p(cnv),"Delta Conv":_dp("conversion_rate"),
             })
         if rows:
             html_col_indices = []
@@ -426,16 +426,16 @@ def _build_outlet_table(cpv,cmv):
             col_defs.append({"headerName":"Area","field":"Area","minWidth":130,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
             col_defs.append({"headerName":"Status","field":"Status","minWidth":110,"flex":1,"sortable":True,"filter":"agTextColumnFilter","floatingFilter":True})
             html_col_indices.append(len(col_defs)-1)
-            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":140,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"700","fontSize":"13px"},":filterValueGetter":"(p)=>Number(p.data.Omset)","comparator":"(a,b)=>Number(a)-Number(b)",":valueFormatter":"(p)=>'Rp '+Math.round(p.value).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,'.')"})
-            if cmv: col_defs.append({"headerName":"\u0394 Omset","field":"Delta Omset","minWidth":120,"flex":1})
-            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":valueFormatter":"(p)=>p.value.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,'.')"})
-            if cmv: col_defs.append({"headerName":"\u0394 Foto","field":"Delta Foto","minWidth":100,"flex":1})
-            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":valueFormatter":"(p)=>p.value.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,'.')"})
-            if cmv: col_defs.append({"headerName":"\u0394 Unlock","field":"Delta Unlock","minWidth":100,"flex":1})
-            col_defs.append({"headerName":"Print","field":"Print","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":valueFormatter":"(p)=>p.value.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,'.')"})
-            if cmv: col_defs.append({"headerName":"\u0394 Print","field":"Delta Print","minWidth":100,"flex":1})
-            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":100,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":valueFormatter":"(p)=>p.value.toFixed(1).replace('.',',')+'%'"})
-            if cmv: col_defs.append({"headerName":"\u0394 Conv","field":"Delta Conv","minWidth":100,"flex":1})
+            col_defs.append({"headerName":"Omset","field":"Omset","minWidth":150,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,"cellStyle":{"fontWeight":"700","fontSize":"13px"},":comparator":"(a,b)=>{const x=a.split(' ').slice(-1)[0];const y=b.split(' ').slice(-1)[0];return Number(x?x.split('.').join(''):0)-Number(y?y.split('.').join(''):0)}"})
+            if cmv: col_defs.append({"headerName":"Δ Omset","field":"Delta Omset","minWidth":120,"flex":1})
+            col_defs.append({"headerName":"Foto","field":"Foto","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":comparator":"(a,b)=>{const na=Number(a?a.split('.').join(''):0);const nb=Number(b?b.split('.').join(''):0);return na-nb}"})
+            if cmv: col_defs.append({"headerName":"Δ Foto","field":"Delta Foto","minWidth":100,"flex":1})
+            col_defs.append({"headerName":"Unlock","field":"Unlock","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":comparator":"(a,b)=>{const na=Number(a?a.split('.').join(''):0);const nb=Number(b?b.split('.').join(''):0);return na-nb}"})
+            if cmv: col_defs.append({"headerName":"Δ Unlock","field":"Delta Unlock","minWidth":100,"flex":1})
+            col_defs.append({"headerName":"Print","field":"Print","minWidth":90,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":comparator":"(a,b)=>{const na=Number(a?a.split('.').join(''):0);const nb=Number(b?b.split('.').join(''):0);return na-nb}"})
+            if cmv: col_defs.append({"headerName":"Δ Print","field":"Delta Print","minWidth":100,"flex":1})
+            col_defs.append({"headerName":"Conv","field":"Conv","minWidth":100,"flex":1,"sortable":True,"filter":"agNumberColumnFilter","floatingFilter":True,":comparator":"(a,b)=>{const na=Number(a?a.replace('%','').replace(',','.'):0);const nb=Number(b?b.replace('%','').replace(',','.'):0);return na-nb}"})
+            if cmv: col_defs.append({"headerName":"Δ Conv","field":"Delta Conv","minWidth":100,"flex":1})
             ui.aggrid({
                 "columnDefs": col_defs,
                 "rowData": rows,
