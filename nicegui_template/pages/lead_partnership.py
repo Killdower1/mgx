@@ -233,7 +233,12 @@ def _render_dashboard(df):
                 ui.label(lbl).style(ML)
                 ui.label(val).style(MV)
 
-    # Row 1: Funnel + Trend
+    # Row 1: Status & QTY — tabel data dg filter status
+    with ui.card().classes("w-full mb-6").style(CARD):
+        ui.label("📊 Status & QTY").style(ST)
+        _render_status_qty_table(df)
+
+    # Row 2: Funnel + Trend
     with ui.row().classes("w-full gap-4 mb-6"):
         with ui.card().classes("flex-[1.2]").style(CARD):
             ui.label("🔄 Funnel Konversi").style(ST)
@@ -242,7 +247,7 @@ def _render_dashboard(df):
             ui.label("🏙️ Kota & Qty").style(ST)
             _render_kota_table(df)
 
-    # Row 2: Status, Priority, Jenis Partnership
+    # Row 3: Status, Priority, Jenis Partnership
     with ui.row().classes("w-full gap-4 mb-6"):
         with ui.card().classes("flex-1").style(CARD):
             ui.label("📊 Status").style(ST)
@@ -253,11 +258,6 @@ def _render_dashboard(df):
         with ui.card().classes("flex-1").style(CARD):
             ui.label("🏷️ Jenis Partnership").style(ST)
             _echart_bar(df, "jenis_partnership", None)
-
-    # Row 3: Status & QTY
-    with ui.card().classes("w-full mb-6").style(CARD):
-        ui.label("📊 Status & QTY").style(ST)
-        _render_status_qty_table(df)
 
     # Row 4: High Priority & Need Survey
     with ui.row().classes("w-full gap-4 mb-6"):
@@ -406,9 +406,12 @@ def _render_status_qty_table(df):
             ui.table(rows=rows, columns=columns, pagination={"rowsPerPage": 15}).classes("w-full").props("dark flat dense")
             ui.label(f"Total: {len(filtered)} record").classes("text-xs text-gray-400 mt-1")
 
-    status_select = ui.select(status_options, value="Semua Status", label="Filter Status Lead"
+    def on_status_change(sel):
+        rebuild_table(sel.value)
+
+    ui.select(status_options, value="Semua Status", label="Filter Status Lead",
+                              on_change=on_status_change
                               ).props("dense outlined dark").classes("w-full mb-3")
-    status_select.on("change", lambda: rebuild_table(status_select.value))
 
     rebuild_table("Semua Status")
 
