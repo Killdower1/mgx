@@ -254,7 +254,21 @@ def _render_dashboard(df):
             ui.label("🏷️ Jenis Partnership").style(ST)
             _echart_bar(df, "jenis_partnership", None)
 
-    # Row 3: Kota, Source, Skema
+    # Row 3: Status & QTY
+    with ui.card().classes("w-full mb-6").style(CARD):
+        ui.label("📊 Status & QTY").style(ST)
+        _render_status_qty_table(df)
+
+    # Row 4: High Priority & Need Survey
+    with ui.row().classes("w-full gap-4 mb-6"):
+        with ui.card().classes("flex-1").style(CARD):
+            ui.label("🔴 High Priority").style(ST)
+            _render_high_prio_table(df)
+        with ui.card().classes("flex-1").style(CARD):
+            ui.label("📋 Butuh Survei (Need Info)").style(ST)
+            _render_need_survey_table(df)
+
+    # Row 5: Kota, Source, Skema
     with ui.row().classes("w-full gap-4 mb-6"):
         with ui.card().classes("flex-1").style(CARD):
             ui.label("🏙️ Kota").style(ST)
@@ -363,6 +377,57 @@ def _render_master_data(df):
 
 def _dk():
     return {"backgroundColor": "transparent", "textStyle": {"color": "#cdd6f4"}}
+
+
+def _render_status_qty_table(df):
+    """Render status distribution table."""
+    status_col = df.get("status_lead", "")
+    if status_col.empty or status_col.dropna().empty:
+        ui.label("-").classes("text-gray-400 italic text-xs")
+        return
+    counts = status_col.value_counts().reset_index()
+    counts.columns = ["Status", "Jumlah"]
+    counts = counts.sort_values("Jumlah", ascending=False)
+    total = counts["Jumlah"].sum()
+    columns = [{"name": "Status", "label": "Status", "field": "Status", "align": "left"},
+               {"name": "Jumlah", "label": "Jumlah", "field": "Jumlah", "align": "right"}]
+    rows = counts.to_dict("records")
+    ui.table(rows=rows, columns=columns, pagination={"rowsPerPage": 15}).classes("w-full").props("dark flat dense")
+    ui.label(f"Total: {total}").classes("text-xs text-gray-400 mt-1")
+
+
+def _render_high_prio_table(df):
+    """Render high priority leads table."""
+    high_df = df[df.get("priority", "").astype(str).str.strip() == "High"]
+    if high_df.empty:
+        ui.label("Tidak ada lead prioritas tinggi.").classes("text-gray-400 italic text-xs")
+        return
+    rows = []
+    for _, r in high_df.iterrows():
+        tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
+        kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
+        rows.append({"Tempat": tempat, "Kota": kota})
+    columns = [{"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left"},
+               {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left"}]
+    ui.table(rows=rows, columns=columns).classes("w-full").props("dark flat dense")
+
+
+def _render_need_survey_table(df):
+    """Render Need Survey / Need Info leads table."""
+    need_df = df[df.get("status_lead", "").astype(str).str.strip() == "Need Info"]
+    if need_df.empty:
+        ui.label("Tidak ada lead butuh survei.").classes("text-gray-400 italic text-xs")
+        return
+    rows = []
+    for _, r in need_df.iterrows():
+        tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
+        kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
+        status = str(r.get("status_lead", "") or "").strip() or "-"
+        rows.append({"Tempat": tempat, "Kota": kota, "Status": status})
+    columns = [{"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left"},
+               {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left"},
+               {"name": "Status", "label": "📋 Status", "field": "Status", "align": "left"}]
+    ui.table(rows=rows, columns=columns).classes("w-full").props("dark flat dense")
 
 
 def _render_kota_table(df):
