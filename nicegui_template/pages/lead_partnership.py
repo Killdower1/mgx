@@ -659,12 +659,22 @@ def _render_lead_table(df):
     # Build row data
     grid_rows = []
     for idx, r in enumerate(detail_data):
+        def _fmt_date_lp(val):
+                if not val or str(val).strip() in ("", "None", "nan"):
+                    return "-"
+                try:
+                    import pandas as pd
+                    return pd.to_datetime(str(val)).strftime("%d/%m/%Y")
+                except:
+                    return str(val)[:10]
+
         grid_rows.append({
             "Tempat": str(r.get("nama_tempat", "") or "").strip() or "-",
             "Kota": str(r.get("kota_lokasi", "") or "").strip() or "-",
-            "Sales PIC": r["_pic"],
             "Status": str(r.get("status_lead", "") or "").strip() or "-",
             "Prio": str(r.get("priority", "") or "").strip() or "-",
+            "Last FO": _fmt_date_lp(r.get("last_follow_up", "")),
+            "Next FO": _fmt_date_lp(r.get("next_follow_up", "")),
             "_idx": idx,
         })
 
@@ -676,11 +686,13 @@ def _render_lead_table(df):
              "tooltipField": "Tempat"},
             {"headerName": "🏙️ Kota", "field": "Kota", "minWidth": 120, "flex": 1,
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-            {"headerName": "👨‍💼 Sales PIC", "field": "Sales PIC", "minWidth": 130, "flex": 1,
-             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
             {"headerName": "✅ Status", "field": "Status", "minWidth": 100, "flex": 1,
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-            {"headerName": "🎯 Prio", "field": "Prio", "width": 90, "pinned": "right",
+            {"headerName": "🎯 Prio", "field": "Prio", "width": 80, "pinned": "right",
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            {"headerName": "Last FO", "field": "Last FO", "width": 110,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            {"headerName": "Next FO", "field": "Next FO", "width": 110,
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
         ],
         "rowData": grid_rows,
