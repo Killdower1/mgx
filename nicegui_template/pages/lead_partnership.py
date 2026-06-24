@@ -406,11 +406,8 @@ def _render_status_qty_table(df):
             ui.table(rows=rows, columns=columns, pagination={"rowsPerPage": 15}).classes("w-full").props("dark flat dense")
             ui.label(f"Total: {len(filtered)} record").classes("text-xs text-gray-400 mt-1")
 
-    def on_status_change(sel):
-        rebuild_table(sel.value)
-
     ui.select(status_options, value="Semua Status", label="Filter Status Lead",
-                              on_change=on_status_change
+                              on_value_change=rebuild_table
                               ).props("dense outlined dark").classes("w-full mb-3")
 
     rebuild_table("Semua Status")
