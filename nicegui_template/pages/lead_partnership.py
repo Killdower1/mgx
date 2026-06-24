@@ -380,24 +380,55 @@ def _dk():
 
 
 def _render_status_qty_table(df):
-    """Tabel data lead dengan filter status."""
+    """Tabel Lokasi Tempat & Status dengan filter + sort + kolom Kota via AG Grid."""
     status_col = df.get("status_lead", "")
     if status_col.empty or status_col.dropna().empty:
         ui.label("-").classes("text-gray-400 italic text-xs")
         return
 
-    rows = []
-    for _, r in df.iterrows():
-        tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
-        status = str(r.get("status_lead", "") or "").strip() or "-"
-        rows.append({"Tempat": tempat, "Status": status})
-    columns = [{"name": "Tempat", "label": "📍 Nama Lokasi", "field": "Tempat", "align": "left"},
-               {"name": "Status", "label": "📋 Status", "field": "Status", "align": "left"}]
-    if rows:
-        ui.table(rows=rows, columns=columns, pagination={"rowsPerPage": 25}).classes("w-full").props("dark flat dense")
-        ui.label(f"Total: {len(rows)} record").classes("text-xs text-gray-400 mt-1")
-    else:
-        ui.label("-").classes("text-gray-400 italic text-xs")
+    status_options = ["Semua Status"] + sorted(status_col.dropna().unique().tolist())
+    status_select = ui.select(status_options, value="Semua Status", label="Filter Status Lead"
+                              ).props("dense outlined dark").classes("w-full mb-3")
+
+    grid_container = ui.column().classes("w-full")
+
+    def _render_grid():
+        grid_container.clear()
+        with grid_container:
+            selected = status_select.value
+            filtered = df if selected == "Semua Status" else df[df["status_lead"].astype(str).str.strip() == selected]
+            if filtered.empty:
+                ui.label("Tidak ada data untuk status ini.").classes("text-gray-400 italic text-xs")
+                return
+
+            grid_rows = []
+            for _, r in filtered.iterrows():
+                tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
+                kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
+                status = str(r.get("status_lead", "") or "").strip() or "-"
+                grid_rows.append({"Tempat": tempat, "Kota": kota, "Status": status})
+
+            ui.aggrid({
+                "columnDefs": [
+                    {"headerName": "📍 Nama Lokasi", "field": "Tempat", "sortable": True,
+                     "filter": "agTextColumnFilter", "flex": 2, "floatingFilter": True},
+                    {"headerName": "🏙️ Kota", "field": "Kota", "sortable": True,
+                     "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
+                    {"headerName": "📋 Status", "field": "Status", "sortable": True,
+                     "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
+                ],
+                "rowData": grid_rows,
+                "pagination": True,
+                "paginationPageSize": 25,
+                "paginationPageSizeSelector": [10, 25, 50],
+                "domLayout": "autoHeight",
+                "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
+                "animateRows": True,
+            }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+            ui.label(f"Total: {len(filtered)} record").classes("text-xs text-gray-400 mt-1")
+
+    status_select.on("change", lambda _: _render_grid())
+    _render_grid()
 
 
 def _render_high_prio_table(df):
