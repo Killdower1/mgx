@@ -698,7 +698,6 @@ def _render_master_data(container: ui.column, df):
                 ("Pekerjaan", "pekerjaan_bisnis_saat_ini"),
                 ("Sumber Info", "dari_mana_tahu_difotoin"),
                 ("Status Lead", "status_lead"), ("Prioritas", "priority"),
-                ("Sales PIC", "sales_pic"),
                 ("Unit Diminati", "jumlah_unit_diminati"),
                 ("Unit Final", "jumlah_unit_final"),
                 ("Budget Investasi", "budget_investasi"),
@@ -743,12 +742,22 @@ def _render_master_data(container: ui.column, df):
         grid_rows = []
         for idx, raw in df.iterrows():
             nm = _cln(str(raw.get("nama_lengkap", "") or "").strip()) or _cln(str(raw.get("lead_name", "") or "").strip()) or "-"
+            def _fmt_date_lk(val):
+                    if not val or str(val).strip() in ("", "None", "nan"):
+                        return "-"
+                    try:
+                        return pd.to_datetime(str(val)).strftime("%d/%m/%Y")
+                    except:
+                        return str(val)[:10]
+
             grid_rows.append({
                 "Nama": nm,
                 "WhatsApp": _cln(str(raw.get("nomor_whatsapp", "") or "").strip()) or "-",
                 "Kota": _cln(str(raw.get("kota_penempatan_mesin", "") or "").strip()) or _cln(str(raw.get("kota_domisili", "") or "").strip()) or "-",
                 "Status": _cln(str(raw.get("status_lead", "") or "").strip()) or "-",
                 "Prio": _cln(str(raw.get("priority", "") or "").strip()) or "-",
+                "Last FO": _fmt_date_lk(raw.get("last_follow_up", "")),
+                "Next FO": _fmt_date_lk(raw.get("next_follow_up", "")),
                 "_idx": idx,
             })
 
@@ -765,7 +774,11 @@ def _render_master_data(container: ui.column, df):
                  "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
                 {"headerName": "Status", "field": "Status", "minWidth": 100, "flex": 1,
                  "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
-                {"headerName": "Prio", "field": "Prio", "width": 90, "pinned": "right",
+                {"headerName": "Prio", "field": "Prio", "width": 80, "pinned": "right",
+                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+                {"headerName": "Last FO", "field": "Last FO", "width": 110,
+                 "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+                {"headerName": "Next FO", "field": "Next FO", "width": 110,
                  "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
             ],
             "rowData": grid_rows,
