@@ -380,20 +380,37 @@ def _dk():
 
 
 def _render_status_qty_table(df):
-    """Render status distribution table."""
+    """Tabel data lead dengan filter status."""
     status_col = df.get("status_lead", "")
     if status_col.empty or status_col.dropna().empty:
         ui.label("-").classes("text-gray-400 italic text-xs")
         return
-    counts = status_col.value_counts().reset_index()
-    counts.columns = ["Status", "Jumlah"]
-    counts = counts.sort_values("Jumlah", ascending=False)
-    total = counts["Jumlah"].sum()
-    columns = [{"name": "Status", "label": "Status", "field": "Status", "align": "left"},
-               {"name": "Jumlah", "label": "Jumlah", "field": "Jumlah", "align": "right"}]
-    rows = counts.to_dict("records")
-    ui.table(rows=rows, columns=columns, pagination={"rowsPerPage": 15}).classes("w-full").props("dark flat dense")
-    ui.label(f"Total: {total}").classes("text-xs text-gray-400 mt-1")
+
+    status_options = ["Semua Status"] + sorted(status_col.dropna().unique().tolist())
+    table_container = ui.column().classes("w-full")
+
+    def rebuild_table(filter_status):
+        table_container.clear()
+        with table_container:
+            filtered = df if filter_status == "Semua Status" else df[df["status_lead"].astype(str).str.strip() == filter_status]
+            if filtered.empty:
+                ui.label("Tidak ada data untuk status ini.").classes("text-gray-400 italic text-xs")
+                return
+            rows = []
+            for _, r in filtered.iterrows():
+                tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
+                kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
+                rows.append({"Tempat": tempat, "Kota": kota})
+            columns = [{"name": "Tempat", "label": "📍 Nama Lokasi", "field": "Tempat", "align": "left"},
+                       {"name": "Kota", "label": "🏙️ Kota Lokasi", "field": "Kota", "align": "left"}]
+            ui.table(rows=rows, columns=columns, pagination={"rowsPerPage": 15}).classes("w-full").props("dark flat dense")
+            ui.label(f"Total: {len(filtered)} record").classes("text-xs text-gray-400 mt-1")
+
+    status_select = ui.select(status_options, value="Semua Status", label="Filter Status Lead"
+                              ).props("dense outlined dark").classes("w-full mb-3")
+    status_select.on("change", lambda: rebuild_table(status_select.value))
+
+    rebuild_table("Semua Status")
 
 
 def _render_high_prio_table(df):
