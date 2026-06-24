@@ -402,7 +402,7 @@ def _render_status_qty_table(df):
                 tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
                 kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
                 status = str(r.get("status_lead", "") or "").strip() or "-"
-                grid_rows.append({"Tempat": tempat, "Kota": kota, "Status": status, "_link": quote(tempat) if tempat != "-" else ""})
+                grid_rows.append({"Tempat": tempat, "Kota": kota, "Status": status, "_link": quote(tempat + " " + kota) if tempat != "-" else ""})
 
             grid = ui.aggrid({
                 "columnDefs": [
