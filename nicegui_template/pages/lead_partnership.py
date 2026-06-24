@@ -380,7 +380,6 @@ def _dk():
 
 
 def _render_status_qty_table(df):
-    """Tabel Lokasi Tempat & Status dengan filter + sort + kolom Kota via AG Grid."""
     status_col = df.get("status_lead", "")
     if status_col.empty or status_col.dropna().empty:
         ui.label("-").classes("text-gray-400 italic text-xs")
@@ -397,17 +396,24 @@ def _render_status_qty_table(df):
                 ui.label("Tidak ada data untuk status ini.").classes("text-gray-400 italic text-xs")
                 return
 
+            from urllib.parse import quote
             grid_rows = []
             for _, r in filtered.iterrows():
                 tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
                 kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
                 status = str(r.get("status_lead", "") or "").strip() or "-"
-                grid_rows.append({"Tempat": tempat, "Kota": kota, "Status": status})
+                if tempat != "-":
+                    q = quote(tempat)
+                    href = '<a href="https://www.google.com/search?q=' + q + '" target="_blank" style="color:#89b4fa;text-decoration:underline">' + tempat + '</a>'
+                else:
+                    href = "-"
+                grid_rows.append({"Tempat": href, "Kota": kota, "Status": status})
 
             ui.aggrid({
                 "columnDefs": [
                     {"headerName": "Nama Lokasi", "field": "Tempat", "sortable": True,
-                     "filter": "agTextColumnFilter", "flex": 2, "floatingFilter": True},
+                     "filter": "agTextColumnFilter", "flex": 2, "floatingFilter": True,
+                     "escapeValue": False},
                     {"headerName": "Kota", "field": "Kota", "sortable": True,
                      "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
                     {"headerName": "Status", "field": "Status", "sortable": True,
