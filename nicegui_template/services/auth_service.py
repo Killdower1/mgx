@@ -24,7 +24,7 @@ ERPNEXT_CONFIG_PATH = CONFIG_DIR / "erpnext_config.json"
 
 # ── All known NAV routes ──
 ALL_ROUTES = [
-    "/", "/trend", "/ai-decision", "/conversion", "/ranking",
+    "/", "/pending", "/trend", "/ai-decision", "/conversion", "/ranking",
     "/kemitraan", "/lead-partnership", "/lead-kemitraan",
     "/comparison", "/crud", "/admin", "/upload", "/master-data",
 ]
@@ -32,6 +32,7 @@ ALL_ROUTES = [
 # ── Default roles (used as fallback) ──
 DEFAULT_ROLES = {
     "admin": ALL_ROUTES,
+    "guest": ["/pending"],
     "manager": ["/", "/trend", "/conversion", "/ranking", "/kemitraan",
                 "/lead-partnership", "/lead-kemitraan", "/comparison", "/master-data"],
     "staff": ["/", "/ranking", "/kemitraan", "/lead-partnership", "/lead-kemitraan", "/master-data"],
@@ -191,6 +192,20 @@ def _erpnext_authenticate(email: str, password: str) -> Optional[dict]:
 
         # Step 3: Map ERPNext roles to dashboard role
         dash_role = _map_erpnext_role(erp_roles)
+
+        # Step 4: Auto-register ke users.json kalo belum ada, atau pake override role
+        local_users = load_users()
+        user_exists = False
+        for u in local_users:
+            if _normalize_email(u.get('email', '')) == _normalize_email(email):
+                user_exists = True
+                if u.get('role'):
+                    dash_role = u['role']  # override dari Admin Panel
+                break
+
+        if not user_exists:
+            # Auto-register first-time ERPNext login ke users.json — set role "guest"
+            create_user(full_name, email, "erpnext-auto", "guest")
 
         return {
             "name": full_name,

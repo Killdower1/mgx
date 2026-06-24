@@ -49,11 +49,15 @@ def create_page(container: ui.column):
                             "email": user.get("email", email),
                             "name": user.get("name", ""),
                             "role": role,
+                            "_password": password,  # simpan buat Cek Status
                         })
                         status_lbl.classes("text-green-400")
                         status_lbl.set_text("✅ Login berhasil! Mengarahkan...")
                         error_lbl.set_text("")
-                        ui.navigate.to("/")
+                        if role == "guest":
+                            ui.navigate.to("/pending")
+                        else:
+                            ui.navigate.to("/")
                     else:
                         error_lbl.classes("text-red-400")
                         error_lbl.set_text("❌ Email atau password salah.")
