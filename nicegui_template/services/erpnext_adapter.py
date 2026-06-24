@@ -118,6 +118,14 @@ def filter_by_staff(df: pd.DataFrame, user_email: str, user_name: str) -> pd.Dat
             if query.any():
                 mask = mask | query
 
+    # nama_sales_pic: the sales PIC full name (falls back if sales_pic is an ID)
+    if "nama_sales_pic" in df.columns and (query is None or not query.any()):
+        nsp = _norm(df["nama_sales_pic"])
+        if name_normalized:
+            query = (nsp == name_normalized)
+            if query.any():
+                mask = mask | query
+
     # lead_owner: usually an email
     if "lead_owner" in df.columns and (query is None or not query.any()):
         lo = _norm(df["lead_owner"])
