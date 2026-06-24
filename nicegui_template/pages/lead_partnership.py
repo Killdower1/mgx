@@ -399,16 +399,19 @@ def _render_status_qty_table(df):
             rows = []
             for _, r in filtered.iterrows():
                 tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
-                kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
-                rows.append({"Tempat": tempat, "Kota": kota})
+                status = str(r.get("status_lead", "") or "").strip() or "-"
+                rows.append({"Tempat": tempat, "Status": status})
             columns = [{"name": "Tempat", "label": "📍 Nama Lokasi", "field": "Tempat", "align": "left"},
-                       {"name": "Kota", "label": "🏙️ Kota Lokasi", "field": "Kota", "align": "left"}]
+                       {"name": "Status", "label": "📋 Status", "field": "Status", "align": "left"}]
             ui.table(rows=rows, columns=columns, pagination={"rowsPerPage": 15}).classes("w-full").props("dark flat dense")
             ui.label(f"Total: {len(filtered)} record").classes("text-xs text-gray-400 mt-1")
 
+    def _on_status_filter():
+        rebuild_table(status_sel.value)
+
     status_sel = ui.select(status_options, value="Semua Status", label="Filter Status Lead"
                               ).props("dense outlined dark").classes("w-full mb-3")
-    status_sel.on("change", lambda: rebuild_table(status_sel.value))
+    status_sel.on("change", _on_status_filter)
 
     rebuild_table("Semua Status")
 
