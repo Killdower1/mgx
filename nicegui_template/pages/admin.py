@@ -139,14 +139,15 @@ def _build_users_tab(container, auth_mod, auth_service):
     ui.separator().classes("my-3")
 
     utabs = ui.tabs().classes("w-full")
-    ui.tab_panels(utabs, value="add").classes("w-full")
+    upanels = ui.tab_panels(utabs, value="add").classes("w-full")
     with utabs:
         ui.tab("add", label="Tambah")
         ui.tab("edit", label="Edit Role")
         ui.tab("reset", label="Reset Password")
         ui.tab("delete", label="Hapus")
 
-# ── Add ──
+    with upanels:
+        # ── Add ──
         with ui.tab_panel("add"):
             ui.label("Override role staff yang login via ERPNext — cukup masukkan emailnya.").classes("text-sm text-gray-400 mb-3")
 

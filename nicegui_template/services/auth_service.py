@@ -206,6 +206,7 @@ def _erpnext_authenticate(email: str, password: str) -> Optional[dict]:
         if not user_exists:
             # Auto-register first-time ERPNext login ke users.json — set role "guest"
             create_user(full_name, email, "erpnext-auto", "guest")
+            dash_role = "guest"  # override return role
 
         return {
             "name": full_name,
