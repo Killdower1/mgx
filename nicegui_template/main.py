@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from nicegui import ui, app
+from nicegui import ui
+from starlette.responses import RedirectResponse
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -28,6 +29,7 @@ from pages.admin import create_page as create_admin_page
 from pages.crud import create_page as create_crud_page
 from pages.master_data import create_page as create_master_data_page
 from pages.login import create_page as create_login_page, show_logout_button, do_logout, is_authenticated, get_current_role
+from pages.pending import create_page as create_pending_page
 
 
 # ── Global state ──
@@ -134,9 +136,10 @@ def _on_filter_change():
 # ── Auth Guard ──
 
 def _auth_guard():
-    """Redirect to /login if not authenticated."""
+    """Redirect to /login if not authenticated. Returns RedirectResponse for server-side redirect (no flash)."""
     if not is_authenticated():
-        ui.navigate.to("/login")
+        return RedirectResponse(url="/login")
+    return None
 
 
 def _check_page_access(route: str):
@@ -268,7 +271,9 @@ def build_nav(current_route: str, show_filters: bool = False, minimal: bool = Fa
 @ui.page("/")
 def index():
     """Main dashboard page."""
-    _auth_guard()
+    redirect = _auth_guard()
+    if redirect:
+        return redirect
     global _dashboard_container
 
     ui.dark_mode().enable()
@@ -284,7 +289,8 @@ def index():
 
 @ui.page("/lead-kemitraan")
 def lead_kemitraan():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/lead-kemitraan")
@@ -294,7 +300,8 @@ def lead_kemitraan():
 
 @ui.page("/trend")
 def trend():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/trend")
@@ -303,7 +310,8 @@ def trend():
 
 @ui.page("/ai-decision")
 def ai_decision():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/ai-decision")
@@ -312,7 +320,8 @@ def ai_decision():
 
 @ui.page("/conversion")
 def conversion():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/conversion")
@@ -321,7 +330,8 @@ def conversion():
 
 @ui.page("/ranking")
 def ranking():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/ranking")
@@ -330,7 +340,8 @@ def ranking():
 
 @ui.page("/kemitraan")
 def kemitraan():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/kemitraan")
@@ -340,7 +351,8 @@ def kemitraan():
 
 @ui.page("/lead-partnership")
 def lead_partnership():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/lead-partnership")
@@ -350,7 +362,8 @@ def lead_partnership():
 
 @ui.page("/comparison")
 def comparison():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/comparison")
@@ -359,7 +372,8 @@ def comparison():
 
 @ui.page("/crud")
 def crud():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/crud")
@@ -369,7 +383,8 @@ def crud():
 
 @ui.page("/admin")
 def admin():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/admin")
@@ -390,12 +405,27 @@ def master_data():
 
 @ui.page("/upload")
 def upload():
-    _auth_guard()
+    if _auth_guard():
+        return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/upload")
     container = ui.column().classes("w-full p-6")
     create_upload_page(container)
+
+
+# ── Pending Confirmation Page ──
+
+@ui.page("/pending")
+def pending():
+    """Pending confirmation page for guest users."""
+    if not is_authenticated():
+        return RedirectResponse(url="/login")
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/pending", minimal=True)
+    container = ui.column().classes("w-full p-6")
+    create_pending_page(container)
 
 
 # ── Login Page ──
@@ -405,7 +435,7 @@ def login():
     """Login page — minimal nav, no menu."""
     # If already logged in, redirect to dashboard
     if is_authenticated():
-        ui.navigate.to("/")
+        return RedirectResponse(url="/")
         return
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)

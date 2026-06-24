@@ -2,19 +2,19 @@ module.exports = {
   apps: [
     {
       name: "difotoin-dashboard",
-      cwd: "./streamlit_template",
-      script: ".venv/bin/streamlit",
-      args: "run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true",
+      cwd: "/var/www/difotoin-dashboard/nicegui_template",
+      script: "/var/www/difotoin-dashboard/nicegui_template/.venv/bin/python",
+      args: "/var/www/difotoin-dashboard/nicegui_template/main.py",
       interpreter: "none",
       autorestart: true,
       watch: false,
       max_restarts: 10,
       restart_delay: 3000,
       env: {
-        PORT: "8501",
+        PORT: "8502",
         DIFOTOIN_ADMIN_EMAIL: "octadimas@gmail.com",
-        DIFOTOIN_ADMIN_PASSWORD: "Dowerdower1"
-      }
-    }
-  ]
+        DIFOTOIN_ADMIN_PASSWORD: "Dowerdower1",
+      },
+    },
+  ],
 };

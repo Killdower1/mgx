@@ -2,10 +2,8 @@
 ⚙️ Admin Panel — user management, role management, database, thresholds, ERPNext config.
 """
 import os
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from nicegui import ui
 import pandas as pd
@@ -151,31 +149,31 @@ def _build_users_tab(container, auth_mod, auth_service):
     with upanels:
         # ── Add ──
         with ui.tab_panel("add"):
-            name_in = ui.input("Nama").props("dense outlined dark").classes("w-full mb-3")
-            email_in = ui.input("Email").props("dense outlined dark").classes("w-full mb-3")
-            pass_in = ui.input("Password", password_toggle_button=True).props("dense outlined dark").classes("w-full mb-3")
-            confirm_in = ui.input("Confirm Password", password_toggle_button=True).props("dense outlined dark").classes("w-full mb-3")
-            role_sel = ui.select(all_roles, value=all_roles[0] if all_roles else "viewer", label="Role"
-                                ).props("dense outlined dark").classes("w-full mb-3")
-            status = ui.label("").classes("text-sm")
+            ui.label("Override role staff yang login via ERPNext — cukup masukkan emailnya.").classes("text-sm text-gray-400 mb-3")
 
-            def add_user():
-                name = name_in.value.strip()
-                email = auth_mod._normalize_email(email_in.value)
-                pw = pass_in.value
-                cf = confirm_in.value
-                if not name or not email or not pw:
-                    status.classes("text-red-400"); status.set_text("Nama, email, dan password wajib diisi."); return
-                if pw != cf:
-                    status.classes("text-red-400"); status.set_text("Password tidak sama."); return
-                if auth_service.create_user(name, email, pw, role_sel.value) is None:
-                    status.classes("text-red-400"); status.set_text("Email sudah terdaftar."); return
-                status.classes("text-green-400"); status.set_text(f"✅ Akun {email} dengan role '{role_sel.value}' berhasil dibuat.")
-                name_in.value = ""; email_in.value = ""; pass_in.value = ""; confirm_in.value = ""
+            with ui.card().style(CARD).classes("w-full mb-4"):
+                email_in = ui.input("Email ERPNext Staff", placeholder="contoh: novi@difotoin.id").props("dense outlined dark").classes("w-full mb-3")
+                role_sel = ui.select(all_roles, value=all_roles[0] if all_roles else "viewer", label="Role Dashboard"
+                                    ).props("dense outlined dark").classes("w-full mb-3")
+                status = ui.label("").classes("text-sm")
 
-            ui.button("Buat Akun", on_click=add_user, color="primary")
+                def add_override():
+                    email = auth_mod._normalize_email(email_in.value)
+                    if not email:
+                        status.classes("text-red-400"); status.set_text("Email wajib diisi."); return
+                    if auth_service.create_user("Auto (ERPNext)", email, "erpnext-auto", role_sel.value) is None:
+                        status.classes("text-red-400"); status.set_text("Email sudah terdaftar."); return
+                    status.classes("text-green-400")
+                    status.set_text(f"✅ {email} override role '{role_sel.value}' berhasil. Staff login via ERPNext.")
+                    email_in.value = ""
 
-        # ── Edit Role ──
+                ui.button("🖉️ Tambahkan Override Role", on_click=add_override, color="primary").classes("w-full")
+
+            ui.label("Tips:").classes("text-xs text-gray-500 mt-1")
+            ui.label("• Staff login pake email & password ERPNext — password di atas gak dipakai.").classes("text-xs text-gray-500")
+            ui.label("• Kalo staff gak didaftarin di sini, dapet role otomatis dari mapping ERPNext.").classes("text-xs text-gray-500")
+            ui.label("• Mau ubah role? Buka tab Edit Role.").classes("text-xs text-gray-500")
+            ui.label("• Mau hapus? Buka tab Hapus.").classes("text-xs text-gray-500")
         with ui.tab_panel("edit"):
             users_list = auth_mod.load_users()
             if users_list:
