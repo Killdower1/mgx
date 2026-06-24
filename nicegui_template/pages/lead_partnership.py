@@ -402,18 +402,13 @@ def _render_status_qty_table(df):
                 tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
                 kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
                 status = str(r.get("status_lead", "") or "").strip() or "-"
-                if tempat != "-":
-                    q = quote(tempat)
-                    href = '<a href="https://www.google.com/search?q=' + q + '" target="_blank" style="color:#89b4fa;text-decoration:underline">' + tempat + '</a>'
-                else:
-                    href = "-"
-                grid_rows.append({"Tempat": href, "Kota": kota, "Status": status})
+                grid_rows.append({"Tempat": tempat, "Kota": kota, "Status": status, "_link": quote(tempat) if tempat != "-" else ""})
 
-            ui.aggrid({
+            grid = ui.aggrid({
                 "columnDefs": [
                     {"headerName": "Nama Lokasi", "field": "Tempat", "sortable": True,
                      "filter": "agTextColumnFilter", "flex": 2, "floatingFilter": True,
-                     "escapeValue": False},
+                     "cellStyle": {"color": "#89b4fa", "textDecoration": "underline", "cursor": "pointer"}},
                     {"headerName": "Kota", "field": "Kota", "sortable": True,
                      "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
                     {"headerName": "Status", "field": "Status", "sortable": True,
@@ -427,6 +422,14 @@ def _render_status_qty_table(df):
                 "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
                 "animateRows": True,
             }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+
+            def _on_cell(e):
+                if e.args.get("colId") == "Tempat":
+                    link = e.args.get("data", {}).get("_link", "")
+                    if link:
+                        ui.run_javascript(f"window.open('https://www.google.com/search?q={link}','_blank')")
+
+            grid.on("cellClicked", _on_cell)
             ui.label(f"Total: {len(filtered)} record").classes("text-xs text-gray-400 mt-1")
 
     def _on_status_change(e):
