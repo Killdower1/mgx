@@ -387,16 +387,12 @@ def _render_status_qty_table(df):
         return
 
     status_options = ["Semua Status"] + sorted(status_col.dropna().unique().tolist())
-    status_select = ui.select(status_options, value="Semua Status", label="Filter Status Lead"
-                              ).props("dense outlined dark").classes("w-full mb-3")
+    grid_placeholder = ui.column().classes("w-full")
 
-    grid_container = ui.column().classes("w-full")
-
-    def _render_grid():
-        grid_container.clear()
-        with grid_container:
-            selected = status_select.value
-            filtered = df if selected == "Semua Status" else df[df["status_lead"].astype(str).str.strip() == selected]
+    def _build_grid(filter_val):
+        grid_placeholder.clear()
+        with grid_placeholder:
+            filtered = df if filter_val == "Semua Status" else df[df["status_lead"].astype(str).str.strip() == filter_val]
             if filtered.empty:
                 ui.label("Tidak ada data untuk status ini.").classes("text-gray-400 italic text-xs")
                 return
@@ -410,11 +406,11 @@ def _render_status_qty_table(df):
 
             ui.aggrid({
                 "columnDefs": [
-                    {"headerName": "📍 Nama Lokasi", "field": "Tempat", "sortable": True,
+                    {"headerName": "Nama Lokasi", "field": "Tempat", "sortable": True,
                      "filter": "agTextColumnFilter", "flex": 2, "floatingFilter": True},
-                    {"headerName": "🏙️ Kota", "field": "Kota", "sortable": True,
+                    {"headerName": "Kota", "field": "Kota", "sortable": True,
                      "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
-                    {"headerName": "📋 Status", "field": "Status", "sortable": True,
+                    {"headerName": "Status", "field": "Status", "sortable": True,
                      "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
                 ],
                 "rowData": grid_rows,
@@ -427,10 +423,14 @@ def _render_status_qty_table(df):
             }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
             ui.label(f"Total: {len(filtered)} record").classes("text-xs text-gray-400 mt-1")
 
-    status_select.on("change", lambda _: _render_grid())
-    _render_grid()
+    def _on_status_change(e):
+        _build_grid(e.value)
 
+    ui.select(status_options, value="Semua Status", label="Filter Status Lead",
+              on_change=_on_status_change
+              ).props("dense outlined dark").classes("w-full mb-3")
 
+    _build_grid("Semua Status")
 def _render_high_prio_table(df):
     """Render high priority leads table."""
     high_df = df[df.get("priority", "").astype(str).str.strip() == "High"]
