@@ -235,7 +235,7 @@ def _render_dashboard(df):
 
     # Row 1: Status & QTY — tabel data dg filter status
     with ui.card().classes("w-full mb-6").style(CARD):
-        ui.label("📊 Status & QTY").style(ST)
+        ui.label("📍 Lokasi Tempat & Status").style(ST)
         _render_status_qty_table(df)
 
     # Row 2: Funnel + Trend
