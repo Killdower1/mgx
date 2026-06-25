@@ -14,8 +14,9 @@ CARD = "background-color: #1e1e2e; border-radius: 12px; padding: 16px; box-shado
 
 
 def _fmt(amount) -> str:
+    """Format with Indonesian thousand separator (dot)."""
     try:
-        return "Rp " + str(int(round(float(amount))))
+        return "Rp " + f"{int(round(float(amount))):,}".replace(",", ".")
     except (ValueError, TypeError):
         return "Rp 0"
 
