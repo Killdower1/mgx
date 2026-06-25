@@ -40,3 +40,5 @@ Thumbs.db
 .idea/
 .vscode/
 .hermes/
+streamlit_template/data/api_cache/
+streamlit_template/data/*.xlsx
