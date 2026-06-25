@@ -97,25 +97,12 @@ def authenticate(force: bool = False) -> Optional[str]:
             if _validate_token(token):
                 return token
 
-    # Create new token via session login
+    # Create new token directly via the API token creation endpoint
+    # (Does NOT need CSRF/session login first)
     email, password = get_credentials()
-    session = requests.Session()
 
     try:
-        # Step 1: Get CSRF cookie
-        session.get(CSRF_URL, timeout=15)
-
-        # Step 2: Login
-        login_resp = session.post(
-            LOGIN_URL,
-            json={"email": email, "password": password},
-            timeout=15,
-        )
-        if login_resp.status_code != 200:
-            return None
-
-        # Step 3: Create API token
-        token_resp = session.post(
+        token_resp = requests.post(
             TOKEN_CREATE_URL,
             json={
                 "email": email,
@@ -124,6 +111,9 @@ def authenticate(force: bool = False) -> Optional[str]:
             },
             timeout=15,
         )
+        if token_resp.status_code != 200:
+            return None
+
         data = token_resp.json()
         token = data.get("token")
         if token:
@@ -132,8 +122,7 @@ def authenticate(force: bool = False) -> Optional[str]:
         return None
     except requests.RequestException:
         return None
-    finally:
-        session.close()
+
 
 
 def _validate_token(token: str) -> bool:
@@ -183,16 +172,16 @@ def fetch_all_transactions(
         params = {"per_page": per_page}
         if cursor:
             params["cursor"] = cursor
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
 
         # Build filters
         filters = {
             "status": {"operation": "equal", "value": "done"},
             "payment_status": {"operation": "equal", "value": "paid"},
         }
-        if start_date and end_date:
-            filters["date"] = {"operation": "between", "value": [start_date, end_date]}
-        elif start_date:
-            filters["date"] = {"operation": "greater than equal", "value": start_date}
 
         try:
             resp = requests.post(
