@@ -459,6 +459,168 @@ def compute_revenue_sharing(
 
 
 # ═══════════════════════════════════════════════
+#  REVENUE SHARING CACHE (pre-computed, lightweight)
+# ═══════════════════════════════════════════════
+
+RS_OUTLET_PATH = CACHE_DIR / "rs_outlet.json"
+RS_PERIODS_DIR = CACHE_DIR / "rs_periods"
+
+
+def _cache_revenue_sharing(txns: List[dict]):
+    """Pre-compute revenue sharing data and save as lightweight cache.
+    Also split raw transactions by period for on-demand detail loading.
+    """
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    RS_PERIODS_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not txns:
+        return
+
+    # Compute full revenue sharing
+    df = compute_revenue_sharing(txns)
+    if df.empty:
+        return
+
+    # 1. Save per-outlet-per-month aggregated (small)
+    outlet_agg = df.groupby(["outlet_name", "periode"], as_index=False).agg(
+        total_revenue=("total_revenue", "sum"),
+        partner_amount=("partner_amount", "sum"),
+        broker_amount=("broker_amount", "sum"),
+        difotoin_amount=("difotoin_amount", "sum"),
+        transactions=("total_revenue", "count"),
+        avg_partner_pct=("partner_share_pct", "mean"),
+        avg_broker_pct=("broker_share_pct", "mean"),
+    )
+    outlet_agg.to_json(str(RS_OUTLET_PATH), orient="records")
+
+    # 2. Split raw detail by period (so page only loads 1 period at a time)
+    periods = df["periode"].dropna().unique().tolist() if "periode" in df.columns else []
+    for period in periods:
+        period_df = df[df["periode"] == period]
+        period_path = RS_PERIODS_DIR / (period + ".json")
+        period_df.to_json(str(period_path), orient="records")
+
+    # Clean up old periods not in current data
+    existing_files = set(f.name for f in RS_PERIODS_DIR.iterdir() if f.suffix == ".json")
+    current_periods = set(p + ".json" for p in periods)
+    for stale in existing_files - current_periods:
+        try:
+            (RS_PERIODS_DIR / stale).unlink()
+        except OSError:
+            pass
+
+
+def load_rs_outlet_summary() -> list:
+    """Load lightweight per-outlet-per-month revenue sharing data."""
+    try:
+        import pandas as pd
+        df = pd.read_json(str(RS_OUTLET_PATH))
+        return df.to_dict("records") if not df.empty else []
+    except (FileNotFoundError, ValueError, Exception):
+        return []
+
+
+def load_rs_period_detail(period: str) -> list:
+    """Load detailed transactions for a specific period only."""
+    period_path = RS_PERIODS_DIR / (period + ".json")
+    try:
+        import pandas as pd
+        df = pd.read_json(str(period_path))
+        return df.to_dict("records") if not df.empty else []
+    except (FileNotFoundError, ValueError, Exception):
+        return []
+
+
+def get_rs_periods() -> list:
+    """Get sorted list of available periods from cache."""
+    if not RS_PERIODS_DIR.exists():
+        return []
+    periods = [f.stem for f in sorted(RS_PERIODS_DIR.iterdir()) if f.suffix == ".json"]
+    return sorted(periods, reverse=True)
+
+
+# ═══════════════════════════════════════════════
+#  REVENUE SHARING CACHE (pre-computed, lightweight)
+# ═══════════════════════════════════════════════
+
+RS_OUTLET_PATH = CACHE_DIR / "rs_outlet.json"
+RS_PERIODS_DIR = CACHE_DIR / "rs_periods"
+
+
+def _cache_revenue_sharing(txns: List[dict]):
+    """Pre-compute revenue sharing data and save as lightweight cache.
+    Also split raw transactions by period for on-demand detail loading.
+    """
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    RS_PERIODS_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not txns:
+        return
+
+    # Compute full revenue sharing
+    df = compute_revenue_sharing(txns)
+    if df.empty:
+        return
+
+    # 1. Save per-outlet-per-month aggregated (small)
+    outlet_agg = df.groupby(["outlet_name", "periode"], as_index=False).agg(
+        total_revenue=("total_revenue", "sum"),
+        partner_amount=("partner_amount", "sum"),
+        broker_amount=("broker_amount", "sum"),
+        difotoin_amount=("difotoin_amount", "sum"),
+        transactions=("total_revenue", "count"),
+        avg_partner_pct=("partner_share_pct", "mean"),
+        avg_broker_pct=("broker_share_pct", "mean"),
+    )
+    outlet_agg.to_json(str(RS_OUTLET_PATH), orient="records")
+
+    # 2. Split raw detail by period (so page only loads 1 period at a time)
+    periods = df["periode"].dropna().unique().tolist() if "periode" in df.columns else []
+    for period in periods:
+        period_df = df[df["periode"] == period]
+        period_path = RS_PERIODS_DIR / (period + ".json")
+        period_df.to_json(str(period_path), orient="records")
+
+    # Clean up old periods not in current data
+    existing_files = set(f.name for f in RS_PERIODS_DIR.iterdir() if f.suffix == ".json")
+    current_periods = set(p + ".json" for p in periods)
+    for stale in existing_files - current_periods:
+        try:
+            (RS_PERIODS_DIR / stale).unlink()
+        except OSError:
+            pass
+
+
+def load_rs_outlet_summary() -> list:
+    """Load lightweight per-outlet-per-month revenue sharing data."""
+    try:
+        import pandas as pd
+        df = pd.read_json(str(RS_OUTLET_PATH))
+        return df.to_dict("records") if not df.empty else []
+    except (FileNotFoundError, ValueError, Exception):
+        return []
+
+
+def load_rs_period_detail(period: str) -> list:
+    """Load detailed transactions for a specific period only."""
+    period_path = RS_PERIODS_DIR / (period + ".json")
+    try:
+        import pandas as pd
+        df = pd.read_json(str(period_path))
+        return df.to_dict("records") if not df.empty else []
+    except (FileNotFoundError, ValueError, Exception):
+        return []
+
+
+def get_rs_periods() -> list:
+    """Get sorted list of available periods from cache."""
+    if not RS_PERIODS_DIR.exists():
+        return []
+    periods = [f.stem for f in sorted(RS_PERIODS_DIR.iterdir()) if f.suffix == ".json"]
+    return sorted(periods, reverse=True)
+
+
+# ═══════════════════════════════════════════════
 #  MAIN SYNC
 # ═══════════════════════════════════════════════
 
@@ -496,6 +658,9 @@ def run_sync(
             return False, fetch_msg
 
         cache_raw_transactions(txns)
+
+        # Pre-compute & cache revenue sharing data (so page doesn't load 92MB raw)
+        _cache_revenue_sharing(txns)
 
         df = aggregate_transactions(txns)
 
