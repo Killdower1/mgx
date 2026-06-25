@@ -29,6 +29,7 @@ from pages.admin import create_page as create_admin_page
 from pages.crud import create_page as create_crud_page
 from pages.master_data import create_page as create_master_data_page
 from pages.login import create_page as create_login_page, show_logout_button, do_logout, is_authenticated, get_current_role
+from pages.revenue_sharing import create_page as create_revenue_page
 from pages.pending import create_page as create_pending_page
 
 
@@ -169,6 +170,7 @@ ALL_NAV_ITEMS = [
     ("🗃️ CRUD Outlet", "/crud"),
     ("⚙️ Admin", "/admin"),
     ("[MD] Master Data", "/master-data"),
+    ("💵 Revenue Sharing", "/revenue-sharing"),
     ("📤 Upload Data", "/upload"),
 ]
 
@@ -412,6 +414,16 @@ def upload():
     build_nav("/upload")
     container = ui.column().classes("w-full p-6")
     create_upload_page(container)
+
+
+@ui.page("/revenue-sharing")
+def revenue_sharing():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/revenue-sharing")
+    create_revenue_page(ui.column().classes("w-full p-6"))
 
 
 # ── Pending Confirmation Page ──

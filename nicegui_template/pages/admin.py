@@ -27,6 +27,7 @@ ALL_ROUTES = [
     ("👥 Lead Kemitraan", "/lead-kemitraan"),
     ("📅 Perbandingan", "/comparison"),
     ("🗃️ CRUD Outlet", "/crud"),
+    ("💵 Revenue Sharing", "/revenue-sharing"),
     ("⚙️ Admin", "/admin"),
     ("📤 Upload", "/upload"),
 ]
@@ -101,6 +102,10 @@ def create_page(container: ui.column):
 
             with ui.tab_panel("database"):
                 _build_database_tab(container, config, DATA_CSV_PATH)
+
+            with ui.tab_panel("sync"):
+                _build_sync_tab(container)
+
 
             with ui.tab_panel("config"):
                 _build_config_tab(container, config, load_erpnext_config, save_erpnext_config, check_connection, now)
@@ -355,6 +360,8 @@ def _build_roles_tab(container, auth_service):
 # ── DATABASE TAB ──
 
 def _build_database_tab(container, config, DATA_CSV_PATH):
+
+
     if not os.path.exists(DATA_CSV_PATH):
         ui.label("File data dashboard belum ada.").classes("text-gray-400 italic")
         return
@@ -413,6 +420,62 @@ def _build_database_tab(container, config, DATA_CSV_PATH):
 
     ui.button("Hapus Periode Terpilih", on_click=delete_periods, color="negative")
 
+
+
+# ── SYNC TAB ──
+
+def _build_sync_tab(container):
+    """Sync from difotoin.id API."""
+    import sys
+    from pathlib import Path
+    
+    ST_DIR = Path(__file__).resolve().parent.parent.parent / "streamlit_template"
+    if str(ST_DIR) not in sys.path:
+        sys.path.insert(0, str(ST_DIR))
+    
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from services import difotoin_api_adapter as api_adapter
+    from config import Config
+    Config()
+    
+    ui.label("Sinkronisasi data dari difotoin.id API.").classes("text-sm text-gray-400 mb-4")
+    
+    status_area = ui.column().classes("w-full mb-4")
+    
+    last = api_adapter.get_last_sync()
+    if last:
+        ts = last.get("timestamp", "?")
+        msg = last.get("message", "")
+        ok = last.get("success", False)
+        icon = "✅" if ok else "❌"
+        with ui.card().style("background-color: #1e1e2e; border-radius: 12px; padding: 16px;").classes("w-full mb-4"):
+            ui.label(icon + " Sync Terakhir: " + str(ts)[:19]).classes("text-sm text-gray-300")
+            ui.label(msg).classes("text-sm " + ("text-green-400" if ok else "text-red-400"))
+    
+    def _do_sync():
+        btn.props("loading disable")
+        try:
+            ok, msg = api_adapter.run_sync(months_back=12)
+            status_area.clear()
+            with status_area:
+                ui.label(msg).classes("text-green-400 text-sm" if ok else "text-red-400 text-sm")
+        except Exception as e:
+            status_area.clear()
+            with status_area:
+                ui.label("Error: " + str(e)).classes("text-red-400 text-sm")
+        finally:
+            btn.props(remove="loading")
+    
+    with ui.row().classes("gap-4 items-center"):
+        btn = ui.button("Sync Sekarang", on_click=_do_sync, color="primary").props("icon=cloud_download")
+        ui.label("Mengambil data 12 bulan terakhir dari difotoin.id").classes("text-xs text-gray-500")
+    
+    ui.separator().classes("my-4")
+    ui.label("Data transaksi akan di-aggregate per outlet + bulan, lalu disimpan ke CSV.").classes("text-xs text-gray-500")
+    ui.label("Transaksi mentah di-cache untuk halaman Revenue Sharing.").classes("text-xs text-gray-500")
+
+
+# ── CONFIG TAB ──
 
 # ── CONFIG TAB ──
 
