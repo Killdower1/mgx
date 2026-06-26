@@ -42,3 +42,5 @@ Thumbs.db
 .hermes/
 streamlit_template/data/api_cache/
 streamlit_template/data/*.xlsx
+streamlit_template/data/api_cache/
+streamlit_template/data/outlet_list.xlsx
