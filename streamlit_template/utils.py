@@ -1,6 +1,3 @@
-import pandas as pd
-import numpy as np
-from datetime import datetime
 
 def format_number(num):
     """Format large numbers with K, M suffixes"""
@@ -30,8 +27,8 @@ def calculate_growth_metrics(current_df, previous_df):
     current_photos = current_df['foto_qty'].sum()
     previous_photos = previous_df['foto_qty'].sum()
     
-    current_conversion = current_df['conversion_rate'].mean()
-    previous_conversion = previous_df['conversion_rate'].mean()
+    current_conversion = current_df['paid_per_photo_rate'].mean()
+    previous_conversion = previous_df['paid_per_photo_rate'].mean()
     
     revenue_growth = ((current_revenue - previous_revenue) / previous_revenue) * 100 if previous_revenue > 0 else 0
     photo_growth = ((current_photos - previous_photos) / previous_photos) * 100 if previous_photos > 0 else 0
@@ -77,8 +74,8 @@ def generate_insights(df, config):
     keeper_pct = (status_counts.get('Keeper', 0) / len(df)) * 100
     insights.append(f"🏆 {keeper_pct:.1f}% outlets are in Keeper status")
 
-    avg_conversion = df['conversion_rate'].mean()
-    high_conversion = df[df['conversion_rate'] > avg_conversion * 1.2]
+    avg_conversion = df['paid_per_photo_rate'].mean()
+    high_conversion = df[df['paid_per_photo_rate'] > avg_conversion * 1.2]
     if not high_conversion.empty:
         insights.append(f"📈 {len(high_conversion)} outlets have above-average conversion rates")
 

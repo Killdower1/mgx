@@ -3,9 +3,8 @@ Dashboard adapter for NiceGUI — wraps Streamlit's Config, DataProcessor,
 Visualizations and data loading for full functional parity.
 """
 import sys
-import json
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List
 
 import pandas as pd
 import numpy as np
@@ -15,8 +14,8 @@ STREAMLIT_DIR = Path(__file__).resolve().parent.parent.parent / "streamlit_templ
 if str(STREAMLIT_DIR) not in sys.path:
     sys.path.insert(0, str(STREAMLIT_DIR))
 
-from config import Config, DATA_CSV_PATH, OUTLET_MAPPING_PATH
-from data_processor import DataProcessor, normalize_outlet_name
+from config import Config
+from data_processor import DataProcessor
 from visualizations import Visualizations
 from utils import generate_insights
 
@@ -38,12 +37,24 @@ class DashboardAdapter:
         self.viz = Visualizations(self.config)
 
     def load_data(self) -> pd.DataFrame:
-        """Load main dashboard data."""
+        """Load main dashboard data from dashboard_summary.json (built from raw_by_month).
+        Falls back to CSV if cache is missing."""
+        try:
+            from services.difotoin_api_adapter import load_dashboard_summary
+            data = load_dashboard_summary()
+            if data:
+                df = pd.DataFrame(data)
+                if not df.empty:
+                    df = self.processor.apply_outlet_mapping(df)
+                    return df
+        except Exception as e:
+            print("[WARN] Dashboard cache error: %s. Falling back to CSV." % e)
+        print("[WARN] Dashboard cache unavailable. Using CSV fallback.")
         return self.processor.load_data()
 
     def load_full_data(self) -> pd.DataFrame:
-        """Load full unfiltered data."""
-        return self.processor.load_data()
+        """Load full unfiltered data (same as load_data now)."""
+        return self.load_data()
 
     def get_periods(self, df: pd.DataFrame) -> List[str]:
         """Get sorted list of unique periods."""
@@ -221,7 +232,8 @@ class DashboardAdapter:
         inactive = display_df_sorted[~display_df_sorted["_aktif_current"]].drop(columns=["_aktif_current"]).reset_index(drop=True)
 
         # Format currency columns
-        fmt_func = lambda v: self.format_currency(v) if v else self.format_currency(0)
+        def fmt_func(v):
+            return self.format_currency(v) if v else self.format_currency(0)
         for col in value_cols + ["Rata-rata"]:
             if col in active.columns:
                 active[col] = active[col].apply(fmt_func)

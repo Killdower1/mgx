@@ -50,6 +50,16 @@ def _fmt(n) -> str:
         return str(n)
 
 
+def _extract_ig_username(url) -> str:
+    """Extract Instagram username from URL like https://www.instagram.com/atdbengkong/"""
+    import re
+    if not url or str(url).strip() in ("", "None", "nan"):
+        return "-"
+    url = str(url).strip().rstrip("/")
+    m = re.search(r"instagram\.com/([^/?]+)", url)
+    return m.group(1) if m else "-"
+
+
 # ═══════════════════════════════════════════════
 #  ERPNext Fetch (like lead_kemitraan)
 # ═══════════════════════════════════════════════
@@ -742,6 +752,8 @@ def _render_lead_table(df):
             ("Last FO", str(row.get("last_follow_up","") or "")[:10]),
             ("Next FO", str(row.get("next_follow_up","") or "")[:10]),
             ("Hasil FO", row.get("hasil_follow_up","")),
+            ("IG Link", row.get("source_lead_instagram","")),
+            ("IG Username", _extract_ig_username(row.get("source_lead_instagram",""))),
             ("Decision", row.get("decision","")), ("Created", str(row.get("creation","") or "")[:10]),
         ]
         with ui.dialog() as dialog, ui.card().style("background: #1e1e2e; border: 1px solid #313244; border-radius: 12px; padding: 20px; min-width: 320px; max-width: 92vw; width: auto;").classes("responsive-dialog-card"):
@@ -777,11 +789,13 @@ def _render_lead_table(df):
                 except:
                     return str(val)[:10]
 
+        _ig_url = str(r.get("source_lead_instagram", "") or "").strip()
         grid_rows.append({
             "Tempat": str(r.get("nama_tempat", "") or "").strip() or "-",
             "Kota": str(r.get("kota_lokasi", "") or "").strip() or "-",
             "Status": str(r.get("status_lead", "") or "").strip() or "-",
             "Prio": str(r.get("priority", "") or "").strip() or "-",
+            "IG": _extract_ig_username(r.get("source_lead_instagram", "")) if _ig_url else "-",
             "Last FO": _fmt_date_lp(r.get("last_follow_up", "")),
             "Next FO": _fmt_date_lp(r.get("next_follow_up", "")),
             "_idx": idx,
@@ -799,6 +813,9 @@ def _render_lead_table(df):
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
             {"headerName": "🎯 Prio", "field": "Prio", "width": 80, "pinned": "right",
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
+            {"headerName": "📷 IG", "field": "IG", "width": 110,
+             "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True,
+             "cellStyle": {"color": "#f9e2af"}},
             {"headerName": "Last FO", "field": "Last FO", "width": 110,
              "sortable": True, "filter": "agTextColumnFilter", "floatingFilter": True},
             {"headerName": "Next FO", "field": "Next FO", "width": 110,
@@ -846,7 +863,7 @@ def _show_detail(df, name):
         ("jenis_lokasi", "🏗️"), ("tipe_lokasi", "🔄"),
         ("skema_kerja_sama_yang_terbuka", "🤝"), ("status_lead", "✅"),
         ("source_lead", "📢"), ("sales_pic", "👨‍💼"), ("jabatan_pic", "📋"),
-        ("nomor_whatsapp_pic", "📞"), ("email_pic", "📧"), ("area_penempatan", "📍"),
+        ("nomor_whatsapp_pic", "📞"), ("source_lead_instagram", "📷"), ("email_pic", "📧"), ("area_penempatan", "📍"),
         ("estimasi_pengunjung_per_hari", "👥"), ("space_tersedia", "📐"),
         ("listrik_tersedia", "⚡"), ("kelayakan_space", "✅"),
         ("kelayakan_listrik", "✅"), ("kelayakan_operasional", "✅"),

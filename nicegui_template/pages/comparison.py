@@ -2,8 +2,6 @@
 📅 Perbandingan Periode — compare metrics between two periods.
 """
 from nicegui import ui
-import pandas as pd
-import numpy as np
 
 from services.dashboard_adapter import get_adapter
 
@@ -53,8 +51,8 @@ def create_page(container: ui.column):
             prev_photo = int(prev["foto_qty"].sum()) if "foto_qty" in prev.columns else 0
             photo_growth = ((cur_photo - prev_photo) / prev_photo * 100) if prev_photo else 0
 
-            cur_conv = float(cur["conversion_rate"].mean()) if "conversion_rate" in cur.columns else 0
-            prev_conv = float(prev["conversion_rate"].mean()) if "conversion_rate" in prev.columns else 0
+            cur_conv = float(cur["paid_per_photo_rate"].mean()) if "paid_per_photo_rate" in cur.columns else 0
+            prev_conv = float(prev["paid_per_photo_rate"].mean()) if "paid_per_photo_rate" in prev.columns else 0
             conv_change = cur_conv - prev_conv
 
             with content_col:
@@ -80,8 +78,8 @@ def create_page(container: ui.column):
                 top = merged.nlargest(10, "total_revenue_cur") if "total_revenue_cur" in merged.columns else merged.head(10)
 
                 labels = top["outlet_name"].tolist()
-                cur_vals = [float(top[f"total_revenue_cur"].iloc[i]) if f"total_revenue_cur" in top.columns else 0 for i in range(len(top))]
-                prev_vals = [float(top[f"total_revenue_prev"].iloc[i]) if f"total_revenue_prev" in top.columns else 0 for i in range(len(top))]
+                cur_vals = [float(top["total_revenue_cur"].iloc[i]) if "total_revenue_cur" in top.columns else 0 for i in range(len(top))]
+                prev_vals = [float(top["total_revenue_prev"].iloc[i]) if "total_revenue_prev" in top.columns else 0 for i in range(len(top))]
 
                 ui.echart({
                     "tooltip": {"trigger": "axis"},

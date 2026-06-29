@@ -29,6 +29,7 @@ ALL_ROUTES = [
     ("🗃️ CRUD Outlet", "/crud"),
     ("💵 Revenue Sharing", "/revenue-sharing"),
     ("⚙️ Admin", "/admin"),
+    ("🎨 Creative Team", "/creative-team"),
     ("📤 Upload", "/upload"),
 ]
 

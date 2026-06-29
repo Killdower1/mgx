@@ -3,7 +3,6 @@
 """
 from nicegui import ui
 import pandas as pd
-import numpy as np
 
 from services.dashboard_adapter import get_adapter
 
@@ -32,7 +31,7 @@ def create_page(container: ui.column):
         foto_sum = base["foto_qty"].sum()
         unlock_sum = base["unlock_qty"].sum()
         print_sum = base["print_qty"].sum()
-        avg_conv = base["conversion_rate"].mean() if "conversion_rate" in base.columns else 0
+        avg_conv = base["paid_per_photo_rate"].mean() if "paid_per_photo_rate" in base.columns else 0
         unlock_print_rate = (print_sum / unlock_sum * 100) if unlock_sum > 0 else 0
         overall_conv = (print_sum / foto_sum * 100) if foto_sum > 0 else 0
 
@@ -78,10 +77,10 @@ def create_page(container: ui.column):
             # High conversion
             with ui.card().classes("flex-1").style(CARD):
                 ui.label("🟢 High Conversion Outlets (>25%)").classes("text-sm font-semibold text-green-400 mb-2")
-                hi = base[base["conversion_rate"] > 25].sort_values("conversion_rate", ascending=False)
+                hi = base[base["paid_per_photo_rate"] > 25].sort_values("paid_per_photo_rate", ascending=False)
                 if not hi.empty:
-                    hd = hi[["outlet_name", "conversion_rate", "total_revenue"]].copy()
-                    hd["conversion_rate"] = hd["conversion_rate"].apply(lambda x: f"{x:.1f}%")
+                    hd = hi[["outlet_name", "paid_per_photo_rate", "total_revenue"]].copy()
+                    hd["paid_per_photo_rate"] = hd["paid_per_photo_rate"].apply(lambda x: f"{x:.1f}%")
                     hd["total_revenue"] = hd["total_revenue"].apply(adapter.format_currency)
                     cols = [{"name": c, "label": c.replace("_", " ").title(), "field": c} for c in hd.columns]
                     ui.table(rows=hd.to_dict("records"), columns=cols, pagination={"rowsPerPage": 12}).classes("w-full").props("dark flat dense")
@@ -90,10 +89,10 @@ def create_page(container: ui.column):
             # Low conversion
             with ui.card().classes("flex-1").style(CARD):
                 ui.label("🔴 Low Conversion Outlets (<15%)").classes("text-sm font-semibold text-red-400 mb-2")
-                lo = base[base["conversion_rate"] < 15].sort_values("conversion_rate", ascending=True)
+                lo = base[base["paid_per_photo_rate"] < 15].sort_values("paid_per_photo_rate", ascending=True)
                 if not lo.empty:
-                    ld = lo[["outlet_name", "conversion_rate", "total_revenue"]].copy()
-                    ld["conversion_rate"] = ld["conversion_rate"].apply(lambda x: f"{x:.1f}%")
+                    ld = lo[["outlet_name", "paid_per_photo_rate", "total_revenue"]].copy()
+                    ld["paid_per_photo_rate"] = ld["paid_per_photo_rate"].apply(lambda x: f"{x:.1f}%")
                     ld["total_revenue"] = ld["total_revenue"].apply(adapter.format_currency)
                     cols = [{"name": c, "label": c.replace("_", " ").title(), "field": c} for c in ld.columns]
                     ui.table(rows=ld.to_dict("records"), columns=cols, pagination={"rowsPerPage": 12}).classes("w-full").props("dark flat dense")
@@ -105,13 +104,13 @@ def create_page(container: ui.column):
         # Awareness Analysis
         ui.label("📢 Awareness Analysis").classes("text-lg font-semibold text-white mb-3")
         med_foto = base["foto_qty"].median()
-        med_conv = base["conversion_rate"].median()
-        seg = base[(base["foto_qty"] > med_foto) & (base["conversion_rate"] < med_conv)]
+        med_conv = base["paid_per_photo_rate"].median()
+        seg = base[(base["foto_qty"] > med_foto) & (base["paid_per_photo_rate"] < med_conv)]
         if not seg.empty:
             with ui.card().classes("w-full mb-6").style(CARD):
                 ui.label("⚠️ High Awareness, Low Conversion (Need Promotion)").classes("text-sm font-semibold text-yellow-400 mb-2")
-                sd = seg[["outlet_name", "foto_qty", "conversion_rate", "total_revenue"]].copy()
-                sd["conversion_rate"] = sd["conversion_rate"].apply(lambda x: f"{x:.1f}%")
+                sd = seg[["outlet_name", "foto_qty", "paid_per_photo_rate", "total_revenue"]].copy()
+                sd["paid_per_photo_rate"] = sd["paid_per_photo_rate"].apply(lambda x: f"{x:.1f}%")
                 sd["total_revenue"] = sd["total_revenue"].apply(adapter.format_currency)
                 cols = [{"name": c, "label": c.replace("_", " ").title(), "field": c} for c in sd.columns]
                 ui.table(rows=sd.to_dict("records"), columns=cols, pagination={"rowsPerPage": 15}).classes("w-full").props("dark flat dense")
@@ -123,7 +122,7 @@ def create_page(container: ui.column):
         # Conversion Trends
         with ui.card().classes("w-full mb-6").style(CARD):
             ui.label("📈 Conversion Trends by Outlet").style(ST)
-            top_conv = base.nlargest(10, "conversion_rate")
+            top_conv = base.nlargest(10, "paid_per_photo_rate")
             ui.echart({
                 "tooltip": {"trigger": "axis"},
                 "grid": {"left": "3%", "right": "4%", "bottom": "15%", "containLabel": True},
@@ -132,7 +131,7 @@ def create_page(container: ui.column):
                           "axisLine": {"lineStyle": {"color": "#45475a"}}},
                 "yAxis": {"type": "value", "axisLabel": {"color": "#a6adc8", "formatter": "{value}%"},
                           "splitLine": {"lineStyle": {"color": "#313244"}}},
-                "series": [{"type": "bar", "data": top_conv["conversion_rate"].tolist(),
+                "series": [{"type": "bar", "data": top_conv["paid_per_photo_rate"].tolist(),
                             "itemStyle": {"color": "#a6e3a1"}, "barMaxWidth": 30,
                             "label": {"show": True, "position": "top", "color": "#cdd6f4",
                                       "fontSize": 9, "formatter": "{@value}%"}}],
