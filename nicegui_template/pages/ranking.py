@@ -2,7 +2,6 @@
 🏆 Ranking Outlet — outlet ranking sorted by revenue.
 """
 from nicegui import ui
-import pandas as pd
 
 from services.dashboard_adapter import get_adapter
 
@@ -39,9 +38,9 @@ def create_page(container: ui.column):
         ranked = base.sort_values("total_revenue", ascending=False).reset_index(drop=True)
         ranked["rank"] = range(1, len(ranked) + 1)
 
-        disp = ranked[["rank", "outlet_name", "area", "kategori_tempat", "total_revenue", "conversion_rate", "outlet_status"]].copy()
+        disp = ranked[["rank", "outlet_name", "area", "kategori_tempat", "total_revenue", "paid_per_photo_rate", "outlet_status"]].copy()
         disp["total_revenue"] = disp["total_revenue"].apply(adapter.format_currency)
-        disp["conversion_rate"] = disp["conversion_rate"].apply(lambda x: f"{x:.1f}%")
+        disp["paid_per_photo_rate"] = disp["paid_per_photo_rate"].apply(lambda x: f"{x:.1f}%")
 
         columns = [
             {"name": "rank", "label": "#", "field": "rank", "align": "center"},
@@ -49,7 +48,7 @@ def create_page(container: ui.column):
             {"name": "area", "label": "Area", "field": "area"},
             {"name": "kategori_tempat", "label": "Kategori", "field": "kategori_tempat"},
             {"name": "total_revenue", "label": "Omset", "field": "total_revenue", "align": "right"},
-            {"name": "conversion_rate", "label": "Conversion", "field": "conversion_rate", "align": "right"},
+            {"name": "paid_per_photo_rate", "label": "Conversion", "field": "paid_per_photo_rate", "align": "right"},
             {"name": "outlet_status", "label": "Status", "field": "outlet_status", "align": "center"},
         ]
         ui.table(
@@ -75,8 +74,8 @@ def create_page(container: ui.column):
                     if sdf.empty:
                         ui.label(f"No outlets in {status_name} status.").classes("text-gray-400 italic")
                     else:
-                        sd = sdf[["outlet_name", "area", "total_revenue", "conversion_rate"]].copy()
+                        sd = sdf[["outlet_name", "area", "total_revenue", "paid_per_photo_rate"]].copy()
                         sd["total_revenue"] = sd["total_revenue"].apply(adapter.format_currency)
-                        sd["conversion_rate"] = sd["conversion_rate"].apply(lambda x: f"{x:.1f}%")
+                        sd["paid_per_photo_rate"] = sd["paid_per_photo_rate"].apply(lambda x: f"{x:.1f}%")
                         cols = [{"name": c, "label": c.replace("_", " ").title(), "field": c} for c in sd.columns]
                         ui.table(rows=sd.to_dict("records"), columns=cols, pagination={"rowsPerPage": 15}).classes("w-full").props("dark flat dense")

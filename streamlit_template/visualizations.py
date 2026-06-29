@@ -1,7 +1,5 @@
 import plotly.express as px
 import plotly.graph_objects as go
-import pandas as pd
-import numpy as np
 
 class Visualizations:
     def __init__(self, config):
@@ -127,13 +125,13 @@ class Visualizations:
         
         kategori_data = df.groupby('kategori_tempat').agg({
             'total_revenue': 'sum',
-            'conversion_rate': 'mean'
+            'paid_per_photo_rate': 'mean'
         }).reset_index()
         
         fig = px.scatter(
             kategori_data,
             x='total_revenue',
-            y='conversion_rate',
+            y='paid_per_photo_rate',
             size='total_revenue',
             color='kategori_tempat',
             title="Revenue vs Conversion Rate by Category",
@@ -150,7 +148,7 @@ class Visualizations:
         
         tipe_data = df.groupby('tipe_tempat').agg({
             'total_revenue': 'sum',
-            'conversion_rate': 'mean',
+            'paid_per_photo_rate': 'mean',
             'outlet_name': 'nunique'
         }).reset_index()
         

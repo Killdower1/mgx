@@ -2,6 +2,7 @@
 Difotoin.id API Adapter — auth, fetch transactions, aggregate, cache.
 """
 import json
+import os
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -18,6 +19,7 @@ DATA_CSV_PATH = ST_DIR / "data" / "difotoin_dashboard_data.csv"
 OUTLET_MAPPING_PATH = ST_DIR / "data" / "difotoin_outlet_mapping.csv"
 CACHE_DIR = ST_DIR / "data" / "api_cache"
 RAW_TXNS_PATH = CACHE_DIR / "raw_transactions.json"
+DASHBOARD_SUMMARY_PATH = CACHE_DIR / "dashboard_summary.json"
 
 # ── API Endpoints ──
 BASE_URL = "https://difotoin.id"
@@ -45,8 +47,7 @@ def _load_config() -> dict:
 
 def _save_config(cfg: dict):
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    with open(API_CONFIG_PATH, "w") as f:
-        json.dump(cfg, f, indent=2)
+    _atomic_save_json(cfg, API_CONFIG_PATH)
 
 
 def get_credentials() -> tuple:
@@ -81,6 +82,41 @@ def save_last_sync(ok: bool, message: str = ""):
 
 
 def get_last_sync() -> dict:
+    cfg = _load_config()
+    return cfg.get("last_sync", {})
+
+
+
+def _atomic_save_json(obj, path):
+    """Save as JSON using atomic write (tmp + rename)."""
+    tmp = str(path) + ".tmp." + str(os.getpid())
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if hasattr(obj, "to_json"):
+            obj.to_json(tmp, orient="records")
+        else:
+            with open(tmp, "w") as f:
+                json.dump(obj, f, indent=2, default=str)
+        os.replace(tmp, str(path))
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+
+
+def _atomic_save_csv(df, path):
+    """Save DataFrame as CSV using atomic write (tmp + rename)."""
+    tmp = str(path) + ".tmp." + str(os.getpid())
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(tmp, index=False)
+        os.replace(tmp, str(path))
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+
+
     cfg = _load_config()
     return cfg.get("last_sync", {})
 
@@ -232,8 +268,9 @@ def aggregate_transactions(txns: List[dict]) -> pd.DataFrame:
     rows = []
     for t in txns:
         details = t.get("details", []) or []
-        capture_qty = sum(int(d.get("capture_qty", 0) or 0) for d in details)
-        print_qty = sum(int(d.get("print_qty", 0) or 0) for d in details)
+        capture_qty = 1 if any(int(d.get("capture_qty", 0) or 0) > 0 for d in details) else 0
+
+        print_qty = 1 if t.get("type") == "print" else 0
         unlock_qty_tx = 1
         amount = float(t.get("processed_gross_amount", 0) or 0)
 
@@ -270,12 +307,16 @@ def aggregate_transactions(txns: List[dict]) -> pd.DataFrame:
         outlet_id=("outlet_id", "first"),
     )
 
-    agg["conversion_rate"] = np.where(
+    agg["paid_per_photo_rate"] = np.where(
         agg["foto_qty"] > 0,
         (agg["unlock_qty"] / agg["foto_qty"] * 100),
         0.0,
     )
 
+    # NOTE: paid_per_photo_rate = paid_transactions / total_captures
+    # Ini BUKAN conversion rate sesungguhnya (karena hanya dari data paid/done).
+    # Data unpaid/all sessions belum stabil di-fetch dari API.
+    # Untuk conversion real, diperlukan fetch data all sessions (termasuk unpaid/cancel).
     agg["outlet_status"] = agg["total_revenue"].apply(
         lambda v: "Keeper" if v >= 15_000_000
         else ("Optimasi" if v >= 8_000_000 else "Relocate")
@@ -290,7 +331,7 @@ def aggregate_transactions(txns: List[dict]) -> pd.DataFrame:
     col_order = [
         "outlet_name", "periode", "area", "kategori_tempat",
         "sub_kategori_tempat", "tipe_tempat", "foto_qty", "unlock_qty",
-        "print_qty", "total_revenue", "conversion_rate", "outlet_status",
+        "print_qty", "total_revenue", "paid_per_photo_rate", "outlet_status",
     ]
     for col in col_order:
         if col not in agg.columns:
@@ -374,7 +415,7 @@ def save_to_csv(df: pd.DataFrame) -> Tuple[bool, str]:
             merged[col] = pd.to_numeric(merged[col], errors="coerce").fillna(0)
 
     DATA_CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
-    merged.to_csv(DATA_CSV_PATH, index=False)
+    _atomic_save_csv(merged, DATA_CSV_PATH)
 
     after_total = 0.0
     if "total_revenue" in merged.columns:
@@ -392,10 +433,21 @@ def save_to_csv(df: pd.DataFrame) -> Tuple[bool, str]:
 # ═══════════════════════════════════════════════
 
 def cache_raw_transactions(txns: List[dict]):
-    """Save raw transactions to JSON cache."""
+    """Save raw transactions to JSON cache. Merges with existing."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    with open(RAW_TXNS_PATH, "w") as f:
-        json.dump(txns, f, indent=2, default=str)
+    try:
+        existing = load_raw_transactions()
+        seen_ids = set()
+        for t in txns:
+            tx_id = t.get("id")
+            if tx_id:
+                seen_ids.add(str(tx_id))
+        # Filter existing: keep only those NOT in current batch (by transaction ID)
+        filtered = [t for t in existing if str(t.get("id","")) not in seen_ids]
+        merged = filtered + txns
+    except:
+        merged = txns
+        _atomic_save_json(merged, RAW_TXNS_PATH)
 
 
 def load_raw_transactions() -> List[dict]:
@@ -438,6 +490,7 @@ def compute_revenue_sharing(
             periode = datetime.now().strftime("%Y-%m")
 
         rows.append({
+            "id": str(t.get("id", "")),
             "outlet_name": str(t.get("outlet_name", "")).strip(),
             "outlet_id": t.get("outlet_id"),
             "date": tx_date,
@@ -458,10 +511,6 @@ def compute_revenue_sharing(
     return pd.DataFrame(rows)
 
 
-# ═══════════════════════════════════════════════
-#  REVENUE SHARING CACHE (pre-computed, lightweight)
-# ═══════════════════════════════════════════════
-
 RS_OUTLET_PATH = CACHE_DIR / "rs_outlet.json"
 RS_PERIODS_DIR = CACHE_DIR / "rs_periods"
 
@@ -469,6 +518,7 @@ RS_PERIODS_DIR = CACHE_DIR / "rs_periods"
 def _cache_revenue_sharing(txns: List[dict]):
     """Pre-compute revenue sharing data and save as lightweight cache.
     Also split raw transactions by period for on-demand detail loading.
+    Merges with existing rs cache so incremental syncs do not lose history.
     """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     RS_PERIODS_DIR.mkdir(parents=True, exist_ok=True)
@@ -481,8 +531,8 @@ def _cache_revenue_sharing(txns: List[dict]):
     if df.empty:
         return
 
-    # 1. Save per-outlet-per-month aggregated (small)
-    outlet_agg = df.groupby(["outlet_name", "periode"], as_index=False).agg(
+    # 1. Save per-outlet-per-month aggregated (small) - MERGE with existing
+    new_agg = df.groupby(["outlet_name", "periode"], as_index=False).agg(
         total_revenue=("total_revenue", "sum"),
         partner_amount=("partner_amount", "sum"),
         broker_amount=("broker_amount", "sum"),
@@ -491,23 +541,37 @@ def _cache_revenue_sharing(txns: List[dict]):
         avg_partner_pct=("partner_share_pct", "mean"),
         avg_broker_pct=("broker_share_pct", "mean"),
     )
-    outlet_agg.to_json(str(RS_OUTLET_PATH), orient="records")
+    # Load existing cache and merge: update rows for (outlet,period) that exist, add new ones
+    try:
+        existing = pd.read_json(str(RS_OUTLET_PATH))
+        # Remove rows from existing that we are about to update
+        merge_keys = set(zip(new_agg["outlet_name"], new_agg["periode"]))
+        existing = existing[
+            ~existing.apply(lambda r: (r["outlet_name"], r["periode"]) in merge_keys, axis=1)
+        ]
+        merged = pd.concat([existing, new_agg], ignore_index=True)
+    except (FileNotFoundError, ValueError, Exception):
+        merged = new_agg
 
-    # 2. Split raw detail by period (so page only loads 1 period at a time)
+    _atomic_save_json(merged, RS_OUTLET_PATH)
+
+    # 2. Split raw detail by period - update/add only, keep all historical
     periods = df["periode"].dropna().unique().tolist() if "periode" in df.columns else []
     for period in periods:
         period_df = df[df["periode"] == period]
         period_path = RS_PERIODS_DIR / (period + ".json")
-        period_df.to_json(str(period_path), orient="records")
-
-    # Clean up old periods not in current data
-    existing_files = set(f.name for f in RS_PERIODS_DIR.iterdir() if f.suffix == ".json")
-    current_periods = set(p + ".json" for p in periods)
-    for stale in existing_files - current_periods:
+        # Load existing period detail and merge (upsert)
         try:
-            (RS_PERIODS_DIR / stale).unlink()
-        except OSError:
-            pass
+            existing_period = pd.read_json(str(period_path))
+            combined = pd.concat([existing_period, period_df], ignore_index=True)
+            # Deduplicate by transaction ID (keep latest)
+            if "id" in combined.columns:
+                combined = combined.drop_duplicates(subset=["id"], keep="last")
+            else:
+                combined = combined.drop_duplicates(keep="last")
+            _atomic_save_json(combined, period_path)
+        except (FileNotFoundError, ValueError, Exception):
+            _atomic_save_json(period_df, period_path)
 
 
 def load_rs_outlet_summary() -> list:
@@ -540,84 +604,445 @@ def get_rs_periods() -> list:
 
 
 # ═══════════════════════════════════════════════
-#  REVENUE SHARING CACHE (pre-computed, lightweight)
+#  SYNC TRACKER — prevent re-fetching same months
 # ═══════════════════════════════════════════════
 
-RS_OUTLET_PATH = CACHE_DIR / "rs_outlet.json"
-RS_PERIODS_DIR = CACHE_DIR / "rs_periods"
+SYNC_TRACKER_PATH = CACHE_DIR / "sync_tracker.json"
 
 
-def _cache_revenue_sharing(txns: List[dict]):
-    """Pre-compute revenue sharing data and save as lightweight cache.
-    Also split raw transactions by period for on-demand detail loading.
-    """
+def load_sync_tracker() -> dict:
+    """Load sync tracker — records which periods have been fetched."""
+    try:
+        with open(SYNC_TRACKER_PATH) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"fetched_periods": [], "failed_periods": [], "last_sync": None}
+
+
+def save_sync_tracker(tracker: dict):
+    """Save sync tracker."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    RS_PERIODS_DIR.mkdir(parents=True, exist_ok=True)
+    _atomic_save_json(tracker, SYNC_TRACKER_PATH)
 
-    if not txns:
-        return
 
-    # Compute full revenue sharing
-    df = compute_revenue_sharing(txns)
-    if df.empty:
-        return
+def get_tracked_periods() -> List[str]:
+    """Get sorted list of periods already fetched."""
+    tracker = load_sync_tracker()
+    return sorted(tracker.get("fetched_periods", []))
 
-    # 1. Save per-outlet-per-month aggregated (small)
-    outlet_agg = df.groupby(["outlet_name", "periode"], as_index=False).agg(
-        total_revenue=("total_revenue", "sum"),
-        partner_amount=("partner_amount", "sum"),
-        broker_amount=("broker_amount", "sum"),
-        difotoin_amount=("difotoin_amount", "sum"),
-        transactions=("total_revenue", "count"),
-        avg_partner_pct=("partner_share_pct", "mean"),
-        avg_broker_pct=("broker_share_pct", "mean"),
-    )
-    outlet_agg.to_json(str(RS_OUTLET_PATH), orient="records")
 
-    # 2. Split raw detail by period (so page only loads 1 period at a time)
-    periods = df["periode"].dropna().unique().tolist() if "periode" in df.columns else []
-    for period in periods:
-        period_df = df[df["periode"] == period]
-        period_path = RS_PERIODS_DIR / (period + ".json")
-        period_df.to_json(str(period_path), orient="records")
+def get_csv_periods() -> List[str]:
+    """Get sorted list of periods from the CSV data."""
+    try:
+        df = pd.read_csv(DATA_CSV_PATH)
+        if "periode" in df.columns:
+            return sorted(df["periode"].dropna().unique().tolist())
+    except Exception:
+        pass
+    return []
 
-    # Clean up old periods not in current data
-    existing_files = set(f.name for f in RS_PERIODS_DIR.iterdir() if f.suffix == ".json")
-    current_periods = set(p + ".json" for p in periods)
-    for stale in existing_files - current_periods:
+
+def get_missing_periods(target_periods: Optional[List[str]] = None) -> List[str]:
+    """Get periods that exist in CSV/target but not yet fetched.
+    If target_periods is None, checks CSV periods."""
+    if target_periods is None:
+        target_periods = get_csv_periods()
+    fetched = set(get_tracked_periods())
+    return [p for p in target_periods if p not in fetched]
+
+
+# ═══════════════════════════════════════════════
+#  PER-PERIOD FETCH — 1 month at a time, with retry
+# ═══════════════════════════════════════════════
+
+def _month_date_range(period: str) -> Tuple[str, str]:
+    """Convert 'YYYY-MM' to (start_date, end_date) strings."""
+    year, month = int(period[:4]), int(period[5:7])
+    start = date(year, month, 1)
+    if month == 12:
+        end = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        end = date(year, month + 1, 1) - timedelta(days=1)
+    return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+
+
+def fetch_period(
+    period: str,
+    per_page: int = 100,
+    token: Optional[str] = None,
+    max_retries: int = 3,
+) -> Tuple[bool, str]:
+    """Fetch ONE specific month (YYYY-MM) from difotoin API, with retry.
+    On success: merges into raw_transactions.json + rebuilds RS cache + updates tracker.
+    Returns (success, message)."""
+    if not token:
+        token = authenticate()
+        if not token:
+            return False, "Gagal autentikasi"
+
+    start_str, end_str = _month_date_range(period)
+
+    last_error = None
+    for attempt in range(1, max_retries + 1):
         try:
-            (RS_PERIODS_DIR / stale).unlink()
-        except OSError:
-            pass
+            txns, msg = fetch_all_transactions(
+                start_date=start_str, end_date=end_str,
+                per_page=per_page, token=token,
+            )
+
+            # REJECT partial data: if msg contains "Error", data is incomplete
+            is_partial = "Error" in msg and txns
+
+            if not txns or is_partial:
+                if is_partial:
+                    last_error = f"PARTIAL ({len(txns)} txns before error): {msg}"
+                else:
+                    last_error = msg
+                if attempt < max_retries:
+                    continue
+                break
+
+            # Success (100% complete)! Merge into caches
+            cache_raw_transactions(txns)
+            _cache_revenue_sharing(txns)
+
+            # Update tracker
+            tracker = load_sync_tracker()
+            fetched = tracker.setdefault("fetched_periods", [])
+            if period not in fetched:
+                fetched.append(period)
+                fetched.sort()
+            failed = tracker.setdefault("failed_periods", [])
+            if period in failed:
+                failed.remove(period)
+            tracker["last_sync"] = datetime.now().isoformat()
+            save_sync_tracker(tracker)
+
+            return True, f"{period}: {msg}"
+
+        except requests.RequestException as e:
+            last_error = str(e)
+            if attempt < max_retries:
+                continue
+            break
+
+    # All retries exhausted
+    tracker = load_sync_tracker()
+    failed = tracker.setdefault("failed_periods", [])
+    if period not in failed:
+        failed.append(period)
+    save_sync_tracker(tracker)
+
+    return False, f"{period}: gagal setelah {max_retries}x percobaan: {last_error}"
 
 
-def load_rs_outlet_summary() -> list:
-    """Load lightweight per-outlet-per-month revenue sharing data."""
+def sync_missing_periods(
+    max_periods: int = 0,
+    per_page: int = 100,
+) -> List[str]:
+    """Find missing periods from CSV and fetch them one by one.
+    Args:
+        max_periods: max months to fetch (0 = all missing).
+        per_page: transactions per API page.
+    Returns list of result messages.
+    """
+    missing = get_missing_periods()
+    if not missing:
+        return ["Semua periode sudah tersinkronasi."]
+
+    if max_periods > 0:
+        missing = missing[:max_periods]
+
+    results = []
+    token = authenticate()
+    if not token:
+        return ["Gagal autentikasi"]
+
+    for period in missing:
+        ok, msg = fetch_period(period, per_page=per_page, token=token)
+        results.append(msg)
+        if not ok:
+            # Stop on first failure — don't hammer the API
+            results.append("Berhenti karena kegagalan. Lanjutkan nanti.")
+            break
+
+    return results
+
+
+def sync_current_month(per_page: int = 100) -> Tuple[bool, str]:
+    """Cron-friendly: always re-fetch current and previous month.
+    Re-fetching is needed to catch status changes (pending -> paid).
+    """
+    now = datetime.now()
+    current = now.strftime("%Y-%m")
+    prev = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+
+    # Always fetch current + previous month (ignore tracker for these)
+    to_fetch = [prev, current]
+
+    results = []
+    token = authenticate()
+    if not token:
+        return False, "Gagal autentikasi"
+
+    for period in to_fetch:
+        ok, msg = fetch_period(period, per_page=per_page, token=token)
+        results.append(msg)
+
+    return True, " | ".join(results)
+
+
+# ── Seed: import sync_tracker periods from existing rs_periods/ ──
+
+# ═══════════════════════════════════════════════
+#  DASHBOARD SUMMARY CACHE (from raw_by_month)
+# ═══════════════════════════════════════════════
+
+def build_dashboard_from_raw() -> Tuple[bool, str]:
+    """Build dashboard summary cache from raw_by_month data (source of truth).
+    Processes ONE file at a time to avoid OOM on 3.4GB raw data.
+    
+    Returns (success, message).
+    """
+    RAW_BY_MONTH_DIR = CACHE_DIR / "raw_by_month"
+    if not RAW_BY_MONTH_DIR.exists():
+        return False, f"raw_by_month dir not found at {RAW_BY_MONTH_DIR}"
+    
+    import gc
+    
+    all_agg = []
+    period_counts = []
+    files_loaded = 0
+    files_total = len(list(RAW_BY_MONTH_DIR.glob("*.json")))
+    
+    for f in sorted(RAW_BY_MONTH_DIR.glob("*.json")):
+        try:
+            with open(f) as fh:
+                txns = json.load(fh)
+        except Exception as e:
+            print(f"Error loading {f.name}: {e}")
+            continue
+        
+        if not txns:
+            continue
+        
+        # Aggregate this month's transactions
+        rows = []
+        for t in txns:
+            details = t.get("details", []) or []
+            capture_qty = 1 if any(int(d.get("capture_qty", 0) or 0) > 0 for d in details) else 0
+
+            print_qty = 1 if t.get("type") == "print" else 0
+            unlock_qty = 1 if t.get("type") == "unlock-photo" else 0
+            amount = float(t.get("processed_gross_amount", 0) or 0)
+            
+            tx_date = t.get("date", "")
+            try:
+                dt = pd.to_datetime(tx_date)
+                periode = dt.strftime("%Y-%m")
+            except Exception:
+                continue
+            
+            rows.append({
+                "outlet_name": str(t.get("outlet_name", "")).strip(),
+                "outlet_id": t.get("outlet_id"),
+                "periode": periode,
+                "total_revenue": amount,
+                "foto_qty": capture_qty,
+                "unlock_qty": unlock_qty,
+                "print_qty": print_qty,
+            })
+        
+        if rows:
+            df = pd.DataFrame(rows)
+            agg_month = df.groupby(["outlet_name", "periode"], as_index=False).agg(
+                total_revenue=("total_revenue", "sum"),
+                foto_qty=("foto_qty", "sum"),
+                unlock_qty=("unlock_qty", "sum"),
+                print_qty=("print_qty", "sum"),
+                outlet_id=("outlet_id", "first"),
+            )
+            all_agg.append(agg_month)
+            period_counts.append((f.stem, len(txns)))
+            
+            # Free memory
+            del txns, rows, df, agg_month
+            gc.collect()
+        
+        files_loaded += 1
+        print(f"  [{files_loaded}/{files_total}] {f.stem}: {len(txns) if 'txns' in dir() else '?'} txns")
+    
+    if not all_agg:
+        return False, "No transactions found in raw_by_month"
+    
+    # Combine all months
+    # Final groupby to merge any cross-file duplicates
+    agg = pd.concat(all_agg, ignore_index=True)
+    del all_agg
+    gc.collect()
+    # Dedup by (outlet, periode) — sum revenue/qty
+    agg = agg.groupby(["outlet_name", "periode"], as_index=False).agg(
+        total_revenue=("total_revenue", "sum"),
+        foto_qty=("foto_qty", "sum"),
+        unlock_qty=("unlock_qty", "sum"),
+        print_qty=("print_qty", "sum"),
+    )
+    
+    # Conversion rate: unlock / foto * 100
+    agg["paid_per_photo_rate"] = np.where(
+        agg["foto_qty"] > 0,
+        (agg["unlock_qty"] / agg["foto_qty"] * 100),
+        0.0,
+    )
+    
+    # unlock_to_print_rate
+    agg["unlock_to_print_rate"] = np.where(
+        agg["unlock_qty"] > 0,
+        (agg["print_qty"] / agg["unlock_qty"] * 100),
+        0.0,
+    )
+    
+    # Outlet status based on revenue
+    # NOTE: paid_per_photo_rate = paid_transactions / total_captures
+    # Ini BUKAN conversion rate sesungguhnya (karena hanya dari data paid/done).
+    # Data unpaid/all sessions belum stabil di-fetch dari API.
+    # Untuk conversion real, diperlukan fetch data all sessions (termasuk unpaid/cancel).
+    agg["outlet_status"] = agg["total_revenue"].apply(
+        lambda v: "Keeper" if v >= 15_000_000
+        else ("Optimasi" if v >= 8_000_000 else "Relocate")
+    )
+    
+    # Apply outlet mapping for area/kategori/tipe
+    _join_outlet_mapping(agg)
+    
+    # Ensure all expected columns exist
+    for col in ["area", "kategori_tempat", "sub_kategori_tempat", "tipe_tempat"]:
+        if col not in agg.columns:
+            agg[col] = ""
+    
+    # Save as JSON
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    _atomic_save_json(agg, DASHBOARD_SUMMARY_PATH)
+    
+    total_txns = sum(c for _, c in period_counts)
+    total_rev = float(agg["total_revenue"].sum())
+    msg = f"Dashboard cache: {len(agg)} entries dari {total_txns} transaksi ({files_loaded} files). Total: Rp {total_rev:,.0f}"
+    return True, msg
+
+
+def _cache_dashboard_summary(txns: List[dict], files_loaded: int = 0) -> Tuple[bool, str]:
+    """Aggregate raw transactions into dashboard format (with qty fields).
+    
+    Produces dashboard_summary.json for the Dashboard page.
+    Does NOT affect rs_outlet.json or rs_periods/ (revenue sharing).
+    """
+    if not txns:
+        return False, "No transactions to aggregate"
+    
+    rows = []
+    for t in txns:
+        details = t.get("details", []) or []
+        capture_qty = 1 if any(int(d.get("capture_qty", 0) or 0) > 0 for d in details) else 0
+
+        print_qty = 1 if t.get("type") == "print" else 0
+        unlock_qty = sum(int(d.get("unlocked_photo", 0) or 0) for d in details)
+        amount = float(t.get("processed_gross_amount", 0) or 0)
+        
+        tx_date = t.get("date", "")
+        try:
+            dt = pd.to_datetime(tx_date)
+            periode = dt.strftime("%Y-%m")
+        except Exception:
+            continue
+        
+        rows.append({
+            "outlet_name": str(t.get("outlet_name", "")).strip(),
+            "outlet_id": t.get("outlet_id"),
+            "periode": periode,
+            "total_revenue": amount,
+            "foto_qty": capture_qty,
+            "unlock_qty": unlock_qty,
+            "print_qty": print_qty,
+        })
+    
+    if not rows:
+        return False, "No valid rows after parsing"
+    
+    df = pd.DataFrame(rows)
+    
+    agg = df.groupby(["outlet_name", "periode"], as_index=False).agg(
+        total_revenue=("total_revenue", "sum"),
+        foto_qty=("foto_qty", "sum"),
+        unlock_qty=("unlock_qty", "sum"),
+        print_qty=("print_qty", "sum"),
+        outlet_id=("outlet_id", "first"),
+    )
+    
+    # Conversion rate: unlock / foto * 100
+    agg["paid_per_photo_rate"] = np.where(
+        agg["foto_qty"] > 0,
+        (agg["unlock_qty"] / agg["foto_qty"] * 100),
+        0.0,
+    )
+    
+    # unlock_to_print_rate
+    agg["unlock_to_print_rate"] = np.where(
+        agg["unlock_qty"] > 0,
+        (agg["print_qty"] / agg["unlock_qty"] * 100),
+        0.0,
+    )
+    
+    # Outlet status based on revenue
+    agg["outlet_status"] = agg["total_revenue"].apply(
+        lambda v: "Keeper" if v >= 15_000_000
+        else ("Optimasi" if v >= 8_000_000 else "Relocate")
+    )
+    
+    # Apply outlet mapping for area/kategori/tipe
+    _join_outlet_mapping(agg)
+    
+    # Ensure all expected columns exist
+    for col in ["area", "kategori_tempat", "sub_kategori_tempat", "tipe_tempat"]:
+        if col not in agg.columns:
+            agg[col] = ""
+    
+    # Save as JSON
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    _atomic_save_json(agg, DASHBOARD_SUMMARY_PATH)
+    
+    total_rev = float(agg["total_revenue"].sum())
+    msg = f"Dashboard cache: {len(agg)} entries dari {len(txns)} transaksi ({files_loaded} files). Total: Rp {total_rev:,.0f}"
+    return True, msg
+
+
+def load_dashboard_summary() -> list:
+    """Load the dashboard summary cache."""
     try:
-        import pandas as pd
-        df = pd.read_json(str(RS_OUTLET_PATH))
+        if not DASHBOARD_SUMMARY_PATH.exists():
+            return []
+        df = pd.read_json(str(DASHBOARD_SUMMARY_PATH))
         return df.to_dict("records") if not df.empty else []
-    except (FileNotFoundError, ValueError, Exception):
+    except Exception:
         return []
 
+def seed_tracker_from_cache():
+    """One-time: populate tracker with periods already in RS cache."""
+    tracker = load_sync_tracker()
+    fetched = set(tracker.get("fetched_periods", []))
 
-def load_rs_period_detail(period: str) -> list:
-    """Load detailed transactions for a specific period only."""
-    period_path = RS_PERIODS_DIR / (period + ".json")
     try:
-        import pandas as pd
-        df = pd.read_json(str(period_path))
-        return df.to_dict("records") if not df.empty else []
-    except (FileNotFoundError, ValueError, Exception):
-        return []
+        if RS_PERIODS_DIR.exists():
+            existing = [f.stem for f in sorted(RS_PERIODS_DIR.iterdir()) if f.suffix == ".json"]
+            added = [p for p in existing if p not in fetched]
+            if added:
+                tracker["fetched_periods"] = sorted(fetched | set(added))
+                save_sync_tracker(tracker)
+                print(f"Tracker seeded: {len(added)} periods added from cache ({', '.join(added)})")
+            else:
+                print("Tracker already up-to-date.")
+    except Exception as e:
+        print(f"Seed error: {e}")
 
-
-def get_rs_periods() -> list:
-    """Get sorted list of available periods from cache."""
-    if not RS_PERIODS_DIR.exists():
-        return []
-    periods = [f.stem for f in sorted(RS_PERIODS_DIR.iterdir()) if f.suffix == ".json"]
-    return sorted(periods, reverse=True)
 
 
 # ═══════════════════════════════════════════════

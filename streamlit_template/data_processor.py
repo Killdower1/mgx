@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import re
-from datetime import datetime
 
 from config import DATA_DIR, DATA_CSV_PATH, OUTLET_MAPPING_PATH
 
@@ -145,7 +144,7 @@ class DataProcessor:
         return {
             'total_revenue': df['total_revenue'].sum(),
             'total_outlets': df['outlet_name'].nunique(),
-            'avg_conversion': df['conversion_rate'].mean(),
+            'avg_conversion': df['paid_per_photo_rate'].mean(),
             'total_photos': df['foto_qty'].sum()
         }
     
@@ -179,7 +178,7 @@ class DataProcessor:
         return df.groupby('area').agg({
             'total_revenue': 'sum',
             'foto_qty': 'sum',
-            'conversion_rate': 'mean',
+            'paid_per_photo_rate': 'mean',
             'outlet_name': 'nunique'
         }).rename(columns={'outlet_name': 'outlet_count'}).round(2)
     
@@ -191,7 +190,7 @@ class DataProcessor:
         return df.groupby('kategori_tempat').agg({
             'total_revenue': 'sum',
             'foto_qty': 'sum',
-            'conversion_rate': 'mean',
+            'paid_per_photo_rate': 'mean',
             'outlet_name': 'nunique'
         }).rename(columns={'outlet_name': 'outlet_count'}).round(2)
     

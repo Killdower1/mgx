@@ -90,7 +90,7 @@ def _build_outlet_table(cpv, cmv):
         "foto_qty",
         "unlock_qty",
         "print_qty",
-        "conversion_rate",
+        "paid_per_photo_rate",
     ]:
         if cl in s.columns:
             s[cl] = pd.to_numeric(s[cl], errors="coerce").fillna(0)
@@ -160,7 +160,7 @@ def _build_outlet_table(cpv, cmv):
             fot = int(r.get("foto_qty", 0) or 0)
             unl = int(r.get("unlock_qty", 0) or 0)
             prn = int(r.get("print_qty", 0) or 0)
-            cnv = float(r.get("conversion_rate", 0) or 0)
+            cnv = float(r.get("paid_per_photo_rate", 0) or 0)
             sta = str(r.get("outlet_status", ""))
             are = str(r.get("area", ""))
             has_cmp = cmv and k in cpm
@@ -212,7 +212,7 @@ def _build_outlet_table(cpv, cmv):
                     "Print": _n(prn),
                     "Delta Print": _d("print_qty", lambda x: _n(int(x))),
                     "Conv": _p(cnv),
-                    "Delta Conv": _dp("conversion_rate"),
+                    "Delta Conv": _dp("paid_per_photo_rate"),
                 }
             )
         if rows:
@@ -932,7 +932,7 @@ def _build_outlet_table(cpv, cmv):
         "foto_qty",
         "unlock_qty",
         "print_qty",
-        "conversion_rate",
+        "paid_per_photo_rate",
     ]:
         if cl in s.columns:
             s[cl] = pd.to_numeric(s[cl], errors="coerce").fillna(0)
@@ -1002,7 +1002,7 @@ def _build_outlet_table(cpv, cmv):
             fot = int(r.get("foto_qty", 0) or 0)
             unl = int(r.get("unlock_qty", 0) or 0)
             prn = int(r.get("print_qty", 0) or 0)
-            cnv = float(r.get("conversion_rate", 0) or 0)
+            cnv = float(r.get("paid_per_photo_rate", 0) or 0)
             sta = str(r.get("outlet_status", ""))
             are = str(r.get("area", ""))
             has_cmp = cmv and k in cpm
@@ -1054,7 +1054,7 @@ def _build_outlet_table(cpv, cmv):
                     "Print": _n(prn),
                     "Delta Print": _d("print_qty", lambda x: _n(int(x))),
                     "Conv": _p(cnv),
-                    "Delta Conv": _dp("conversion_rate"),
+                    "Delta Conv": _dp("paid_per_photo_rate"),
                 }
             )
         if rows:

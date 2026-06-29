@@ -40,7 +40,7 @@ def create_page(container: ui.column):
             return
 
         base = df.copy()
-        for col in ["total_revenue", "foto_qty", "unlock_qty", "print_qty", "conversion_rate"]:
+        for col in ["total_revenue", "foto_qty", "unlock_qty", "print_qty", "paid_per_photo_rate"]:
             base[col] = pd.to_numeric(base.get(col, 0), errors="coerce").fillna(0.0)
         base["periode"] = base["periode"].astype(str)
 
@@ -94,7 +94,7 @@ def create_page(container: ui.column):
                 foto_qty=("foto_qty", "sum"),
                 print_qty=("print_qty", "sum"),
             )
-            monthly["conversion_rate"] = np.where(monthly["foto_qty"] > 0, monthly["print_qty"] / monthly["foto_qty"] * 100, 0)
+            monthly["paid_per_photo_rate"] = np.where(monthly["foto_qty"] > 0, monthly["print_qty"] / monthly["foto_qty"] * 100, 0)
 
             latest_rev = sum_col(latest_df, "total_revenue")
             prev_rev = sum_col(previous_df, "total_revenue")
@@ -152,9 +152,9 @@ def create_page(container: ui.column):
                         print_qty=("print_qty", "sum"),
                         active_months=("periode", "nunique"),
                     )
-                    outlet_summary["conversion_rate"] = np.where(outlet_summary["foto_qty"] > 0,
+                    outlet_summary["paid_per_photo_rate"] = np.where(outlet_summary["foto_qty"] > 0,
                                                                    outlet_summary["print_qty"] / outlet_summary["foto_qty"] * 100, 0)
-                    priority = outlet_summary.sort_values(["total_revenue", "conversion_rate"], ascending=[False, True]).head(12)
+                    priority = outlet_summary.sort_values(["total_revenue", "paid_per_photo_rate"], ascending=[False, True]).head(12)
 
                     ui.label("🏆 Prioritas Outlet untuk Ditindaklanjuti").classes("text-sm font-semibold text-white mb-2")
                     cols = [{"name": c, "label": c.replace("_", " ").title(), "field": c} for c in priority.columns if c != "active_months"]

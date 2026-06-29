@@ -2,8 +2,6 @@
 📈 Trend Analysis — trend analysis v1/v2, AI insights.
 Port of Streamlit's page_modules/trend.py to NiceGUI.
 """
-import sys
-from pathlib import Path
 from typing import List, Optional, Dict
 
 from nicegui import ui
@@ -43,11 +41,11 @@ def build_ai_trend_insights(base: pd.DataFrame, periods: List[str], config: Conf
         total_revenue=("total_revenue", "sum"), foto_qty=("foto_qty", "sum"),
         print_qty=("print_qty", "sum"), outlet_count=("outlet_name", "nunique"),
     )
-    monthly["conversion_rate"] = np.where(monthly["foto_qty"] > 0, monthly["print_qty"] / monthly["foto_qty"] * 100, 0)
+    monthly["paid_per_photo_rate"] = np.where(monthly["foto_qty"] > 0, monthly["print_qty"] / monthly["foto_qty"] * 100, 0)
     monthly["periode"] = pd.Categorical(monthly["periode"].astype(str), categories=periods, ordered=True)
     monthly = monthly.sort_values("periode")
     monthly["revenue_change"] = monthly["total_revenue"].diff()
-    monthly["conversion_change"] = monthly["conversion_rate"].diff()
+    monthly["conversion_change"] = monthly["paid_per_photo_rate"].diff()
 
     latest_revenue = sum_col(latest_df, "total_revenue")
     previous_revenue = sum_col(previous_df, "total_revenue")
@@ -91,13 +89,13 @@ def build_ai_trend_insights(base: pd.DataFrame, periods: List[str], config: Conf
         foto_qty=("foto_qty", "sum"), print_qty=("print_qty", "sum"),
         active_months=("periode", "nunique"),
     )
-    outlet_summary["conversion_rate"] = np.where(outlet_summary["foto_qty"] > 0, outlet_summary["print_qty"] / outlet_summary["foto_qty"] * 100, 0)
+    outlet_summary["paid_per_photo_rate"] = np.where(outlet_summary["foto_qty"] > 0, outlet_summary["print_qty"] / outlet_summary["foto_qty"] * 100, 0)
     outlet_summary["revenue_per_active_month"] = outlet_summary["total_revenue"] / outlet_summary["active_months"].replace(0, np.nan)
     outlet_summary["status_ai"] = "Monitor"
-    outlet_summary.loc[(outlet_summary["total_revenue"] > 0) & (outlet_summary["conversion_rate"] < 12), "status_ai"] = "Traffic ada, conversion rendah"
+    outlet_summary.loc[(outlet_summary["total_revenue"] > 0) & (outlet_summary["paid_per_photo_rate"] < 12), "status_ai"] = "Traffic ada, conversion rendah"
     outlet_summary.loc[(outlet_summary["revenue_per_active_month"] >= outlet_summary["revenue_per_active_month"].quantile(0.80)), "status_ai"] = "Scale / benchmark"
     outlet_summary.loc[outlet_summary["active_months"] <= max(1, len(periods) // 4), "status_ai"] = "Seasonal / belum stabil"
-    priority_outlets = outlet_summary.sort_values(["total_revenue", "conversion_rate", "active_months"], ascending=[False, True, False]).head(12).copy()
+    priority_outlets = outlet_summary.sort_values(["total_revenue", "paid_per_photo_rate", "active_months"], ascending=[False, True, False]).head(12).copy()
 
     summary = [
         f"Range analisis: {periods[0]} sampai {periods[-1]} dengan {len(periods)} periode data.",
@@ -244,7 +242,7 @@ def create_page(container: ui.column):
 
         # ── Prepare base data ──
         base = df.copy(deep=True)
-        for col in ["total_revenue", "foto_qty", "unlock_qty", "print_qty", "conversion_rate"]:
+        for col in ["total_revenue", "foto_qty", "unlock_qty", "print_qty", "paid_per_photo_rate"]:
             if col in base.columns:
                 base[col] = pd.to_numeric(base[col], errors="coerce").fillna(0.0)
         base["periode"] = base["periode"].astype(str)
@@ -319,7 +317,7 @@ def create_page(container: ui.column):
                     outlet_count=("outlet_name", "nunique"),
                 )
             )
-            monthly["conversion_rate"] = np.where(monthly["foto_qty"] > 0, monthly["print_qty"] / monthly["foto_qty"] * 100, 0)
+            monthly["paid_per_photo_rate"] = np.where(monthly["foto_qty"] > 0, monthly["print_qty"] / monthly["foto_qty"] * 100, 0)
             monthly["periode"] = pd.Categorical(monthly["periode"], categories=local_periods, ordered=True)
             monthly = monthly.sort_values("periode")
 
@@ -388,7 +386,7 @@ def create_page(container: ui.column):
 
                             with ui.card().classes("flex-1").style(CARD):
                                 fig_conv = px.line(
-                                    monthly, x="periode", y="conversion_rate",
+                                    monthly, x="periode", y="paid_per_photo_rate",
                                     markers=True, title="Conversion Trend"
                                 )
                                 fig_conv.update_traces(
@@ -411,12 +409,12 @@ def create_page(container: ui.column):
                         ui.label("📋 Monthly Summary").classes("text-lg font-semibold text-white mt-6 mb-3")
                         monthly_display = monthly.copy()
                         monthly_display["total_revenue"] = monthly_display["total_revenue"].apply(adapter.format_currency)
-                        monthly_display["conversion_rate"] = monthly_display["conversion_rate"].apply(lambda x: f"{x:.1f}%")
+                        monthly_display["paid_per_photo_rate"] = monthly_display["paid_per_photo_rate"].apply(lambda x: f"{x:.1f}%")
                         monthly_display = monthly_display.rename(columns={
                             "periode": "Periode", "total_revenue": "Omzet",
                             "foto_qty": "Foto", "unlock_qty": "Unlock",
                             "print_qty": "Print", "outlet_count": "Outlet",
-                            "conversion_rate": "Conversion",
+                            "paid_per_photo_rate": "Conversion",
                         })
                         _render_table(monthly_display)
 
@@ -668,13 +666,13 @@ def create_page(container: ui.column):
                             for col in ["total_revenue", "avg_revenue", "revenue_per_active_month"]:
                                 if col in priority_display.columns:
                                     priority_display[col] = priority_display[col].fillna(0).apply(adapter.format_currency)
-                            if "conversion_rate" in priority_display.columns:
-                                priority_display["conversion_rate"] = priority_display["conversion_rate"].apply(lambda x: f"{x:.1f}%")
+                            if "paid_per_photo_rate" in priority_display.columns:
+                                priority_display["paid_per_photo_rate"] = priority_display["paid_per_photo_rate"].apply(lambda x: f"{x:.1f}%")
                             priority_display = priority_display.rename(columns={
                                 "outlet_name": "Outlet", "total_revenue": "Total Omzet",
                                 "avg_revenue": "Avg Omzet", "foto_qty": "Foto",
                                 "print_qty": "Print", "active_months": "Bulan Aktif",
-                                "conversion_rate": "Conversion",
+                                "paid_per_photo_rate": "Conversion",
                                 "revenue_per_active_month": "Omzet / Bulan Aktif",
                                 "status_ai": "AI Label",
                             })

@@ -27,7 +27,7 @@ ALL_ROUTES = [
     "/", "/pending", "/trend", "/ai-decision", "/conversion", "/ranking",
     "/kemitraan", "/lead-partnership", "/lead-kemitraan",
     "/comparison", "/crud", "/admin", "/upload", "/master-data",
-    "/revenue-sharing",
+    "/revenue-sharing", "/creative-team",
 ]
 
 # ── Default roles (used as fallback) ──
@@ -36,6 +36,7 @@ DEFAULT_ROLES = {
     "guest": ["/pending"],
     "manager": ["/", "/trend", "/conversion", "/ranking", "/kemitraan",
                 "/lead-partnership", "/lead-kemitraan", "/comparison", "/master-data"],
+    "creative": ["/creative-team", "/"],
     "staff": ["/", "/ranking", "/kemitraan", "/lead-partnership", "/lead-kemitraan", "/master-data"],
     "viewer": ["/"],
 }

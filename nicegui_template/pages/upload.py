@@ -5,7 +5,6 @@ Port of Streamlit's upload page with full functional parity.
 import io
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from nicegui import ui
 import pandas as pd
@@ -42,7 +41,7 @@ def _read_selected_sheets(file_bytes, selected_sheets, engine):
 
 def _apply_column_mapping_auto(df):
     mapping = {}
-    lower_cols = {c: c for c in df.columns}
+    {c: c for c in df.columns}
     for keyword, target in [
         ("outlet", "outlet_name"), ("nama outlet", "outlet_name"), ("nama_outlet", "outlet_name"),
         ("harga", "harga"), ("nominal", "harga"), ("total", "harga"), ("amount", "harga"),
@@ -91,7 +90,7 @@ def _aggregate_monthly(df, fallback_period=None):
         result["foto_qty"] = (t.str.contains("foto", na=False)).astype(int)
         result["unlock_qty"] = (t.str.contains("unlock", na=False)).astype(int)
         result["print_qty"] = (t.str.contains("print|cetak", na=False, regex=True)).astype(int)
-    result["conversion_rate"] = np.where(
+    result["paid_per_photo_rate"] = np.where(
         result["foto_qty"] > 0, (result["unlock_qty"] / result["foto_qty"] * 100), 0.0
     )
     if "harga" in result.columns:
@@ -216,7 +215,7 @@ def create_page(container: ui.column):
             with content:
                 ui.label("Langkah 1: Pilih File Excel").style(SECTION_T).classes("mb-2")
 
-                upload = ui.upload(
+                ui.upload(
                     label="Pilih file Excel (.xlsx / .xls)",
                     on_upload=lambda e: _on_file_uploaded(e),
                 ).props("accept=.xlsx,.xls dark").classes("w-full mb-4")
@@ -454,7 +453,7 @@ def create_page(container: ui.column):
                 ui.label("🔎 Preview Hasil Agregasi").classes("text-md font-semibold text-white mt-4 mb-2")
                 show_cols = [c for c in [
                     "periode", "outlet_name", "area", "total_revenue",
-                    "foto_qty", "unlock_qty", "print_qty", "conversion_rate",
+                    "foto_qty", "unlock_qty", "print_qty", "paid_per_photo_rate",
                 ] if c in processed.columns]
                 _render_table(processed[show_cols].head(25))
 

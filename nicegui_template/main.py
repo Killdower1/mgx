@@ -30,6 +30,7 @@ from pages.crud import create_page as create_crud_page
 from pages.master_data import create_page as create_master_data_page
 from pages.login import create_page as create_login_page, show_logout_button, do_logout, is_authenticated, get_current_role
 from pages.revenue_sharing import create_page as create_revenue_page
+from pages.creative_team import create_page as create_creative_team_page
 from pages.pending import create_page as create_pending_page
 
 
@@ -171,6 +172,7 @@ ALL_NAV_ITEMS = [
     ("⚙️ Admin", "/admin"),
     ("[MD] Master Data", "/master-data"),
     ("💵 Revenue Sharing", "/revenue-sharing"),
+    ("🎨 Creative Team", "/creative-team"),
     ("📤 Upload Data", "/upload"),
 ]
 
@@ -403,6 +405,18 @@ def master_data():
     build_nav("/master-data")
     container = ui.column().classes("w-full p-6")
     create_master_data_page(container)
+
+
+@ui.page("/creative-team")
+def creative_team():
+    """Creative Team page — leads & outlet optimasi."""
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/creative-team")
+    container = ui.column().classes("w-full p-6")
+    create_creative_team_page(container)
 
 
 @ui.page("/upload")

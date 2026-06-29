@@ -21,7 +21,7 @@ FIELDS = {
             ("unlock_qty", "Jumlah unlock", "Angka"),
             ("print_qty", "Jumlah cetak", "Angka"),
             ("total_revenue", "Total pendapatan", "Angka"),
-            ("conversion_rate", "Rasio konversi (foto ke revenue)", "Persen"),
+            ("paid_per_photo_rate", "Rasio konversi (foto ke revenue)", "Persen"),
             ("unlock_to_print_rate", "Rasio unlock ke print", "Persen"),
             ("outlet_status", "Status outlet (Aktif/Nonaktif)", "Teks"),
         ],
