@@ -254,66 +254,85 @@ def _render_dashboard(df):
         ui.label("📍 Lokasi Tempat & Status").style(ST)
         _render_status_qty_table(df, _dash_status_filter)
 
-    # Row 2: Funnel (with %) + Kota & Qty
-    with ui.row().classes("w-full gap-4 mb-6"):
-        with ui.card().classes("flex-[1.2]").style(CARD):
-            ui.label("🔄 Funnel Konversi").style(ST)
-            _echart_funnel(df)
-        with ui.card().classes("flex-1").style(CARD):
-            ui.label("🏙️ Kota & Qty").style(ST)
-            _render_kota_table(df)
+    # Flexible grid layout — boxes flow naturally, no forced pairing
+    ui.add_head_html('''<style>
+    .lp-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .lp-grid-full { grid-column: 1 / -1; }
+    </style>''')
 
-    # Row 3: High Priority (clickable) & Butuh Survei (clickable) — DI ATAS Status
-    with ui.row().classes("w-full gap-4 mb-6"):
-        with ui.card().classes("flex-1").style(CARD):
+    with ui.element("div").classes("lp-grid mb-6"):
+        # Full-width: High Priority
+        with ui.card().style(CARD).classes("lp-grid-full"):
             ui.label("🔴 High Priority").style(ST)
             _render_high_prio_table(df)
-        with ui.card().classes("flex-1").style(CARD):
+
+        # Full-width: Butuh Survei
+        with ui.card().style(CARD).classes("lp-grid-full"):
             ui.label("📋 Butuh Survei (Need Info)").style(ST)
             _render_need_survey_table(df)
 
-    # Row 4: Status & Prioritas (no Jenis Partnership)
-    with ui.row().classes("w-full gap-4 mb-6"):
-        with ui.card().classes("flex-1").style(CARD):
+        # Funnel — full width (chart needs space)
+        with ui.card().style(CARD).classes("lp-grid-full"):
+            ui.label("🔄 Funnel Konversi").style(ST)
+            _echart_funnel(df)
+
+        # Status — full width
+        with ui.card().style(CARD).classes("lp-grid-full"):
             ui.label("📊 Status").style(ST)
             _echart_bar(df, "status_lead", STATUS_COLORS)
-        with ui.card().classes("flex-1").style(CARD):
+
+        # Prioritas
+        with ui.card().style(CARD):
             ui.label("🎯 Prioritas").style(ST)
             _echart_pie(df, "priority", PRIO_COLORS)
 
-    # Row 5: Kota, Source, Skema
-    with ui.row().classes("w-full gap-4 mb-6"):
-        with ui.card().classes("flex-1").style(CARD):
+        # Kota & Qty
+        with ui.card().style(CARD):
+            ui.label("🏙️ Kota & Qty").style(ST)
+            _render_kota_table(df)
+
+        # Kota
+        with ui.card().style(CARD):
             ui.label("🏙️ Kota").style(ST)
             _echart_hbar(df, "kota_lokasi")
-        with ui.card().classes("flex-1").style(CARD):
+
+        # Sumber Lead
+        with ui.card().style(CARD):
             ui.label("📢 Sumber Lead").style(ST)
             _echart_pie(df, "source_lead", None)
-        with ui.card().classes("flex-1").style(CARD):
+
+        # Skema Kerjasama
+        with ui.card().style(CARD):
             ui.label("🤝 Skema Kerjasama").style(ST)
             _echart_bar(df, "skema_kerja_sama_yang_terbuka", None)
 
-    # Row 6: Jenis Lokasi, Tipe Lokasi, Sales PIC
-    with ui.row().classes("w-full gap-4 mb-6"):
-        with ui.card().classes("flex-1").style(CARD):
+        # Jenis Lokasi
+        with ui.card().style(CARD):
             ui.label("🏗️ Jenis Lokasi").style(ST)
             _echart_pie(df, "jenis_lokasi", None)
-        with ui.card().classes("flex-1").style(CARD):
+
+        # Tipe Lokasi
+        with ui.card().style(CARD):
             ui.label("🔄 Tipe Lokasi").style(ST)
             _echart_bar_tipe(df)
-        with ui.card().classes("flex-1").style(CARD):
+
+        # Sales PIC
+        with ui.card().style(CARD):
             ui.label("👨‍💼 Sales PIC").style(ST)
             _echart_sales_pic(df)
 
-    # Row 7: Kelayakan (no Ringkasan Sewa)
-    with ui.row().classes("w-full gap-4 mb-6"):
-        with ui.card().classes("flex-1").style(CARD):
+        # Kelayakan Space
+        with ui.card().style(CARD):
             ui.label("📐 Kelayakan Space").style(ST)
             _echart_pie(df, "kelayakan_space", KELAYAKAN_COLORS)
-        with ui.card().classes("flex-1").style(CARD):
+
+        # Kelayakan Listrik
+        with ui.card().style(CARD):
             ui.label("⚡ Kelayakan Listrik").style(ST)
             _echart_pie(df, "kelayakan_listrik", KELAYAKAN_COLORS)
-        with ui.card().classes("flex-1").style(CARD):
+
+        # Kelayakan Operasional
+        with ui.card().style(CARD):
             ui.label("🔧 Kelayakan Operasional").style(ST)
             _echart_pie(df, "kelayakan_operasional", KELAYAKAN_COLORS)
 
@@ -478,8 +497,8 @@ def _render_high_prio_table(df):
          "style": "color: #89b4fa; text-decoration: underline; cursor: pointer;"},
         {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left"}
     ]
-    tbl = ui.table(rows=rows, columns=columns).classes("w-full").props("dark flat dense")
-    tbl.add_slot("body-cell-tempat", r'''
+    tbl = ui.table(rows=rows, columns=columns, row_key="Tempat").classes("w-full").props("dark flat dense")
+    tbl.add_slot("body-cell-Tempat", r'''
         <q-td :props="props">
             <a v-if="props.row._link" :href="'https://www.google.com/search?q=' + props.row._link"
                target="_blank" style="color: #89b4fa; text-decoration: underline; cursor: pointer;">
@@ -510,8 +529,8 @@ def _render_need_survey_table(df):
         {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left"},
         {"name": "Status", "label": "📋 Status", "field": "Status", "align": "left"}
     ]
-    tbl = ui.table(rows=rows, columns=columns).classes("w-full").props("dark flat dense")
-    tbl.add_slot("body-cell-tempat", r'''
+    tbl = ui.table(rows=rows, columns=columns, row_key="Tempat").classes("w-full").props("dark flat dense")
+    tbl.add_slot("body-cell-Tempat", r'''
         <q-td :props="props">
             <a v-if="props.row._link" :href="'https://www.google.com/search?q=' + props.row._link"
                target="_blank" style="color: #89b4fa; text-decoration: underline; cursor: pointer;">
