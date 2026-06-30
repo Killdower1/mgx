@@ -488,7 +488,6 @@ def _render_high_prio_table(df):
             <span v-else>{{ props.value }}</span>
         </q-td>
     ''')
-    tbl.run_method("initSlots")
 
 
 def _render_need_survey_table(df):
@@ -521,7 +520,6 @@ def _render_need_survey_table(df):
             <span v-else>{{ props.value }}</span>
         </q-td>
     ''')
-    tbl.run_method("initSlots")
 
 
 def _render_kota_table(df):
