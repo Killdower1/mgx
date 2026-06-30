@@ -256,8 +256,10 @@ def _render_dashboard(df):
 
     # Flexible grid layout — boxes flow naturally, no forced pairing
     ui.add_head_html('''<style>
-    .lp-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .lp-grid { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
     .lp-grid-full { grid-column: 1 / -1; }
+    @media (max-width: 1200px) { .lp-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 768px) { .lp-grid { grid-template-columns: 1fr; } }
     </style>''')
 
     with ui.element("div").classes("lp-grid mb-6"):
@@ -336,9 +338,7 @@ def _render_dashboard(df):
             ui.label("🔧 Kelayakan Operasional").style(ST)
             _echart_pie(df, "kelayakan_operasional", KELAYAKAN_COLORS)
 
-    # Row 7: Raw data
-    with ui.expansion("📋 Lihat Semua Data", icon="description").classes("w-full mb-6"):
-        _render_compact_table(df)
+    # (Lihat Semua Data removed)
 
 
 # ═══════════════════════════════════════════════
