@@ -230,25 +230,31 @@ def _render_dashboard(df):
     qualified = len(df[df.get("status_lead", "").astype(str).str.strip() == "Qualified"])
     high_prio = len(df[df.get("priority", "").astype(str).str.strip() == "High"])
     live = len(df[df.get("status_lead", "").astype(str).str.strip() == "Live"])
-    total_sewa = pd.to_numeric(df.get("harga_sewa", 0), errors="coerce").fillna(0).sum()
     unique_kota = df.get("kota_lokasi", "").dropna().nunique()
-    sewa_fmt = f"Rp{total_sewa:,.0f}".replace(",", ".") if total_sewa > 0 else "-"
 
-    # KPI
+    # KPI (no Total Sewa)
     with ui.row().classes("w-full gap-3 mb-6"):
         for lbl, val in [("📋 Total", _fmt(total)), ("✅ Qualified", _fmt(qualified)),
                          ("🔴 High Prio", _fmt(high_prio)), ("💚 Live", _fmt(live)),
-                         ("💰 Total Sewa", sewa_fmt), ("📍 Kota", _fmt(unique_kota))]:
+                         ("📍 Kota", _fmt(unique_kota))]:
             with ui.card().classes("flex-1 min-w-[120px]").style(CARD):
                 ui.label(lbl).style(ML)
                 ui.label(val).style(MV)
 
-    # Row 1: Status & QTY — tabel data dg filter status
+    # Filter Status Lead — di atas tabel
+    status_col = df.get("status_lead", "")
+    _dash_status_filter = None
+    if not status_col.empty and status_col.dropna().any():
+        status_options = ["Semua Status"] + sorted(status_col.dropna().unique().tolist())
+        _dash_status_filter = ui.select(status_options, value="Semua Status",
+                                         label="🔽 Filter Status Lead").props("dense outlined dark").classes("w-full mb-4")
+
+    # Row 1: Lokasi Tempat & Status (filter di atas, kolom tambah tanggal + PIC)
     with ui.card().classes("w-full mb-6").style(CARD):
         ui.label("📍 Lokasi Tempat & Status").style(ST)
-        _render_status_qty_table(df)
+        _render_status_qty_table(df, _dash_status_filter)
 
-    # Row 2: Funnel + Trend
+    # Row 2: Funnel (with %) + Kota & Qty
     with ui.row().classes("w-full gap-4 mb-6"):
         with ui.card().classes("flex-[1.2]").style(CARD):
             ui.label("🔄 Funnel Konversi").style(ST)
@@ -257,19 +263,7 @@ def _render_dashboard(df):
             ui.label("🏙️ Kota & Qty").style(ST)
             _render_kota_table(df)
 
-    # Row 3: Status, Priority, Jenis Partnership
-    with ui.row().classes("w-full gap-4 mb-6"):
-        with ui.card().classes("flex-1").style(CARD):
-            ui.label("📊 Status").style(ST)
-            _echart_bar(df, "status_lead", STATUS_COLORS)
-        with ui.card().classes("flex-1").style(CARD):
-            ui.label("🎯 Prioritas").style(ST)
-            _echart_pie(df, "priority", PRIO_COLORS)
-        with ui.card().classes("flex-1").style(CARD):
-            ui.label("🏷️ Jenis Partnership").style(ST)
-            _echart_bar(df, "jenis_partnership", None)
-
-    # Row 4: High Priority & Need Survey
+    # Row 3: High Priority (clickable) & Butuh Survei (clickable) — DI ATAS Status
     with ui.row().classes("w-full gap-4 mb-6"):
         with ui.card().classes("flex-1").style(CARD):
             ui.label("🔴 High Priority").style(ST)
@@ -277,6 +271,15 @@ def _render_dashboard(df):
         with ui.card().classes("flex-1").style(CARD):
             ui.label("📋 Butuh Survei (Need Info)").style(ST)
             _render_need_survey_table(df)
+
+    # Row 4: Status & Prioritas (no Jenis Partnership)
+    with ui.row().classes("w-full gap-4 mb-6"):
+        with ui.card().classes("flex-1").style(CARD):
+            ui.label("📊 Status").style(ST)
+            _echart_bar(df, "status_lead", STATUS_COLORS)
+        with ui.card().classes("flex-1").style(CARD):
+            ui.label("🎯 Prioritas").style(ST)
+            _echart_pie(df, "priority", PRIO_COLORS)
 
     # Row 5: Kota, Source, Skema
     with ui.row().classes("w-full gap-4 mb-6"):
@@ -290,7 +293,7 @@ def _render_dashboard(df):
             ui.label("🤝 Skema Kerjasama").style(ST)
             _echart_bar(df, "skema_kerja_sama_yang_terbuka", None)
 
-    # Row 4: Jenis Lokasi, Tipe Lokasi, Sales PIC
+    # Row 6: Jenis Lokasi, Tipe Lokasi, Sales PIC
     with ui.row().classes("w-full gap-4 mb-6"):
         with ui.card().classes("flex-1").style(CARD):
             ui.label("🏗️ Jenis Lokasi").style(ST)
@@ -302,12 +305,7 @@ def _render_dashboard(df):
             ui.label("👨‍💼 Sales PIC").style(ST)
             _echart_sales_pic(df)
 
-    # Row 5: Revenue & Sewa Summary
-    with ui.card().classes("w-full mb-6").style(CARD):
-        ui.label("💰 Ringkasan Revenue & Sewa").style(ST)
-        _revenue_summary(df)
-
-    # Row 6: Kelayakan
+    # Row 7: Kelayakan (no Ringkasan Sewa)
     with ui.row().classes("w-full gap-4 mb-6"):
         with ui.card().classes("flex-1").style(CARD):
             ui.label("📐 Kelayakan Space").style(ST)
@@ -389,13 +387,12 @@ def _dk():
     return {"backgroundColor": "transparent", "textStyle": {"color": "#cdd6f4"}}
 
 
-def _render_status_qty_table(df):
+def _render_status_qty_table(df, external_filter=None):
     status_col = df.get("status_lead", "")
     if status_col.empty or status_col.dropna().empty:
         ui.label("-").classes("text-gray-400 italic text-xs")
         return
 
-    status_options = ["Semua Status"] + sorted(status_col.dropna().unique().tolist())
     grid_placeholder = ui.column().classes("w-full")
 
     def _build_grid(filter_val):
@@ -412,7 +409,17 @@ def _render_status_qty_table(df):
                 tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
                 kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
                 status = str(r.get("status_lead", "") or "").strip() or "-"
-                grid_rows.append({"Tempat": tempat, "Kota": kota, "Status": status, "_link": quote(tempat + " " + kota) if tempat != "-" else ""})
+                pic = str(r.get("sales_pic_full", "") or r.get("sales_pic", "") or "").strip() or "-"
+                tgl_raw = str(r.get("tanggal_masuk", "") or r.get("creation", "") or "")
+                try:
+                    tgl = pd.to_datetime(tgl_raw).strftime("%d/%m/%Y") if tgl_raw else "-"
+                except Exception:
+                    tgl = tgl_raw[:10] if tgl_raw else "-"
+                grid_rows.append({
+                    "Tempat": tempat, "Kota": kota, "Status": status,
+                    "PIC": pic, "Tanggal": tgl,
+                    "_link": quote(tempat + " " + kota) if tempat != "-" else ""
+                })
 
             grid = ui.aggrid({
                 "columnDefs": [
@@ -422,6 +429,10 @@ def _render_status_qty_table(df):
                     {"headerName": "Kota", "field": "Kota", "sortable": True,
                      "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
                     {"headerName": "Status", "field": "Status", "sortable": True,
+                     "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
+                    {"headerName": "PIC Internal", "field": "PIC", "sortable": True,
+                     "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
+                    {"headerName": "Tanggal", "field": "Tanggal", "sortable": True,
                      "filter": "agTextColumnFilter", "flex": 1, "floatingFilter": True},
                 ],
                 "rowData": grid_rows,
@@ -442,16 +453,16 @@ def _render_status_qty_table(df):
             grid.on("cellClicked", _on_cell)
             ui.label(f"Total: {len(filtered)} record").classes("text-xs text-gray-400 mt-1")
 
-    def _on_status_change(e):
-        _build_grid(e.value)
-
-    ui.select(status_options, value="Semua Status", label="Filter Status Lead",
-              on_change=_on_status_change
-              ).props("dense outlined dark").classes("w-full mb-3")
-
-    _build_grid("Semua Status")
+    if external_filter is not None:
+        def _on_ext_change(e):
+            _build_grid(e.value)
+        external_filter.on("update:model-value", _on_ext_change)
+        _build_grid(external_filter.value)
+    else:
+        _build_grid("Semua Status")
 def _render_high_prio_table(df):
-    """Render high priority leads table."""
+    """Render high priority leads table with clickable Tempat."""
+    from urllib.parse import quote
     high_df = df[df.get("priority", "").astype(str).str.strip() == "High"]
     if high_df.empty:
         ui.label("Tidak ada lead prioritas tinggi.").classes("text-gray-400 italic text-xs")
@@ -460,14 +471,29 @@ def _render_high_prio_table(df):
     for _, r in high_df.iterrows():
         tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
         kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
-        rows.append({"Tempat": tempat, "Kota": kota})
-    columns = [{"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left"},
-               {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left"}]
-    ui.table(rows=rows, columns=columns).classes("w-full").props("dark flat dense")
+        link = quote(tempat + " " + kota) if tempat != "-" else ""
+        rows.append({"Tempat": tempat, "Kota": kota, "_link": link})
+    columns = [
+        {"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left",
+         "style": "color: #89b4fa; text-decoration: underline; cursor: pointer;"},
+        {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left"}
+    ]
+    tbl = ui.table(rows=rows, columns=columns).classes("w-full").props("dark flat dense")
+    tbl.add_slot("body-cell-tempat", r'''
+        <q-td :props="props">
+            <a v-if="props.row._link" :href="'https://www.google.com/search?q=' + props.row._link"
+               target="_blank" style="color: #89b4fa; text-decoration: underline; cursor: pointer;">
+                {{ props.value }}
+            </a>
+            <span v-else>{{ props.value }}</span>
+        </q-td>
+    ''')
+    tbl.run_method("initSlots")
 
 
 def _render_need_survey_table(df):
-    """Render Need Survey / Need Info leads table."""
+    """Render Need Survey / Need Info leads table with clickable Tempat."""
+    from urllib.parse import quote
     need_df = df[df.get("status_lead", "").astype(str).str.strip() == "Need Info"]
     if need_df.empty:
         ui.label("Tidak ada lead butuh survei.").classes("text-gray-400 italic text-xs")
@@ -477,11 +503,25 @@ def _render_need_survey_table(df):
         tempat = str(r.get("nama_tempat", "") or "").strip() or "-"
         kota = str(r.get("kota_lokasi", "") or "").strip() or "-"
         status = str(r.get("status_lead", "") or "").strip() or "-"
-        rows.append({"Tempat": tempat, "Kota": kota, "Status": status})
-    columns = [{"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left"},
-               {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left"},
-               {"name": "Status", "label": "📋 Status", "field": "Status", "align": "left"}]
-    ui.table(rows=rows, columns=columns).classes("w-full").props("dark flat dense")
+        link = quote(tempat + " " + kota) if tempat != "-" else ""
+        rows.append({"Tempat": tempat, "Kota": kota, "Status": status, "_link": link})
+    columns = [
+        {"name": "Tempat", "label": "📍 Tempat", "field": "Tempat", "align": "left",
+         "style": "color: #89b4fa; text-decoration: underline; cursor: pointer;"},
+        {"name": "Kota", "label": "🏙️ Kota", "field": "Kota", "align": "left"},
+        {"name": "Status", "label": "📋 Status", "field": "Status", "align": "left"}
+    ]
+    tbl = ui.table(rows=rows, columns=columns).classes("w-full").props("dark flat dense")
+    tbl.add_slot("body-cell-tempat", r'''
+        <q-td :props="props">
+            <a v-if="props.row._link" :href="'https://www.google.com/search?q=' + props.row._link"
+               target="_blank" style="color: #89b4fa; text-decoration: underline; cursor: pointer;">
+                {{ props.value }}
+            </a>
+            <span v-else>{{ props.value }}</span>
+        </q-td>
+    ''')
+    tbl.run_method("initSlots")
 
 
 def _render_kota_table(df):
@@ -518,18 +558,26 @@ def _echart_funnel(df):
     order = ["New", "Contact", "Need Info", "Qualified", "Negotiation", "Approved", "Live"]
     counts = [int((df.get("status_lead", "").astype(str).str.strip() == s).sum()) for s in order]
     maxv = max(counts) if counts else 1
-    items = [{"value": v, "name": s, "itemStyle": {"color": STATUS_COLORS.get(s, "#6b7280")}}
-             for s, v in zip(order, counts) if v > 0]
+    total_leads = len(df)
+    items = []
+    for s, v in zip(order, counts):
+        if v > 0:
+            pct = round(v / total_leads * 100) if total_leads > 0 else 0
+            items.append({
+                "value": v,
+                "name": f"{s}: {v} ({pct}%)",
+                "itemStyle": {"color": STATUS_COLORS.get(s, "#6b7280")}
+            })
     if not items:
         ui.label("−").classes("text-gray-400 italic text-xs")
         return
     ui.echart({
-        "tooltip": {"trigger": "item", "formatter": "{b}: {c}"},
+        "tooltip": {"trigger": "item", "formatter": "{b}"},
         "series": [{"type": "funnel", "left": "10%", "top": 20, "bottom": 20, "width": "80%",
                     "min": 0, "max": maxv, "minSize": "0%", "maxSize": "100%",
                     "sort": "descending", "gap": 2,
-                    "label": {"show": True, "position": "inside", "color": "#fff", "fontSize": 11,
-                              "formatter": "{b}: {c}"},
+                    "label": {"show": True, "position": "inside", "color": "#fff", "fontSize": 10,
+                              "formatter": "{b}"},
                     "itemStyle": {"borderColor": "#1e1e2e", "borderWidth": 2},
                     "data": items}],
         **_dk(),
