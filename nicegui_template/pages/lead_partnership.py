@@ -254,32 +254,29 @@ def _render_dashboard(df):
         ui.label("📍 Lokasi Tempat & Status").style(ST)
         _render_status_qty_table(df, _dash_status_filter)
 
-    # Flexible grid layout — boxes flow naturally, no forced pairing
+    # Flexible grid layout — 2 columns, paired boxes
     ui.add_head_html('''<style>
-    .lp-grid { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
+    .lp-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr); width: 100%; }
     .lp-grid-full { grid-column: 1 / -1; }
-    @media (max-width: 1200px) { .lp-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 768px) { .lp-grid { grid-template-columns: 1fr; } }
     </style>''')
 
-    with ui.element("div").classes("lp-grid mb-6"):
-        # Full-width: High Priority
-        with ui.card().style(CARD).classes("lp-grid-full"):
+    with ui.element("div").classes("lp-grid mb-6 w-full"):
+        # High Priority & Butuh Survei — same row
+        with ui.card().style(CARD):
             ui.label("🔴 High Priority").style(ST)
             _render_high_prio_table(df)
 
-        # Full-width: Butuh Survei
-        with ui.card().style(CARD).classes("lp-grid-full"):
+        with ui.card().style(CARD):
             ui.label("📋 Butuh Survei (Need Info)").style(ST)
             _render_need_survey_table(df)
 
-        # Funnel — full width (chart needs space)
-        with ui.card().style(CARD).classes("lp-grid-full"):
+        # Funnel & Status — same row
+        with ui.card().style(CARD):
             ui.label("🔄 Funnel Konversi").style(ST)
             _echart_funnel(df)
 
-        # Status — full width
-        with ui.card().style(CARD).classes("lp-grid-full"):
+        with ui.card().style(CARD):
             ui.label("📊 Status").style(ST)
             _echart_bar(df, "status_lead", STATUS_COLORS)
 
