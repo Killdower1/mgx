@@ -34,10 +34,10 @@ ALL_ROUTES = [
 DEFAULT_ROLES = {
     "admin": ALL_ROUTES,
     "guest": ["/pending"],
-    "manager": ["/", "/trend", "/conversion", "/ranking", "/kemitraan",
+    "manager": ["/", "/problem-booth", "/trend", "/conversion", "/ranking", "/kemitraan",
                 "/lead-partnership", "/lead-kemitraan", "/comparison", "/master-data"],
     "creative": ["/creative-team", "/"],
-    "staff": ["/", "/ranking", "/kemitraan", "/lead-partnership", "/lead-kemitraan", "/master-data"],
+    "staff": ["/", "/problem-booth", "/ranking", "/kemitraan", "/lead-partnership", "/lead-kemitraan", "/master-data"],
     "viewer": ["/"],
 }
 
