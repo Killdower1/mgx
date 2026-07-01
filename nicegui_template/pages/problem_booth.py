@@ -445,6 +445,38 @@ def _render_stat_tab(s: dict):
 #  MAIN PAGE
 # ═══════════════════════════════════════════════
 
+SYNC_SCRIPT = "/var/www/difotoin-dashboard/scripts/sync_problem_booth.py"
+SYNC_VENV = "/var/www/difotoin-dashboard/nicegui_template/.venv/bin/python3"
+
+
+def _sync_and_reload(container, tabs, panels):
+    """Run sync script, then rebuild page."""
+    ui.notify("⏳ Sync data dari ERPNext... (2-3 menit)", type="info", close_button=False)
+
+    import subprocess
+    import threading
+
+    def _run_sync():
+        try:
+            result = subprocess.run(
+                [SYNC_VENV, SYNC_SCRIPT],
+                capture_output=True, text=True, timeout=300,
+            )
+            if result.returncode == 0:
+                ui.notify(f"✅ Sync berhasil! {result.stdout[-200:]}", type="positive")
+            else:
+                ui.notify(f"❌ Sync gagal: {result.stderr[-200:]}", type="negative")
+        except subprocess.TimeoutExpired:
+            ui.notify("❌ Sync timeout (5 menit)", type="negative")
+        except Exception as e:
+            ui.notify(f"❌ Error: {e}", type="negative")
+        # Rebuild page
+        container.clear()
+        create_page(container)
+
+    threading.Thread(target=_run_sync, daemon=True).start()
+
+
 def create_page(container: ui.column):
     container.clear()
     s = load_summary()
@@ -459,18 +491,23 @@ def create_page(container: ui.column):
             ui.label("Belum ada data. Sync data dari ERPNext terlebih dahulu.").classes("text-gray-400 italic")
             if s.get("last_sync"):
                 ui.label(f"Terakhir sync: {s['last_sync'][:16]}").classes("text-xs text-gray-500")
+            with ui.row().classes("mt-4"):
+                ui.button("📥 Sync dari ERPNext", on_click=lambda: _sync_and_reload(container, None, None)).props(
+                    "dense flat text-white bg-green-700")
             return
 
-        # Sync info
+        # Header row: sync info + fetch button
+        sync_str = "-"
         if s.get("last_sync"):
             try:
                 sync_dt = datetime.fromisoformat(s["last_sync"])
                 sync_str = sync_dt.strftime("%d/%m/%Y %H:%M")
             except Exception:
                 sync_str = s["last_sync"][:16]
-        else:
-            sync_str = "-"
-        ui.label(f"💾 {_fmt(total)} problem | sync: {sync_str}").classes("text-xs text-gray-500 mb-2")
+        with ui.row().classes("w-full items-center justify-between mb-2"):
+            ui.label(f"💾 {_fmt(total)} problem | sync: {sync_str}").classes("text-xs text-gray-500")
+            ui.button("📥 Sync dari ERPNext", on_click=lambda: _sync_and_reload(container, None, None)).props(
+                "dense flat text-white bg-green-700")
 
         tabs = ui.tabs().classes("w-full")
         panels = ui.tab_panels(tabs, value="dash").classes("w-full")
