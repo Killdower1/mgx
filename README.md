@@ -1,85 +1,153 @@
 # Difotoin Dashboard
 
-Dashboard analisis performa outlet Difotoin berbasis **Streamlit**.
+Dashboard analisis & monitoring operasional Difotoin — **NiceGUI** + **ERPNext** + **API Adam**.
+
+> ⚡ Dashboard internal untuk tim Difotoin (CEO, Head Operasional, Marketing, Finance, Creative).
+
+---
 
 ## Fitur
 
+### 📊 Core Dashboard
 | Menu | Fungsi |
 |------|--------|
-| 🏠 **Dashboard Utama** | Omzet, foto, unlock, print, conversion rate per outlet |
-| 📊 **Analisis Trend** | Tren 12 bulan, KPI, heatmap, AI insight |
+| 📊 **Dashboard** | Omzet, foto, unlock, print, conversion rate per outlet |
+| 📈 **Analisis Trend** | Tren 12 bulan, KPI, heatmap, AI insight |
 | 🤖 **AI Decision** | Ringkasan performa, risiko, eksperimen, outlet prioritas |
 | 🔄 **Analisis Konversi** | Funnel photo → unlock → print |
 | 🏆 **Ranking Outlet** | Outlet Keeper / Optimasi / Relocate |
-| 🤝 **Kemitraan** | Manajemen partnership & bagi hasil |
 | 📅 **Perbandingan Periode** | Compare omzet antar periode |
-| 🗃️ **CRUD Data Outlet** | Inline editor, master data, AI Suggest |
-| ⚙️ **Admin Panel** | User access, database bulanan, threshold config |
-| 📤 **Upload Data** | Upload Excel bulanan, overwrite per periode |
+
+### 🤝 Kemitraan & Lead Management
+| Menu | Fungsi |
+|------|--------|
+| 🤝 **Kemitraan** | Manajemen partnership & bagi hasil |
+| 📋 **Lead Partnership** | Data calon partner penempatan mesin dari ERPNext |
+| 👥 **Lead Kemitraan** | Data franchise/kemitraan dari ERPNext |
+| [MD] **Master Data** | Database field reference |
+
+### 🔧 Operasional
+| Menu | Fungsi |
+|------|--------|
+| 🔧 **Problem Booth** | Dashboard problem booth — monitoring oleh Head (Dino) |
+| 🎨 **Creative Team** | Manajemen tim kreatif |
+| 💵 **Revenue Sharing** | Bagi hasil per outlet & per bulan |
+| 🗃️ **CRUD Outlet** | Inline editor, master data, AI Suggest |
+
+### ⚙️ Admin
+| Menu | Fungsi |
+|------|--------|
+| ⚙️ **Admin Panel** | User access, ERPNext config, roles, database |
+| 📤 **Upload Data** | Upload Excel bulanan |
+
+---
 
 ## Tech Stack
 
-- **Python** 3.9+
-- **Streamlit** — web framework
+- **Python** 3.11
+- **NiceGUI** — web framework (replacing Streamlit)
 - **Pandas + NumPy** — data processing
 - **Plotly** — charts
-- **pytest** — smoke tests
+- **AG Grid** — data tables
+- **ERPNext REST API** — lead & operational data
+- **API Adam** — transaction data
+- **PM2** — process manager (production)
+- **Nginx** — reverse proxy
 
-## Quick Start (Lokal)
+---
 
-```bash
-cd streamlit_template
-pip install -r requirements.txt
+## Halaman Utama
 
-# Set admin credentials
-export DIFOTOIN_ADMIN_EMAIL=admin@difotoin.local
-export DIFOTOIN_ADMIN_PASSWORD=your_password_here
+### 🔧 Problem Booth
+`/problem-booth` — Dashboard operasional monitoring problem booth.
 
-streamlit run app.py
-```
+**4 Tab:**
+| Tab | Data | Ukuran |
+|-----|------|--------|
+| 📊 Dashboard | KPI, Top Problems, Open list, Branch/PIC breakdown | 6KB |
+| 📋 Data Per Bulan | 34 bulan — Total, Open, Closed, per tipe problem | 27KB |
+| 🔍 Cari ID | Search by PB-xxxxx → full detail + link ERPNext | lazy |
+| 📈 Statistik | Monthly trend + Status distribution | 6KB |
 
-Buka `http://localhost:8501` di browser.
+**Fitur:**
+- 📥 Tombol **Sync dari ERPNext** (manual)
+- ⏰ **Cron auto-sync** tiap jam 6 pagi
+- 🔗 Link detail ke ERPNext
 
-## Setup Production
-
-Untuk deploy di server (AlmaLinux + Nginx + PM2), lihat panduan lengkap di:
-
-👉 **[DEPLOY_GUIDE.md](DEPLOY_GUIDE.md)**
+---
 
 ## Struktur Proyek
 
 ```
 difotoin-dashboard/
-├── streamlit_template/        # 🎯 Aplikasi utama
-│   ├── app.py                 # Router utama
-│   ├── config.py              # Konfigurasi path & data
-│   ├── data_processor.py      # Logika pemrosesan data
-│   ├── visualizations.py      # Helper chart
-│   ├── utils.py               # Utility functions
-│   ├── pages/                 # Modul halaman
-│   ├── components/            # UI components bersama
-│   ├── services/              # Business logic (validation, auth)
-│   ├── data/                  # 📁 Data runtime canonical
-│   └── tests/                 # Smoke tests
-├── uploads/                   # Staging / manual import
-├── DEPLOY_GUIDE.md            # Panduan deploy server
-└── README.md                  # (file ini)
+├── nicegui_template/           # 🎯 Aplikasi utama (NiceGUI)
+│   ├── main.py                 # Router utama + route definitions
+│   ├── pages/                  # Modul halaman
+│   │   ├── dashboard.py        # Dashboard utama
+│   │   ├── problem_booth.py    # Problem Booth (baru)
+│   │   ├── lead_partnership.py # Lead Partnership
+│   │   ├── lead_kemitraan.py   # Lead Kemitraan
+│   │   ├── admin.py            # Admin Panel
+│   │   ├── login.py            # Login page
+│   │   └── ...                 # Halaman lainnya
+│   ├── services/               # Business logic
+│   │   ├── auth_service.py     # Authentication & roles
+│   │   ├── erpnext_adapter.py  # ERPNext API adapter
+│   │   └── dashboard_adapter.py
+│   └── .venv/                  # Python virtual environment
+├── streamlit_template/         # 🗄️ Legacy (Streamlit — not active)
+├── scripts/                    # Utility scripts
+│   └── sync_problem_booth.py   # Sync Problem Booth dari ERPNext
+├── problem_booth_summary.json  # Ringkasan data (6KB)
+├── problem_booth_monthly.json  # Data per bulan (27KB)
+├── problem_booth_cache_light.json  # Cache penuh (10MB, gitignored)
+└── README.md
 ```
 
-## Kebijakan Data
+---
 
-| Lokasi | Status |
-|--------|--------|
-| `streamlit_template/data/` | **Canonical** — sumber data runtime |
-| `uploads/` | **Staging only** — Excel mentah, jangan di-commit |
-| File `.xlsx` mentah | Jangan pernah di-commit ke Git |
+## Auth & Roles
 
-## Menjalankan Test
+| Role | Akses |
+|------|-------|
+| **admin** | Full akses semua halaman |
+| **manager** | Dashboard, Trend, Ranking, Kemitraan, Lead, Problem Booth |
+| **staff** | Dashboard, Ranking, Kemitraan, Lead, Problem Booth, Master Data |
+| **creative** | Creative Team + Dashboard |
+| **viewer** | Dashboard only |
+
+Login bisa pake:
+1. **Akun lokal** (users.json)
+2. **Akun ERPNext** (email & password ERPNext)
+3. **Admin env var** (fallback)
+
+---
+
+## Quick Start (Development)
 
 ```bash
-cd streamlit_template
-pytest tests/ -v
+cd nicegui_template
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python main.py
+# Buka http://localhost:8502
 ```
+
+---
+
+## Deployment
+
+Production: **AlmaLinux + Nginx + PM2**
+
+```bash
+pm2 start ecosystem.config.js
+pm2 save
+```
+
+Akses via: `http://103.250.10.163`
+
+---
 
 ## Lisensi
 
