@@ -190,8 +190,7 @@ def format_problem_summary(records):
     # Sort by date (newest first)
     open_problems.sort(key=lambda r: str(r.get("tanggal_foto", ""))[:19], reverse=True)
 
-    lines = [f"🔧 *Problem Booth — Open Issues*\n"
-             f"Total: {len(open_problems)} problem belum selesai\n"]
+    lines = ["🔧 *Problem Booth — Belum Selesai ({})*\n".format(len(open_problems))]
 
     # Group by branch/area
     by_area = defaultdict(list)
@@ -214,7 +213,11 @@ def format_problem_summary(records):
             else:
                 display = name
             tipe = str(r.get("tipeproblem", "") or "-")[:17]
-            status = str(r.get("status", "") or "-")[:11]
+            raw_status = str(r.get("status", "") or "-").strip().lower()
+            if raw_status in ("open", "on the way", "reopen"):
+                status = "Open"
+            else:
+                status = "Blm Selesai"
             tgl = str(r.get("tanggal_foto", ""))[:10]
             lines.append(f"{display:<22} {tipe:<18} {status:<12} {tgl}")
         if len(probs) > 8:
