@@ -1,10 +1,9 @@
 """
-Revenue Alert Engine v3 — cross-references revenue drops with Problem Booth data.
-Shows ALL outlets with drops >8%, correlated with recent problems.
+Revenue Alert Engine v4 — clean, no Problem Booth mixing.
+Problem Booth summary sent as separate message.
 """
 import json
-import re
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime, timedelta
 import sys
 import os
@@ -17,26 +16,6 @@ PROBLEM_PATH = os.path.join(BASE, "problem_booth_cache_light.json")
 KNOWN_AREAS = ["Jakarta", "Bali", "Jogja", "Bogor", "Bekasi",
                "Tangerang", "Samarinda", "Semarang", "Bandung",
                "Karanganyar", "Makassar", "Depok", "Malang", "Cilegon"]
-
-DAYS_LOOKBACK = 14
-
-
-def clean_html(text):
-    """Remove HTML tags and clean up text."""
-    if not text:
-        return ""
-    text = re.sub(r'<[^>]+>', ' ', str(text))
-    text = text.replace('&nbsp;', ' ').replace('\n', ' ')
-    # Remove remaining HTML-like artifacts
-    text = re.sub(r'class\s*=\s*["\'][^"\']*["\']', '', text)
-    text = re.sub(r'read-mode', '', text)
-    text = re.sub(r'">', ' ', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    # Truncate at first image tag
-    img_idx = text.find('img ')
-    if img_idx > 0:
-        text = text[:img_idx]
-    return text[:100]
 
 
 def load_outlet_mapping():
@@ -57,34 +36,13 @@ def load_daily():
 
 
 def load_problems():
+    """Load problem booth data for open problems summary."""
     try:
         with open(PROBLEM_PATH) as f:
             cache = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        return {}, {}
-    records = cache.get("records", [])
-    lookup = defaultdict(list)
-    problem_names = set()
-    for r in records:
-        for fname in ["nama_tempat", "nama_full"]:
-            name = str(r.get(fname, "") or "").strip().lower()
-            if name and name not in ("none", "nan", ""):
-                problem_names.add(name)
-                lookup[name].append(r)
-    return lookup, problem_names
-
-
-def match_outlet(outlet_name, problem_names, lookup):
-    key = outlet_name.strip().lower()
-    if not key:
         return []
-    for pname in problem_names:
-        if pname and len(pname) > 3 and pname in key:
-            return lookup[pname]
-    for pname in problem_names:
-        if pname and len(key) > 3 and key in pname:
-            return lookup[pname]
-    return []
+    return cache.get("records", [])
 
 
 def get_area(outlet, mapping):
@@ -97,10 +55,9 @@ def get_area(outlet, mapping):
     return "Lainnya"
 
 
-def analyse(data, mapping, problem_lookup, problem_names):
-    # Build area and outlet daily revenue maps
-    outlet_rev = defaultdict(lambda: defaultdict(float))  # outlet -> date -> revenue
-    area_outlets = defaultdict(set)  # area -> set of outlets
+def analyse(data, mapping):
+    outlet_rev = defaultdict(lambda: defaultdict(float))
+    area_outlets = defaultdict(set)
 
     for r in data:
         d = r.get("date", "")[:10]
@@ -126,12 +83,8 @@ def analyse(data, mapping, problem_lookup, problem_names):
         dt = datetime.strptime(d, "%Y-%m-%d")
         compare_dates.append((dt - timedelta(days=7)).strftime("%Y-%m-%d"))
 
-    # For each area, aggregate outlet-level drops
     alerts = []
-    areas = sorted(area_outlets.keys())
-
-    for area in areas:
-        # Area total
+    for area in sorted(area_outlets.keys()):
         area_recent = sum(outlet_rev[o].get(d, 0) for o in area_outlets[area] for d in last_3)
         area_compare = sum(outlet_rev[o].get(d, 0) for o in area_outlets[area] for d in compare_dates)
         if area_compare <= 0:
@@ -140,7 +93,6 @@ def analyse(data, mapping, problem_lookup, problem_names):
         if area_drop >= -8:
             continue
 
-        # Per-outlet: aggregate across 3 days
         outlet_drops = []
         for outl in area_outlets[area]:
             rev_recent = sum(outlet_rev[outl].get(d, 0) for d in last_3)
@@ -149,46 +101,16 @@ def analyse(data, mapping, problem_lookup, problem_names):
                 continue
             o_drop = (rev_recent - rev_compare) / rev_compare * 100
             loss = rev_compare - rev_recent
-
-            # Only include if actually dropping
-            if loss <= 0:
-                continue
-
-            # Find recent problems
-            problems = match_outlet(outl, problem_names, problem_lookup)
-            recent_problems = []
-            for p in problems:
-                pd = str(p.get("tanggal_foto", ""))[:10]
-                if pd:
-                    try:
-                        pdt = datetime.strptime(pd, "%Y-%m-%d")
-                        cmp_start = datetime.strptime(compare_dates[0], "%Y-%m-%d")
-                        if abs((pdt - cmp_start).days) <= DAYS_LOOKBACK + 7:
-                            recent_problems.append({
-                                "date": pd,
-                                "tipe": p.get("tipeproblem", ""),
-                                "desc": clean_html(p.get("description_problem", "")),
-                                "status": p.get("status", ""),
-                            })
-                    except:
-                        pass
-
-            recent_problems.sort(key=lambda x: x["date"], reverse=True)
-            p_types = Counter(p["tipe"] for p in recent_problems if p["tipe"])
-
-            outlet_drops.append({
-                "outlet": outl,
-                "drop_pct": round(o_drop, 1),
-                "recent": round(rev_recent),
-                "compare": round(rev_compare),
-                "loss": round(loss),
-                "problems": recent_problems[:3],
-                "problem_count": len(recent_problems),
-                "top_problems": dict(p_types.most_common(3)),
-            })
+            if loss > 0:
+                outlet_drops.append({
+                    "outlet": outl,
+                    "drop_pct": round(o_drop, 1),
+                    "loss": round(loss),
+                    "recent": round(rev_recent),
+                    "compare": round(rev_compare),
+                })
 
         outlet_drops.sort(key=lambda x: x["loss"], reverse=True)
-
         alerts.append({
             "area": area,
             "drop_pct": round(area_drop, 1),
@@ -214,7 +136,8 @@ def _fmt_date(d):
         return d
 
 
-def format_alert_text(alerts, recent_dates, compare_dates):
+def format_revenue_alert(alerts, recent_dates, compare_dates):
+    """WhatsApp message: revenue alert only — no problem booth."""
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
     r_start = _fmt_date(recent_dates[0])
     r_end = _fmt_date(recent_dates[-1])
@@ -230,82 +153,75 @@ def format_alert_text(alerts, recent_dates, compare_dates):
              f"📅 {r_start}-{r_end} vs {c_start}-{c_end}\n"]
 
     total_loss = 0
-    total_compare = 0
-    total_problem_outlets = 0
-    total_outlets = 0
-
     for a in alerts:
         icon = "🔴" if a["drop_pct"] < -15 else ("🟡" if a["drop_pct"] < -10 else "🟠")
         total_loss += a["loss"]
-        total_compare += a["compare"]
+        lines.append(f"{icon} *{a['area']}* — turun {abs(a['drop_pct']):.0f}%  (-Rp{a['loss']:,.0f})")
+        lines.append(f"   Rp{a['compare']/1e6:.1f}jt → Rp{a['recent']/1e6:.1f}jt")
 
-        lines.append(f"{icon} *{a['area']}* — turun {abs(a['drop_pct']):.0f}%")
-        lines.append(f"   Rp{a['compare']/1e6:.1f}jt → Rp{a['recent']/1e6:.1f}jt (-Rp{a['loss']:,.0f})")
-        lines.append(f"   {len(a['outlets'])} outlet turun:\n")
+        for o in a["outlets"][:10]:
+            lines.append(f"   📉 {o['outlet']}: -{abs(o['drop_pct']):.0f}% (-Rp{o['loss']:,.0f})")
+        lines.append("")
 
-        for o in a["outlets"][:12]:  # Max 12 outlets per area
-            total_outlets += 1
-            icon_o = "🔧" if o["problem_count"] > 0 else "📉"
-            lines.append(f"   {icon_o} *{o['outlet']}*")
-            lines.append(f"      -{abs(o['drop_pct']):.0f}% | -Rp{o['loss']:,.0f}")
-
-            if o["problems"]:
-                total_problem_outlets += 1
-                p = o["problems"][0]
-                lines.append(f"      ⚠️ {p['tipe']} ({_fmt_date(p['date'])})")
-                if p["desc"]:
-                    lines.append(f"      \"{p['desc'][:50]}\"")
-                if o["problem_count"] > 1:
-                    extra = o["problem_count"] - 1
-                    lines.append(f"      +{extra} masalah lain dalam 2 minggu")
-            lines.append("")
-
-        if len(a["outlets"]) > 12:
-            lines.append(f"   ...dan {len(a['outlets']) - 12} outlet lainnya.\n")
-
-    # Footer
-    lines.append(f"📊 *Total dampak:* Rp{total_loss:,.0f} dari Rp{total_compare:,.0f}")
-    lines.append(f"📍 {len(alerts)} area | {total_outlets} outlet")
-    if total_problem_outlets > 0:
-        pct = total_problem_outlets / total_outlets * 100
-        lines.append(f"🔧 {total_problem_outlets}/{total_outlets} outlet terkait problem booth ({pct:.0f}%)")
+    total_compare = sum(a["compare"] for a in alerts)
+    total_outlets = sum(len(a["outlets"]) for a in alerts)
+    lines.append(f"📊 *Total:* Rp{total_loss:,.0f} dari Rp{total_compare:,.0f}")
+    lines.append(f"📍 {len(alerts)} area | {total_outlets} outlet terdampak")
 
     return "\n".join(lines)
 
 
-def format_analysis_data(alerts, recent_dates, compare_dates):
-    r_start = _fmt_date(recent_dates[0])
-    r_end = _fmt_date(recent_dates[-1])
-    c_start = _fmt_date(compare_dates[0])
-    c_end = _fmt_date(compare_dates[-1])
-    total_outlets = sum(len(a["outlets"]) for a in alerts)
-    total_problem = sum(1 for a in alerts for o in a["outlets"] if o["problem_count"] > 0)
-    return {
-        "type": "revenue_alert",
-        "generated_at": datetime.now().isoformat(),
-        "period": f"{r_start}-{r_end} vs {c_start}-{c_end}",
-        "alerts": alerts,
-        "summary": {
-            "areas": len(alerts),
-            "total_loss": sum(a["loss"] for a in alerts),
-            "total_compare": total_compare,
-            "outlets_affected": total_outlets,
-            "outlets_with_problems": total_problem,
-        }
-    }
+def format_problem_summary(records):
+    """WhatsApp message: open problem booth summary in table format."""
+    open_statuses = {"open", "on the way", "reopen", "", "uncompleted"}
+    open_problems = [r for r in records if str(r.get("status", "")).strip().lower() in open_statuses]
+
+    if not open_problems:
+        return "✅ *Problem Booth*\nTidak ada problem open saat ini."
+
+    # Sort by date (newest first)
+    open_problems.sort(key=lambda r: str(r.get("tanggal_foto", ""))[:19], reverse=True)
+
+    lines = [f"🔧 *Problem Booth — Open Issues*\n"
+             f"Total: {len(open_problems)} problem belum selesai\n"]
+
+    # Group by branch/area
+    by_area = defaultdict(list)
+    for r in open_problems:
+        branch = str(r.get("branch", "") or "-").strip()
+        by_area[branch].append(r)
+
+    for area in sorted(by_area.keys(), key=lambda a: -len(by_area[a])):
+        probs = by_area[area]
+        lines.append(f"\n📍 *{area}* ({len(probs)})")
+        lines.append("```")
+        lines.append(f"{'Booth':<18} {'Tipe':<18} {'Status':<12} Tgl")
+        lines.append("-" * 60)
+        for r in probs[:8]:
+            booth = str(r.get("nama_tempat", "") or "?")[:17]
+            tipe = str(r.get("tipeproblem", "") or "-")[:17]
+            status = str(r.get("status", "") or "-")[:11]
+            tgl = str(r.get("tanggal_foto", ""))[:10]
+            lines.append(f"{booth:<18} {tipe:<18} {status:<12} {tgl}")
+        if len(probs) > 8:
+            lines.append(f"...dan {len(probs)-8} lainnya")
+        lines.append("```")
+
+    return "\n".join(lines)
 
 
 def main():
-    mode = sys.argv[1] if len(sys.argv) > 1 else "text"
+    mode = sys.argv[1] if len(sys.argv) > 1 else "revenue"
+
     data = load_daily()
     mapping = load_outlet_mapping()
-    problem_lookup, problem_names = load_problems()
-    alerts, recent_dates, compare_dates = analyse(data, mapping, problem_lookup, problem_names)
 
-    if mode == "json":
-        print(json.dumps(format_analysis_data(alerts, recent_dates, compare_dates)))
+    if mode == "problems":
+        records = load_problems()
+        print(format_problem_summary(records))
     else:
-        print(format_alert_text(alerts, recent_dates, compare_dates))
+        alerts, recent_dates, compare_dates = analyse(data, mapping)
+        print(format_revenue_alert(alerts, recent_dates, compare_dates))
 
 
 if __name__ == "__main__":
