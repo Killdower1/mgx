@@ -1,9 +1,8 @@
 """
-Revenue Alert Engine — analyse daily transaction data for drops >10%.
-Outputs WhatsApp-ready alert messages.
-
-For each area: compare last 3 days vs same weekdays in previous week.
-If drop >8%: generate alert with top offender outlets.
+Revenue Alert Engine v2 — generates structured data for AI analysis.
+Outputs:
+- WhatsApp-style alert with specific dates
+- Structured JSON data for AI model to analyze
 """
 import json
 from collections import defaultdict
@@ -16,7 +15,6 @@ BASE = "/var/www/difotoin-dashboard"
 DAILY_PATH = os.path.join(BASE, "streamlit_template/data/api_cache/daily_summary.json")
 MAPPING_PATH = os.path.join(BASE, "streamlit_template/data/difotoin_outlet_mapping.csv")
 
-# ── Known areas for fallback matching ──
 KNOWN_AREAS = ["Jakarta", "Bali", "Jogja", "Bogor", "Bekasi",
                "Tangerang", "Samarinda", "Semarang", "Bandung",
                "Karanganyar", "Makassar", "Depok", "Malang", "Cilegon"]
@@ -26,8 +24,7 @@ def load_outlet_mapping():
     import csv
     mapping = {}
     with open(MAPPING_PATH) as f:
-        reader = csv.DictReader(f)
-        for row in reader:
+        for row in csv.DictReader(f):
             name = row.get("outlet_name", "").strip()
             area = row.get("area", "").strip()
             if name and area:
@@ -41,7 +38,6 @@ def load_daily():
 
 
 def get_area(outlet, mapping):
-    """Get area for an outlet, with fallback guessing."""
     area = mapping.get(outlet, "")
     if area:
         return area
@@ -52,7 +48,7 @@ def get_area(outlet, mapping):
 
 
 def analyse(data, mapping):
-    area_daily = defaultdict(float)  # (area, date) -> revenue
+    area_daily = defaultdict(float)
     outlet_daily = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
 
     for r in data:
@@ -72,7 +68,7 @@ def analyse(data, mapping):
     available = [d for d in all_dates if d <= today_str]
 
     if len(available) < 7:
-        return ["Data harian belum cukup (min 7 hari)."]
+        return []
 
     last_3 = available[-3:]
     compare_dates = []
@@ -81,7 +77,7 @@ def analyse(data, mapping):
         compare_dates.append((dt - timedelta(days=7)).strftime("%Y-%m-%d"))
 
     alerts = []
-    areas = sorted(set(a for (a, _) in area_daily.keys() - {("Lainnya", "")}) - {"Lainnya"})
+    areas = sorted(set(a for (a, _) in area_daily.keys()) - {"Lainnya"})
 
     for area in areas:
         rev_recent = sum(area_daily.get((area, d), 0) for d in last_3)
@@ -93,7 +89,6 @@ def analyse(data, mapping):
         drop_pct = (rev_recent - rev_compare) / rev_compare * 100
 
         if drop_pct < -8:
-            # Find top offender outlets
             outlet_drops = []
             for d in last_3:
                 dt = datetime.strptime(d, "%Y-%m-%d")
@@ -103,79 +98,124 @@ def analyse(data, mapping):
                     prev_rev = outlet_daily[area].get(prev_d, {}).get(outl, 0)
                     if prev_rev > 0:
                         o_drop = (rev_d - prev_rev) / prev_rev * 100
-                        outlet_drops.append((outl, o_drop, rev_d, prev_rev))
+                        outlet_drops.append({
+                            "outlet": outl,
+                            "drop_pct": round(o_drop, 1),
+                            "recent": round(rev_d),
+                            "compare": round(prev_rev),
+                            "loss": round(prev_rev - rev_d),
+                        })
 
-            outlet_drops.sort(key=lambda x: (x[3] - x[2]), reverse=True)
-            top = outlet_drops[:3]
-
-            offenders = []
-            for outl, o_drop, rev_d, prev_rev in top:
-                loss = prev_rev - rev_d
-                offenders.append(f"{outl} ( -{abs(o_drop):.0f}% | -Rp{loss:,.0f} )")
-
-            rev_compare / 1_000_000
-            rev_recent / 1_000_000
+            outlet_drops.sort(key=lambda x: x["loss"], reverse=True)
 
             alerts.append({
-                "type": "revenue_drop",
                 "area": area,
                 "drop_pct": round(drop_pct, 1),
-                "recent": rev_recent,
-                "compare": rev_compare,
-                "loss": rev_compare - rev_recent,
-                "offenders": offenders,
-                "severity": "SEVERE" if drop_pct < -15 else ("WARNING" if drop_pct < -10 else "MILD"),
+                "recent": round(rev_recent),
+                "compare": round(rev_compare),
+                "loss": round(rev_compare - rev_recent),
+                "recent_dates": last_3,
+                "compare_dates": compare_dates,
+                "offenders": outlet_drops[:3],
             })
 
     alerts.sort(key=lambda x: x["drop_pct"])
-    return alerts
+    return alerts, available[-3:], compare_dates
 
 
-def format_message(alerts, is_test=False):
+def _fmt_date(d):
+    """2026-06-25 → 25 Jun"""
+    months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    try:
+        dt = datetime.strptime(d, "%Y-%m-%d")
+        return f"{dt.day} {months[dt.month]}"
+    except:
+        return d
+
+
+def format_alert_text(alerts, recent_dates, compare_dates):
+    """WhatsApp-ready alert text."""
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
-    header = "🧪 *TEST Revenue Alert*" if is_test else "🚨 *Revenue Alert*"
-    
+    r_start = _fmt_date(recent_dates[0])
+    r_end = _fmt_date(recent_dates[-1])
+    c_start = _fmt_date(compare_dates[0])
+    c_end = _fmt_date(compare_dates[-1])
+
     if not alerts:
-        msg = f"{header} — {now}\n\n✅ Tidak ada penurunan signifikan dalam 3 hari terakhir. Semua area normal."
-        return msg
-    
-    lines = [f"{header} — {now}\n"]
-    
+        return (
+            f"✅ *Revenue Check* — {now}\n\n"
+            f"Tidak ada penurunan signifikan.\n"
+            f"Periode: {r_start} - {r_end} vs {c_start} - {c_end}\n"
+            f"Semua area dalam batas normal."
+        )
+
+    lines = [f"🚨 *Revenue Alert* — {now}"]
+    lines.append(f"📅 Periode: *{r_start} - {r_end}* vs *{c_start} - {c_end}*\n")
+
     for a in alerts[:5]:
-        icon = "🔴" if a["severity"] == "SEVERE" else ("🟡" if a["severity"] == "WARNING" else "🟠")
+        icon = "🔴" if a["drop_pct"] < -15 else ("🟡" if a["drop_pct"] < -10 else "🟠")
         area = a["area"]
         drop = abs(a["drop_pct"])
         rev_recent_m = a["recent"] / 1_000_000
         rev_compare_m = a["compare"] / 1_000_000
-        
+
         lines.append(f"{icon} *{area}* — revenue turun {drop:.0f}%")
-        lines.append(f"   Rp{rev_compare_m:.1f}jt → Rp{rev_recent_m:.1f}jt")
-        
+        lines.append(f"   Rp{rev_compare_m:.1f}jt → Rp{rev_recent_m:.1f}jt (-Rp{a['loss']:,.0f})")
+
         if a["offenders"]:
-            lines.append("   Penurunan terbesar:")
+            lines.append("   🎯 Penurunan terbesar:")
             for o in a["offenders"]:
-                lines.append(f"   • {o}")
+                lines.append(f"   • {o['outlet']}")
+                lines.append(f"     -{abs(o['drop_pct']):.0f}% | -Rp{o['loss']:,.0f}")
         lines.append("")
-    
+
     if len(alerts) > 5:
         lines.append(f"...dan {len(alerts) - 5} area lainnya.\n")
-    
+
     total_loss = sum(a["loss"] for a in alerts)
     total_compare = sum(a["compare"] for a in alerts)
-    lines.append(f"📊 Total dampak: Rp{total_loss:,.0f} dari Rp{total_compare:,.0f}")
+    lines.append(f"📊 *Total dampak:* Rp{total_loss:,.0f} dari Rp{total_compare:,.0f}")
 
     return "\n".join(lines)
 
 
+def format_analysis_data(alerts, recent_dates, compare_dates):
+    """Structured data for AI analysis."""
+    r_start = _fmt_date(recent_dates[0])
+    r_end = _fmt_date(recent_dates[-1])
+    c_start = _fmt_date(compare_dates[0])
+    c_end = _fmt_date(compare_dates[-1])
+
+    return {
+        "type": "revenue_alert",
+        "generated_at": datetime.now().isoformat(),
+        "period_recent": {"start": recent_dates[0], "end": recent_dates[-1], "label": f"{r_start} - {r_end}"},
+        "period_compare": {"start": compare_dates[0], "end": compare_dates[-1], "label": f"{c_start} - {c_end}"},
+        "alerts": alerts,
+        "summary": {
+            "total_areas_dropping": len(alerts),
+            "total_loss": sum(a["loss"] for a in alerts),
+            "total_compare_revenue": sum(a["compare"] for a in alerts),
+        }
+    }
+
+
 def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "text"
+
     data = load_daily()
     mapping = load_outlet_mapping()
-    alerts = analyse(data, mapping)
-    
-    is_test = "--test" in sys.argv
-    msg = format_message(alerts, is_test)
-    print(msg)
-    return msg
+    alerts, recent_dates, compare_dates = analyse(data, mapping)
+
+    if mode == "json":
+        # Structured data for AI
+        result = format_analysis_data(alerts, recent_dates, compare_dates)
+        print(json.dumps(result))
+    else:
+        # Human-readable WhatsApp text
+        msg = format_alert_text(alerts, recent_dates, compare_dates)
+        print(msg)
 
 
 if __name__ == "__main__":
