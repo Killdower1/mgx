@@ -17,6 +17,8 @@ KNOWN_AREAS = ["Jakarta", "Bali", "Jogja", "Bogor", "Bekasi",
                "Tangerang", "Samarinda", "Semarang", "Bandung",
                "Karanganyar", "Makassar", "Depok", "Malang", "Cilegon"]
 
+_OUTLET_MAP = {}
+
 
 def load_outlet_mapping():
     import csv
@@ -173,6 +175,12 @@ def format_revenue_alert(alerts, recent_dates, compare_dates):
 
 def format_problem_summary(records):
     """WhatsApp message: open problem booth summary in table format."""
+    global _OUTLET_MAP
+    try:
+        with open(os.path.join(BASE, "booth_to_outlet.json")) as f:
+            _OUTLET_MAP = json.load(f)
+    except:
+        _OUTLET_MAP = {}
     open_statuses = {"open", "on the way", "reopen", "", "uncompleted"}
     open_problems = [r for r in records if str(r.get("status", "")).strip().lower() in open_statuses]
 
@@ -195,14 +203,20 @@ def format_problem_summary(records):
         probs = by_area[area]
         lines.append(f"\n📍 *{area}* ({len(probs)})")
         lines.append("```")
-        lines.append(f"{'Booth':<18} {'Tipe':<18} {'Status':<12} Tgl")
-        lines.append("-" * 60)
+        lines.append(f"{'Outlet':<22} {'Problem':<18} {'Status':<12} Tgl")
+        lines.append("-" * 64)
         for r in probs[:8]:
-            booth = str(r.get("nama_tempat", "") or "?")[:17]
+            name = str(r.get("nama_tempat", "") or "?")[:21]
+            # Use mapped outlet name if available
+            mapped = _OUTLET_MAP.get(name, "")
+            if mapped:
+                display = mapped[:21]
+            else:
+                display = name
             tipe = str(r.get("tipeproblem", "") or "-")[:17]
             status = str(r.get("status", "") or "-")[:11]
             tgl = str(r.get("tanggal_foto", ""))[:10]
-            lines.append(f"{booth:<18} {tipe:<18} {status:<12} {tgl}")
+            lines.append(f"{display:<22} {tipe:<18} {status:<12} {tgl}")
         if len(probs) > 8:
             lines.append(f"...dan {len(probs)-8} lainnya")
         lines.append("```")
