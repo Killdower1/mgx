@@ -1,5 +1,5 @@
 """
-🎨 Creative Team Dashboard — 2 tabs:
+🎨 Creative Team Dashboard — 3 tabs:
   1. Leads (Partnership + Kemitraan)
   2. Outlet Optimasi (3 months)
 """
@@ -14,6 +14,7 @@ from services.erpnext_adapter import (
     get_cache_info,
 )
 from services.difotoin_api_adapter import load_dashboard_summary
+from services.social_media_service import get_dashboard_data, get_sync_status
 
 # ── Styling ──
 CARD = "background-color: #1e1e2e; border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"
@@ -65,6 +66,7 @@ def create_page(container: ui.column):
         with tabs:
             ui.tab("leads", label="📊 Leads")
             ui.tab("optimasi", label="🏪 Outlet Optimasi")
+            ui.tab("social", label="📱 Social Media")
 
         with panels:
             with ui.tab_panel("leads"):
@@ -74,6 +76,10 @@ def create_page(container: ui.column):
             with ui.tab_panel("optimasi"):
                 _opt_container = ui.column().classes("w-full")
                 _render_optimasi(_opt_container, df_dash)
+
+            with ui.tab_panel("social"):
+                _social_container = ui.column().classes("w-full")
+                _render_social_media(_social_container)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -515,3 +521,155 @@ def _render_outlet_table(df: pd.DataFrame, periods: list):
         "headerHeight": 44,
         "enableCellTextSelection": True,
     }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
+
+
+# =============================================================
+#  TAB 3: SOCIAL MEDIA INSIGHTS
+# =============================================================
+
+def _render_social_media(container: ui.column):
+    """Render the Social Media Insights tab."""
+    with container:
+        # Load data
+        sm_data = get_dashboard_data()
+        sync = get_sync_status()
+
+        if sync.get("last_sync"):
+            sync_time = sync.get("last_sync", "")[:16]
+            ui.label(f"Sync terakhir: {sync_time}").classes("text-xs text-gray-500 mb-2")
+
+        ig = sm_data.get("instagram", {})
+        tt = sm_data.get("tiktok", {})
+
+        # Check if configured
+        ig_error = "error" in ig.get("profile", {})
+        tt_error = "error" in tt.get("stats", {})
+
+        if ig_error and tt_error:
+            ui.label("Belum ada data social media.").classes("text-gray-400 italic")
+            ui.label("Konfigurasi token Instagram & TikTok di social_media_config.json").classes("text-xs text-gray-500")
+            return
+
+        # Overview KPI Cards
+        ig_profile = ig.get("profile", {})
+        tt_stats = tt.get("stats", {})
+
+        with ui.row().classes("w-full gap-3 mb-6"):
+            kpis = []
+            if not ig_error:
+                kpis += [
+                    ("IG Followers", _fmt_num(ig_profile.get("followers_count", 0)), "#E1306C"),
+                    ("IG Posts", _fmt_num(ig_profile.get("media_count", 0)), "#E1306C"),
+                ]
+            if not tt_error:
+                kpis += [
+                    ("TikTok Followers", _fmt_num(tt_stats.get("follower_count", 0)), "#00f2ea"),
+                    ("TikTok Videos", _fmt_num(tt_stats.get("video_count", 0)), "#00f2ea"),
+                    ("TikTok Total Likes", _fmt_num(tt_stats.get("likes_count", 0)), "#00f2ea"),
+                ]
+            for lbl, val, color in kpis:
+                with ui.card().classes("flex-1 min-w-[120px]").style(CARD):
+                    ui.label(lbl).style(METRIC_LBL)
+                    ui.label(val).style(f"{METRIC_VAL} color: {color};")
+
+        # Instagram Section
+        if not ig_error:
+            with ui.card().classes("w-full mb-6").style(CARD):
+                ui.label("📸 Instagram — Recent Posts").style(SECTION_T)
+                _render_ig_media_table(ig.get("media", []))
+
+        # TikTok Section
+        if not tt_error:
+            with ui.card().classes("w-full mb-6").style(CARD):
+                ui.label("🎵 TikTok — Recent Videos").style(SECTION_T)
+                _render_tiktok_videos_table(tt.get("videos", []))
+
+
+def _render_ig_media_table(media_list: list):
+    """Render Instagram media as AG Grid table."""
+    if not media_list:
+        ui.label("Belum ada data posts.").classes("text-gray-400 italic text-xs")
+        return
+
+    rows = []
+    for m in media_list[:30]:
+        caption = str(m.get("caption", "") or "")[:80]
+        rows.append({
+            "Date": str(m.get("timestamp", ""))[:10],
+            "Type": str(m.get("media_type", "")),
+            "Caption": caption,
+            "Likes": int(m.get("like_count", 0) or 0),
+            "Comments": int(m.get("comments_count", 0) or 0),
+            "Engagement": int(m.get("like_count", 0) or 0) + int(m.get("comments_count", 0) or 0),
+            "Link": str(m.get("permalink", "")),
+        })
+
+    col_defs = [
+        {"headerName": "Date", "field": "Date", "width": 100, "sortable": True},
+        {"headerName": "Type", "field": "Type", "width": 80, "sortable": True},
+        {"headerName": "Caption", "field": "Caption", "flex": 1, "minWidth": 200},
+        {"headerName": "Likes", "field": "Likes", "width": 80, "sortable": True, "type": "rightAligned"},
+        {"headerName": "Comments", "field": "Comments", "width": 100, "sortable": True, "type": "rightAligned"},
+        {"headerName": "Engagement", "field": "Engagement", "width": 110, "sortable": True, "type": "rightAligned",
+         "cellStyle": {"fontWeight": "700", "color": "#a6e3a1"}},
+        {"headerName": "Link", "field": "Link", "width": 80},
+    ]
+
+    ui.aggrid({
+        "columnDefs": col_defs,
+        "rowData": rows,
+        "pagination": True,
+        "paginationPageSize": 15,
+        "domLayout": "autoHeight",
+        "defaultColDef": {"resizable": True, "sortable": True},
+        "animateRows": True,
+        "rowHeight": 36,
+    }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+
+
+def _render_tiktok_videos_table(videos: list):
+    """Render TikTok videos as AG Grid table."""
+    if not videos:
+        ui.label("Belum ada data videos.").classes("text-gray-400 italic text-xs")
+        return
+
+    rows = []
+    for v in videos[:30]:
+        title = str(v.get("title", "") or "")[:80]
+        create_time = v.get("create_time", 0)
+        try:
+            dt = datetime.fromtimestamp(int(create_time)).strftime("%Y-%m-%d")
+        except (ValueError, TypeError, OSError):
+            dt = str(create_time)[:10]
+
+        rows.append({
+            "Date": dt,
+            "Title": title,
+            "Views": int(v.get("view_count", 0) or 0),
+            "Likes": int(v.get("like_count", 0) or 0),
+            "Comments": int(v.get("comment_count", 0) or 0),
+            "Shares": int(v.get("share_count", 0) or 0),
+            "Link": str(v.get("embed_link", "")),
+        })
+
+    col_defs = [
+        {"headerName": "Date", "field": "Date", "width": 100, "sortable": True},
+        {"headerName": "Title", "field": "Title", "flex": 1, "minWidth": 200},
+        {"headerName": "Views", "field": "Views", "width": 90, "sortable": True, "type": "rightAligned",
+         "cellStyle": {"fontWeight": "700", "color": "#00f2ea"}},
+        {"headerName": "Likes", "field": "Likes", "width": 80, "sortable": True, "type": "rightAligned"},
+        {"headerName": "Comments", "field": "Comments", "width": 100, "sortable": True, "type": "rightAligned"},
+        {"headerName": "Shares", "field": "Shares", "width": 80, "sortable": True, "type": "rightAligned"},
+        {"headerName": "Link", "field": "Link", "width": 80},
+    ]
+
+    ui.aggrid({
+        "columnDefs": col_defs,
+        "rowData": rows,
+        "pagination": True,
+        "paginationPageSize": 15,
+        "domLayout": "autoHeight",
+        "defaultColDef": {"resizable": True, "sortable": True},
+        "animateRows": True,
+        "rowHeight": 36,
+    }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")

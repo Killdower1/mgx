@@ -25,9 +25,12 @@ if missing:
 else:
     print("Semua periode lengkap!")
 
-print("[%s] Rebuilding dashboard cache..." % ts())
-ok3, msg3 = api.build_dashboard_from_raw()
-print("[%s] Dashboard: %s" % (ts(), msg3))
+print("[%s] Rebuilding all caches from raw_by_month..." % ts())
+ok3, msg3 = api.rebuild_all_from_raw()
+# msg3 has multi-line output, print each line
+for line in msg3.split("\n"):
+    if line.strip():
+        print("[%s]   %s" % (ts(), line))
 
 # SYNC REPORT
 print()

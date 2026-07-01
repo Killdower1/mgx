@@ -447,7 +447,7 @@ def cache_raw_transactions(txns: List[dict]):
         merged = filtered + txns
     except:
         merged = txns
-        _atomic_save_json(merged, RAW_TXNS_PATH)
+    _atomic_save_json(merged, RAW_TXNS_PATH)
 
 
 def load_raw_transactions() -> List[dict]:
@@ -513,18 +513,43 @@ def compute_revenue_sharing(
 
 RS_OUTLET_PATH = CACHE_DIR / "rs_outlet.json"
 RS_PERIODS_DIR = CACHE_DIR / "rs_periods"
+RAW_BY_MONTH_DIR = CACHE_DIR / "raw_by_month"
 
 
-def _cache_revenue_sharing(txns: List[dict]):
+def _cache_revenue_sharing(txns: List[dict], prefer_raw_by_month: bool = True):
     """Pre-compute revenue sharing data and save as lightweight cache.
     Also split raw transactions by period for on-demand detail loading.
-    Merges with existing rs cache so incremental syncs do not lose history.
+    
+    When prefer_raw_by_month=True (default), reads from raw_by_month/<period>.json 
+    for each period instead of using the passed-in txns. This ensures RS cache
+    always uses COMPLETE data, not partial fetch results.
     """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     RS_PERIODS_DIR.mkdir(parents=True, exist_ok=True)
 
     if not txns:
         return
+
+    # Prefer raw_by_month/ data when available (always complete, never partial)
+    if prefer_raw_by_month:
+        _periods_found = set()
+        for t in txns:
+            d = t.get("date", "")
+            try:
+                _dt = pd.to_datetime(d)
+                _periods_found.add(_dt.strftime("%Y-%m"))
+            except Exception:
+                pass
+        
+        _raw_txns = []
+        for _p in sorted(_periods_found):
+            _rp = RAW_BY_MONTH_DIR / (_p + ".json")
+            if _rp.exists():
+                with open(_rp) as _f:
+                    _raw_txns.extend(json.load(_f))
+        
+        if _raw_txns:
+            txns = _raw_txns  # Use complete raw_by_month data instead of partial fetch
 
     # Compute full revenue sharing
     df = compute_revenue_sharing(txns)
@@ -544,34 +569,28 @@ def _cache_revenue_sharing(txns: List[dict]):
     # Load existing cache and merge: update rows for (outlet,period) that exist, add new ones
     try:
         existing = pd.read_json(str(RS_OUTLET_PATH))
-        # Remove rows from existing that we are about to update
-        merge_keys = set(zip(new_agg["outlet_name"], new_agg["periode"]))
-        existing = existing[
-            ~existing.apply(lambda r: (r["outlet_name"], r["periode"]) in merge_keys, axis=1)
-        ]
+        # Remove ALL existing rows for periods we are about to reprocess
+        new_periods = set(new_agg["periode"].unique())
+        existing = existing[~existing["periode"].isin(new_periods)]
         merged = pd.concat([existing, new_agg], ignore_index=True)
     except (FileNotFoundError, ValueError, Exception):
         merged = new_agg
 
     _atomic_save_json(merged, RS_OUTLET_PATH)
 
-    # 2. Split raw detail by period - update/add only, keep all historical
+    # 2. Split raw detail by period — REPLACE each period file (prevent duplicate accumulation)
     periods = df["periode"].dropna().unique().tolist() if "periode" in df.columns else []
     for period in periods:
         period_df = df[df["periode"] == period]
+        if period_df.empty:
+            continue
         period_path = RS_PERIODS_DIR / (period + ".json")
-        # Load existing period detail and merge (upsert)
-        try:
-            existing_period = pd.read_json(str(period_path))
-            combined = pd.concat([existing_period, period_df], ignore_index=True)
-            # Deduplicate by transaction ID (keep latest)
-            if "id" in combined.columns:
-                combined = combined.drop_duplicates(subset=["id"], keep="last")
-            else:
-                combined = combined.drop_duplicates(keep="last")
-            _atomic_save_json(combined, period_path)
-        except (FileNotFoundError, ValueError, Exception):
-            _atomic_save_json(period_df, period_path)
+        # Deduplicate by transaction ID before saving (keep latest)
+        if "id" in period_df.columns:
+            period_df = period_df.drop_duplicates(subset=["id"], keep="last")
+        else:
+            period_df = period_df.drop_duplicates(keep="last")
+        _atomic_save_json(period_df, period_path)
 
 
 def load_rs_outlet_summary() -> list:
@@ -702,8 +721,10 @@ def fetch_period(
                     continue
                 break
 
-            # Success (100% complete)! Merge into caches
+            # Success (100% complete)! Save to raw_by_month and rebuild caches
             cache_raw_transactions(txns)
+            RAW_BY_MONTH_DIR.mkdir(parents=True, exist_ok=True)
+            _atomic_save_json(txns, RAW_BY_MONTH_DIR / (period + ".json"))
             _cache_revenue_sharing(txns)
 
             # Update tracker
@@ -1024,6 +1045,65 @@ def load_dashboard_summary() -> list:
         return df.to_dict("records") if not df.empty else []
     except Exception:
         return []
+
+def rebuild_rs_period(period: str) -> Tuple[bool, str]:
+    """Rebuild RS cache for a single period from raw_by_month data.
+    Reads raw_by_month/<period>.json and replaces rs cache entries.
+    Returns (success, message).
+    """
+    period_path = Path(str(RAW_BY_MONTH_DIR)) / (period + ".json")
+    if not period_path.exists():
+        return False, f"{period}: raw_by_month file not found"
+    
+    try:
+        with open(period_path) as f:
+            txns = json.load(f)
+    except Exception as e:
+        return False, f"{period}: error reading raw_by_month: {e}"
+    
+    if not txns:
+        return False, f"{period}: empty data"
+    
+    # Compute RS from raw_by_month data
+    df = compute_revenue_sharing(txns)
+    if df.empty:
+        return False, f"{period}: no valid RS data"
+    
+    # Pass RAW txns directly to _cache_revenue_sharing
+    _cache_revenue_sharing(txns, prefer_raw_by_month=False)
+    return True, f"{period}: RS rebuilt ({len(txns)} txns)"
+
+
+def rebuild_all_from_raw() -> Tuple[bool, str]:
+    """Rebuild ALL derived caches from raw_by_month/ data.
+    Runs build_dashboard_from_raw() + rebuild RS for all periods.
+    This is the single-source-of-truth rebuild function.
+    """
+    results = []
+    
+    # 1. Rebuild dashboard
+    ok_d, msg_d = build_dashboard_from_raw()
+    results.append(msg_d)
+    
+    # 2. Rebuild RS for all periods
+    if RAW_BY_MONTH_DIR.exists():
+        for f in sorted(RAW_BY_MONTH_DIR.glob("*.json")):
+            period = f.stem
+            try:
+                with open(f) as fh:
+                    txns = json.load(fh)
+                if not txns:
+                    continue
+                df = compute_revenue_sharing(txns)
+                if df.empty:
+                    continue
+                _cache_revenue_sharing(txns, prefer_raw_by_month=False)
+                results.append(f"  {period}: RS rebuilt ({len(txns)} txns)")
+            except Exception as e:
+                results.append(f"  {period}: ERROR: {e}")
+    
+    return True, "\n".join(results)
+
 
 def seed_tracker_from_cache():
     """One-time: populate tracker with periods already in RS cache."""

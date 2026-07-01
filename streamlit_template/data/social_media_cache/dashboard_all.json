@@ -1,0 +1,27 @@
+{
+  "cached_at": "2026-06-30T10:08:13.638957",
+  "data": {
+    "instagram": {
+      "profile": {
+        "error": "ig_user_id not configured"
+      },
+      "insights": {
+        "error": "ig_user_id not configured"
+      },
+      "media": [],
+      "audience": {
+        "error": "ig_user_id not configured"
+      }
+    },
+    "tiktok": {
+      "profile": {
+        "error": "TikTok credentials not configured"
+      },
+      "stats": {
+        "error": "TikTok credentials not configured"
+      },
+      "videos": []
+    },
+    "last_sync": "2026-06-30T10:08:13.638765"
+  }
+}
