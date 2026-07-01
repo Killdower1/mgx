@@ -44,3 +44,5 @@ streamlit_template/data/api_cache/
 streamlit_template/data/*.xlsx
 streamlit_template/data/api_cache/
 streamlit_template/data/outlet_list.xlsx
+problem_booth_cache_light.json
+nicegui_template/.nicegui/

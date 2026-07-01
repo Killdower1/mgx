@@ -88,7 +88,7 @@ def load_monthly() -> dict:
         return {}
 
 
-def load_light_cache() -> "pd.DataFrame":
+def load_light_cache():
     """Load full cache (7MB) — lazy, only for detail tab."""
     if not LIGHT_CACHE_PATH.exists():
         import pandas as pd
@@ -307,7 +307,7 @@ def _render_monthly_tab(m: dict):
                 "headerHeight": 42,
                 "enableCellTextSelection": True,
                 "animateRows": True,
-            }, theme="balham-dark").classes("w-full").style("height: auto; min-height: 300px;")
+            }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
 
             ui.label(f"{len(display)} bulan").classes("text-xs text-gray-500 mt-1")
 
@@ -509,6 +509,14 @@ def create_page(container: ui.column):
             ui.button("📥 Sync dari ERPNext", on_click=lambda: _sync_and_reload(container, None, None)).props(
                 "dense flat text-white bg-green-700")
 
+        # AG Grid dark theme CSS
+        ui.add_head_html("<style>.ag-theme-balham-dark{"
+            "--ag-background-color:#1e1e2e;--ag-header-background-color:#181825;"
+            "--ag-odd-row-background-color:#1a1a2e;--ag-row-hover-color:#313244;"
+            "--ag-border-color:#313244;--ag-font-size:13px;"
+            "--ag-header-height:42px;--ag-row-height:38px;"
+            "--ag-selected-row-background-color:#2a2a4e;}</style>")
+
         tabs = ui.tabs().classes("w-full")
         panels = ui.tab_panels(tabs, value="dash").classes("w-full")
         with tabs:
@@ -521,7 +529,6 @@ def create_page(container: ui.column):
             with ui.tab_panel("dash"):
                 _render_dashboard_tab(s)
             with ui.tab_panel("monthly"):
-                _container_m = ui.column().classes("w-full")
                 _render_monthly_tab(load_monthly())
             with ui.tab_panel("detail"):
                 _render_detail_tab(ui.column().classes("w-full"))
