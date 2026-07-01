@@ -32,6 +32,7 @@ from pages.login import create_page as create_login_page, show_logout_button, do
 from pages.revenue_sharing import create_page as create_revenue_page
 from pages.creative_team import create_page as create_creative_team_page
 from pages.pending import create_page as create_pending_page
+from pages.problem_booth import create_page as create_problem_booth_page
 
 
 # ── Global state ──
@@ -174,6 +175,7 @@ ALL_NAV_ITEMS = [
     ("💵 Revenue Sharing", "/revenue-sharing"),
     ("🎨 Creative Team", "/creative-team"),
     ("📤 Upload Data", "/upload"),
+    ("🔧 Problem Booth", "/problem-booth"),
 ]
 
 PAGE_STYLES = """<style>
@@ -471,6 +473,17 @@ def login():
 
 
 # ── Run ──
+
+@ui.page("/problem-booth")
+def problem_booth():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/problem-booth")
+    container = ui.column().classes("w-full p-6")
+    create_problem_booth_page(container)
+
 
 if __name__ == "__main__":
     import os
