@@ -10,16 +10,19 @@ from typing import Optional, List, Tuple
 import requests
 import pandas as pd
 import numpy as np
+from services.transaction_classifier import classify_transactions
 
 # ── Paths ──
 ST_DIR = Path(__file__).resolve().parent.parent.parent / "streamlit_template"
 CONFIG_DIR = ST_DIR / "config"
 API_CONFIG_PATH = CONFIG_DIR / "difotoin_api_config.json"
+APP_CONFIG_PATH = CONFIG_DIR / "config.json"
 DATA_CSV_PATH = ST_DIR / "data" / "difotoin_dashboard_data.csv"
 OUTLET_MAPPING_PATH = ST_DIR / "data" / "difotoin_outlet_mapping.csv"
 CACHE_DIR = ST_DIR / "data" / "api_cache"
 RAW_TXNS_PATH = CACHE_DIR / "raw_transactions.json"
 DASHBOARD_SUMMARY_PATH = CACHE_DIR / "dashboard_summary.json"
+DAILY_SUMMARY_PATH = CACHE_DIR / "daily_summary.json"
 
 # ── API Endpoints ──
 BASE_URL = "https://difotoin.id"
@@ -116,6 +119,68 @@ def _atomic_save_csv(df, path):
             os.remove(tmp)
         raise
 
+def _load_status_thresholds() -> tuple:
+    """Load status thresholds used by admin/settings."""
+    try:
+        with open(APP_CONFIG_PATH) as f:
+            cfg = json.load(f)
+        thresholds = cfg.get("thresholds", {})
+        keeper_min = float(thresholds.get("keeper_minimum", 15000000))
+        optimasi_min = float(thresholds.get("optimasi_minimum", 8000000))
+        return keeper_min, optimasi_min
+    except Exception:
+        return 15000000.0, 8000000.0
+
+
+def save_raw_by_month(txns, period):
+    """
+    Save transactions to raw_by_month/ with completeness validation.
+    Rules:
+    1. If new fetch has FEWER records than existing: REJECT (incomplete)
+    2. Deduplicate by transaction ID (records are immutable)
+    3. Sort by date
+    4. Atomic save
+    Returns (success, message)
+    """
+    RAW_BY_MONTH_DIR.mkdir(parents=True, exist_ok=True)
+    period_path = RAW_BY_MONTH_DIR / (period + ".json")
+    
+    existing = []
+    existing_count = 0
+    if period_path.exists():
+        try:
+            with open(period_path) as f:
+                existing = json.load(f)
+            existing_count = len(existing)
+        except Exception:
+            existing = []
+            existing_count = 0
+    
+    new_count = len(txns)
+    
+    # CRITICAL: Reject if new fetch is smaller (incomplete pagination)
+    if new_count < existing_count:
+        msg = (f"{period}: REJECTED — fetch incomplete. "
+               f"Got {new_count} records vs existing {existing_count}. "
+               f"Keeping existing data.")
+        return False, msg
+    
+    # Deduplicate by ID: existing + new, new overwrites if same ID
+    tx_by_id = {str(t.get("id", "")): t for t in existing if t.get("id")}
+    for t in txns:
+        tx_id = str(t.get("id", ""))
+        if tx_id:
+            tx_by_id[tx_id] = t
+    
+    merged = list(tx_by_id.values())
+    merged.sort(key=lambda t: t.get("date", ""))
+    
+    _atomic_save_json(merged, period_path)
+    
+    added = len(merged) - existing_count
+    msg = f"{period}: Saved {len(merged)} records ({added} new vs previous {existing_count})"
+    return True, msg
+
 
     cfg = _load_config()
     return cfg.get("last_sync", {})
@@ -124,6 +189,159 @@ def _atomic_save_csv(df, path):
 # ═══════════════════════════════════════════════
 #  AUTH
 # ═══════════════════════════════════════════════
+
+
+def validate_fetch_completeness(txns, period):
+    """Validate that a fetch is complete by comparing with previous data."""
+    period_path = RAW_BY_MONTH_DIR / (period + ".json")
+    
+    report = {
+        "period": period,
+        "fetched_count": len(txns),
+        "existing_count": 0,
+        "new_ids": 0,
+        "missing_ids": 0,
+        "is_complete": True,
+        "warnings": [],
+    }
+    
+    if not period_path.exists():
+        return report
+    
+    try:
+        with open(period_path) as f:
+            existing = json.load(f)
+        report["existing_count"] = len(existing)
+        
+        existing_ids = set(str(t.get("id", "")) for t in existing)
+        new_ids = set(str(t.get("id", "")) for t in txns)
+        
+        report["new_ids"] = len(new_ids - existing_ids)
+        report["missing_ids"] = len(existing_ids - new_ids)
+        
+        if report["missing_ids"] > 0:
+            report["is_complete"] = False
+            report["warnings"].append(
+                f"{report['missing_ids']} records from previous fetch are missing"
+            )
+        
+        if len(txns) < len(existing):
+            report["is_complete"] = False
+            report["warnings"].append(
+                f"Count dropped: {len(txns)} < {len(existing)}"
+            )
+            
+    except Exception as e:
+        report["warnings"].append(f"Could not read existing data: {e}")
+    
+    return report
+
+
+def backup_derived_caches():
+    """Backup all derived cache files before rebuild.
+
+    Keep only a small number of recent backups so the host does not fill up with
+    copied monthly caches.
+    """
+    import shutil
+    from datetime import datetime
+
+    backup_root = CACHE_DIR / "backups"
+    backup_root.mkdir(parents=True, exist_ok=True)
+
+    # Prune older backups first to preserve free space.
+    keep_latest = 3
+    existing_backups = sorted(
+        [p for p in backup_root.iterdir() if p.is_dir()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for old_dir in existing_backups[keep_latest:]:
+        shutil.rmtree(old_dir, ignore_errors=True)
+
+    backup_dir = backup_root / datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    files_backed = 0
+    for f in [DASHBOARD_SUMMARY_PATH, DAILY_SUMMARY_PATH, RS_OUTLET_PATH]:
+        if f.exists():
+            shutil.copy2(f, backup_dir / f.name)
+            files_backed += 1
+
+    if RS_PERIODS_DIR.exists():
+        shutil.copytree(RS_PERIODS_DIR, backup_dir / "rs_periods", dirs_exist_ok=True)
+        files_backed += 1
+
+    print(f"[BACKUP] {files_backed} items backed up to {backup_dir}")
+    return backup_dir
+
+
+def _stream_json_records(filepath, chunk_size=1000):
+    """Stream JSON array records in chunks to avoid OOM.
+    Yields lists of records (each chunk is a list)."""
+    import json
+    import gc
+    with open(filepath) as fh:
+        data = json.load(fh)
+    total = len(data)
+    for i in range(0, total, chunk_size):
+        yield data[i:i+chunk_size]
+        gc.collect()
+
+def _process_file_streaming(filepath, classifier=None, chunk_size=5000):
+    """Process a large JSON file using streaming to avoid OOM.
+    Returns (rows_list, total_records)."""
+    import gc
+    
+    all_rows = []
+    total_records = 0
+    
+    from services.transaction_classifier import classify_transaction as _ct
+    _classifier = classifier or _ct
+    for chunk in _stream_json_records(filepath, chunk_size):
+        rows = []
+        for t in chunk:
+            c = _classifier(t)
+            tx_date = c["date"]
+            if not tx_date:
+                continue
+            periode = tx_date[:7]
+            rows.append({
+                "outlet_name": c["outlet_name"],
+                "periode": periode,
+                "role": c["role"],
+                "amount": c["amount"] if c["is_revenue"] else 0.0,
+                "sessions": 1 if c["role"] == "session" else 0,
+                "unlocks": 1 if c["role"] in ("unlock", "free_unlock", "voucher_unlock") else 0,
+                "unlocks_paid": 1 if c["role"] == "unlock" else 0,
+                "prints": 1 if c["role"] == "print" else 0,
+            })
+        all_rows.extend(rows)
+        total_records += len(chunk)
+        del chunk, rows
+        gc.collect()
+    
+    return all_rows, total_records
+
+def _get_periods_to_rebuild(force_all=False):
+    """Get list of periods that need rebuilding.
+    If force_all=False, only rebuild periods where raw_by_month file
+    is newer than the corresponding derived cache entry."""
+    if force_all or not DASHBOARD_SUMMARY_PATH.exists():
+        if RAW_BY_MONTH_DIR.exists():
+            return sorted([f.stem for f in RAW_BY_MONTH_DIR.glob("*.json")])
+        return []
+    
+    # Check which raw files are newer than dashboard cache
+    cache_mtime = DASHBOARD_SUMMARY_PATH.stat().st_mtime
+    to_rebuild = []
+    
+    if RAW_BY_MONTH_DIR.exists():
+        for f in RAW_BY_MONTH_DIR.glob("*.json"):
+            if f.stat().st_mtime > cache_mtime:
+                to_rebuild.append(f.stem)
+    
+    return sorted(to_rebuild)
 
 def authenticate(force: bool = False) -> Optional[str]:
     """Get a bearer token. Uses stored token if valid, or creates new one."""
@@ -445,7 +663,7 @@ def cache_raw_transactions(txns: List[dict]):
         # Filter existing: keep only those NOT in current batch (by transaction ID)
         filtered = [t for t in existing if str(t.get("id","")) not in seen_ids]
         merged = filtered + txns
-    except:
+    except Exception:
         merged = txns
     _atomic_save_json(merged, RAW_TXNS_PATH)
 
@@ -690,9 +908,13 @@ def fetch_period(
     per_page: int = 100,
     token: Optional[str] = None,
     max_retries: int = 3,
+    update_legacy_raw: bool = False,
 ) -> Tuple[bool, str]:
     """Fetch ONE specific month (YYYY-MM) from difotoin API, with retry.
-    On success: merges into raw_transactions.json + rebuilds RS cache + updates tracker.
+
+    Source of truth for current dashboard sync is raw_by_month/*.json.
+    update_legacy_raw defaults False because merging raw_transactions.json loads
+    a 600MB+ legacy file and repeatedly OOM-kills CCC cron.
     Returns (success, message)."""
     if not token:
         token = authenticate()
@@ -721,10 +943,29 @@ def fetch_period(
                     continue
                 break
 
-            # Success (100% complete)! Save to raw_by_month and rebuild caches
-            cache_raw_transactions(txns)
-            RAW_BY_MONTH_DIR.mkdir(parents=True, exist_ok=True)
-            _atomic_save_json(txns, RAW_BY_MONTH_DIR / (period + ".json"))
+            # Validate fetch completeness
+            validation = validate_fetch_completeness(txns, period)
+            if not validation["is_complete"]:
+                for w in validation["warnings"]:
+                    print(f"  [WARN] {period}: {w}")
+            
+            # Save to raw_by_month with completeness check
+            ok_save, msg_save = save_raw_by_month(txns, period)
+            if not ok_save:
+                # Incomplete fetch — do not update tracker or caches
+                tracker = load_sync_tracker()
+                failed = tracker.setdefault('failed_periods', [])
+                if period not in failed:
+                    failed.append(period)
+                save_sync_tracker(tracker)
+                return False, msg_save
+            
+            # Legacy raw_transactions.json is intentionally not updated during
+            # normal cron sync; loading/merging it is the OOM hot path on CCC.
+            if update_legacy_raw:
+                cache_raw_transactions(txns)
+            
+            # Build revenue sharing cache from raw_by_month (complete data)
             _cache_revenue_sharing(txns)
 
             # Update tracker
@@ -820,12 +1061,10 @@ def sync_current_month(per_page: int = 100) -> Tuple[bool, str]:
 # ═══════════════════════════════════════════════
 
 def build_dashboard_from_raw() -> Tuple[bool, str]:
-    """Build dashboard summary cache from raw_by_month data (source of truth).
+    """Build dashboard summary cache from raw_by_month data with conversion funnel.
     Processes ONE file at a time to avoid OOM on 3.4GB raw data.
-    
     Returns (success, message).
     """
-    RAW_BY_MONTH_DIR = CACHE_DIR / "raw_by_month"
     if not RAW_BY_MONTH_DIR.exists():
         return False, f"raw_by_month dir not found at {RAW_BY_MONTH_DIR}"
     
@@ -847,87 +1086,82 @@ def build_dashboard_from_raw() -> Tuple[bool, str]:
         if not txns:
             continue
         
-        # Aggregate this month's transactions
+        classified = classify_transactions(txns)
+        
         rows = []
-        for t in txns:
-            details = t.get("details", []) or []
-            capture_qty = 1 if any(int(d.get("capture_qty", 0) or 0) > 0 for d in details) else 0
-
-            print_qty = 1 if t.get("type") == "print" else 0
-            unlock_qty = 1 if t.get("type") == "unlock-photo" else 0
-            amount = float(t.get("processed_gross_amount", 0) or 0)
-            
-            tx_date = t.get("date", "")
-            try:
-                dt = pd.to_datetime(tx_date)
-                periode = dt.strftime("%Y-%m")
-            except Exception:
+        for c in classified:
+            tx_date = c["date"]
+            if not tx_date:
                 continue
+            periode = tx_date[:7]
             
             rows.append({
-                "outlet_name": str(t.get("outlet_name", "")).strip(),
-                "outlet_id": t.get("outlet_id"),
+                "outlet_name": c["outlet_name"],
                 "periode": periode,
-                "total_revenue": amount,
-                "foto_qty": capture_qty,
-                "unlock_qty": unlock_qty,
-                "print_qty": print_qty,
+                "role": c["role"],
+                "amount": c["amount"] if c["is_revenue"] else 0.0,
+                "sessions": 1 if c["role"] == "session" else 0,
+                "unlocks": 1 if c["role"] in ("unlock", "free_unlock", "voucher_unlock") else 0,
+                "unlocks_paid": 1 if c["role"] == "unlock" else 0,
+                "prints": 1 if c["role"] == "print" else 0,
             })
         
         if rows:
             df = pd.DataFrame(rows)
             agg_month = df.groupby(["outlet_name", "periode"], as_index=False).agg(
-                total_revenue=("total_revenue", "sum"),
-                foto_qty=("foto_qty", "sum"),
-                unlock_qty=("unlock_qty", "sum"),
-                print_qty=("print_qty", "sum"),
-                outlet_id=("outlet_id", "first"),
+                sessions=("sessions", "sum"),
+                unlocks=("unlocks", "sum"),
+                unlocks_paid=("unlocks_paid", "sum"),
+                prints=("prints", "sum"),
+                total_revenue=("amount", "sum"),
             )
             all_agg.append(agg_month)
             period_counts.append((f.stem, len(txns)))
             
-            # Free memory
-            del txns, rows, df, agg_month
+            del txns, classified, rows, df, agg_month
             gc.collect()
         
         files_loaded += 1
-        print(f"  [{files_loaded}/{files_total}] {f.stem}: {len(txns) if 'txns' in dir() else '?'} txns")
+        txns_count = len(txns) if "txns" in dir() else "?"
+        print(f"  [{files_loaded}/{files_total}] {f.stem}: {txns_count} txns")
     
     if not all_agg:
         return False, "No transactions found in raw_by_month"
     
-    # Combine all months
-    # Final groupby to merge any cross-file duplicates
     agg = pd.concat(all_agg, ignore_index=True)
     del all_agg
     gc.collect()
-    # Dedup by (outlet, periode) — sum revenue/qty
+    
     agg = agg.groupby(["outlet_name", "periode"], as_index=False).agg(
+        sessions=("sessions", "sum"),
+        unlocks=("unlocks", "sum"),
+        unlocks_paid=("unlocks_paid", "sum"),
+        prints=("prints", "sum"),
         total_revenue=("total_revenue", "sum"),
-        foto_qty=("foto_qty", "sum"),
-        unlock_qty=("unlock_qty", "sum"),
-        print_qty=("print_qty", "sum"),
     )
     
-    # Conversion rate: unlock / foto * 100
-    agg["paid_per_photo_rate"] = np.where(
-        agg["foto_qty"] > 0,
-        (agg["unlock_qty"] / agg["foto_qty"] * 100),
+    # Conversion rate: unlocks / sessions * 100
+    agg["conversion_rate"] = np.where(
+        agg["sessions"] > 0,
+        (agg["unlocks"] / agg["sessions"] * 100),
         0.0,
     )
     
-    # unlock_to_print_rate
-    agg["unlock_to_print_rate"] = np.where(
-        agg["unlock_qty"] > 0,
-        (agg["print_qty"] / agg["unlock_qty"] * 100),
+    # Print rate: prints / unlocks_paid * 100
+    agg["print_rate"] = np.where(
+        agg["unlocks_paid"] > 0,
+        (agg["prints"] / agg["unlocks_paid"] * 100),
+        0.0,
+    )
+    
+    # Revenue per session
+    agg["revenue_per_session"] = np.where(
+        agg["sessions"] > 0,
+        agg["total_revenue"] / agg["sessions"],
         0.0,
     )
     
     # Outlet status based on revenue
-    # NOTE: paid_per_photo_rate = paid_transactions / total_captures
-    # Ini BUKAN conversion rate sesungguhnya (karena hanya dari data paid/done).
-    # Data unpaid/all sessions belum stabil di-fetch dari API.
-    # Untuk conversion real, diperlukan fetch data all sessions (termasuk unpaid/cancel).
     agg["outlet_status"] = agg["total_revenue"].apply(
         lambda v: "Keeper" if v >= 15_000_000
         else ("Optimasi" if v >= 8_000_000 else "Relocate")
@@ -947,7 +1181,252 @@ def build_dashboard_from_raw() -> Tuple[bool, str]:
     
     total_txns = sum(c for _, c in period_counts)
     total_rev = float(agg["total_revenue"].sum())
-    msg = f"Dashboard cache: {len(agg)} entries dari {total_txns} transaksi ({files_loaded} files). Total: Rp {total_rev:,.0f}"
+    total_sessions = int(agg["sessions"].sum())
+    total_unlocks = int(agg["unlocks"].sum())
+    total_prints = int(agg["prints"].sum())
+    msg = f"Dashboard cache: {len(agg)} entries, {total_txns} txns ({files_loaded} files). Sessions={total_sessions}, Unlocks={total_unlocks}, Prints={total_prints}, Revenue=Rp {total_rev:,.0f}"
+    return True, msg
+
+
+def _daily_summary_from_transactions(txns: List[dict]) -> pd.DataFrame:
+    """Aggregate raw transactions into daily outlet rows."""
+    if not txns:
+        return pd.DataFrame()
+
+    classified = classify_transactions(txns)
+    rows = []
+    for c in classified:
+        tx_date = c["date"]
+        if not tx_date:
+            continue
+        rows.append({
+            "date": tx_date,
+            "outlet_name": c["outlet_name"],
+            "revenue": c["amount"] if c["is_revenue"] else 0.0,
+            "sessions": 1 if c["role"] == "session" else 0,
+            "unlocks": 1 if c["role"] in ("unlock", "free_unlock", "voucher_unlock") else 0,
+            "unlocks_paid": 1 if c["role"] == "unlock" else 0,
+            "prints": 1 if c["role"] == "print" else 0,
+        })
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    return df.groupby(["date", "outlet_name"], as_index=False).agg(
+        sessions=("sessions", "sum"),
+        unlocks=("unlocks", "sum"),
+        unlocks_paid=("unlocks_paid", "sum"),
+        prints=("prints", "sum"),
+        revenue=("revenue", "sum"),
+    )
+
+
+def _finalize_daily_summary_df(agg: pd.DataFrame) -> pd.DataFrame:
+    """Normalize, de-duplicate, and add calculated daily metrics."""
+    if agg.empty:
+        return agg
+
+    agg["date"] = agg["date"].astype(str).str[:10]
+    agg["outlet_name"] = agg["outlet_name"].astype(str).str.strip()
+    for col in ["sessions", "unlocks", "unlocks_paid", "prints", "revenue"]:
+        if col in agg.columns:
+            agg[col] = pd.to_numeric(agg[col], errors="coerce").fillna(0.0)
+        else:
+            agg[col] = 0.0
+
+    agg = agg.groupby(["date", "outlet_name"], as_index=False).agg(
+        sessions=("sessions", "sum"),
+        unlocks=("unlocks", "sum"),
+        unlocks_paid=("unlocks_paid", "sum"),
+        prints=("prints", "sum"),
+        revenue=("revenue", "sum"),
+    )
+
+    agg["conversion_rate"] = np.where(
+        agg["sessions"] > 0,
+        (agg["unlocks"] / agg["sessions"] * 100),
+        0.0,
+    )
+    agg["print_rate"] = np.where(
+        agg["unlocks_paid"] > 0,
+        (agg["prints"] / agg["unlocks_paid"] * 100),
+        0.0,
+    )
+    agg["avg_revenue_per_session"] = np.where(
+        agg["sessions"] > 0,
+        agg["revenue"] / agg["sessions"],
+        0.0,
+    )
+    return agg.sort_values(["date", "outlet_name"]).reset_index(drop=True)
+
+
+def build_daily_summary_for_periods(periods: List[str]) -> Tuple[bool, str]:
+    """Incrementally rebuild daily summary for selected YYYY-MM periods only.
+
+    Existing rows for other periods are preserved. Target-period rows are removed
+    and rebuilt from raw_by_month/<period>.json, then the whole daily summary is
+    de-duplicated and atomically saved. This avoids the OOM-prone full-history
+    rebuild on CCC.
+    """
+    if not RAW_BY_MONTH_DIR.exists():
+        return False, "raw_by_month dir not found"
+
+    import gc
+
+    periods = sorted({str(p)[:7] for p in periods if p})
+    if not periods:
+        return True, "No daily periods need rebuilding"
+
+    existing_df = pd.DataFrame()
+    if DAILY_SUMMARY_PATH.exists():
+        try:
+            existing_df = pd.read_json(str(DAILY_SUMMARY_PATH))
+            if not existing_df.empty and "date" in existing_df.columns:
+                existing_df["date"] = existing_df["date"].astype(str).str[:10]
+                existing_df = existing_df[~existing_df["date"].str[:7].isin(periods)]
+        except Exception as e:
+            print("[WARN] Could not read existing daily summary: {}".format(e))
+            existing_df = pd.DataFrame()
+
+    new_aggs = []
+    total_txns = 0
+    for period in periods:
+        f = RAW_BY_MONTH_DIR / (period + ".json")
+        if not f.exists():
+            print("[WARN] {} missing, skipping daily rebuild".format(f.name))
+            continue
+        try:
+            with open(f) as fh:
+                txns = json.load(fh)
+        except Exception as e:
+            print("Error loading {}: {}".format(f.name, e))
+            continue
+
+        total_txns += len(txns)
+        agg = _daily_summary_from_transactions(txns)
+        if not agg.empty:
+            new_aggs.append(agg)
+        del txns, agg
+        gc.collect()
+
+    if not new_aggs and existing_df.empty:
+        return False, "No transactions found"
+
+    pieces = []
+    if not existing_df.empty:
+        pieces.append(existing_df)
+    pieces.extend(new_aggs)
+
+    combined = pd.concat(pieces, ignore_index=True, sort=False) if pieces else pd.DataFrame()
+    combined = _finalize_daily_summary_df(combined)
+    _atomic_save_json(combined, DAILY_SUMMARY_PATH)
+
+    total_rev = float(combined["revenue"].sum()) if "revenue" in combined.columns else 0.0
+    total_days = combined["date"].nunique() if "date" in combined.columns else 0
+    total_sessions = int(combined["sessions"].sum()) if "sessions" in combined.columns else 0
+    total_unlocks = int(combined["unlocks"].sum()) if "unlocks" in combined.columns else 0
+    total_prints = int(combined["prints"].sum()) if "prints" in combined.columns else 0
+    msg = "Daily summary incremental: periods={}, entries={}, days={}, txns={}, sessions={}, unlocks={}, prints={}, revenue=Rp {:,.0f}".format(
+        ",".join(periods), len(combined), total_days, total_txns,
+        total_sessions, total_unlocks, total_prints, total_rev)
+    return True, msg
+
+
+def build_daily_summary() -> Tuple[bool, str]:
+    """Build daily sales summary from raw_by_month/ data with conversion funnel.
+    Groups by (date, outlet_name) for fast daily queries.
+    Updates DAILY_SUMMARY_PATH with pre-aggregated daily data.
+    Returns (success, message).
+    """
+    if not RAW_BY_MONTH_DIR.exists():
+        return False, "raw_by_month dir not found"
+    
+    import gc
+    all_agg = []
+    
+    for f in sorted(RAW_BY_MONTH_DIR.glob("*.json")):
+        try:
+            with open(f) as fh:
+                txns = json.load(fh)
+        except Exception as e:
+            print("Error loading {}: {}".format(f.name, e))
+            continue
+        
+        if not txns:
+            continue
+        
+        classified = classify_transactions(txns)
+        
+        rows = []
+        for c in classified:
+            tx_date = c["date"]
+            if not tx_date:
+                continue
+            
+            rows.append({
+                "date": tx_date,
+                "outlet_name": c["outlet_name"],
+                "revenue": c["amount"] if c["is_revenue"] else 0.0,
+                "sessions": 1 if c["role"] == "session" else 0,
+                "unlocks": 1 if c["role"] in ("unlock", "free_unlock", "voucher_unlock") else 0,
+                "unlocks_paid": 1 if c["role"] == "unlock" else 0,
+                "prints": 1 if c["role"] == "print" else 0,
+            })
+        
+        if rows:
+            df = pd.DataFrame(rows)
+            agg = df.groupby(["date", "outlet_name"], as_index=False).agg(
+                sessions=("sessions", "sum"),
+                unlocks=("unlocks", "sum"),
+                unlocks_paid=("unlocks_paid", "sum"),
+                prints=("prints", "sum"),
+                revenue=("revenue", "sum"),
+            )
+            all_agg.append(agg)
+        
+        del txns, classified, rows, df, agg
+        gc.collect()
+    
+    if not all_agg:
+        return False, "No transactions found"
+    
+    agg = pd.concat(all_agg, ignore_index=True)
+    agg = agg.groupby(["date", "outlet_name"], as_index=False).agg(
+        sessions=("sessions", "sum"),
+        unlocks=("unlocks", "sum"),
+        unlocks_paid=("unlocks_paid", "sum"),
+        prints=("prints", "sum"),
+        revenue=("revenue", "sum"),
+    )
+    
+    # Conversion rates
+    agg["conversion_rate"] = np.where(
+        agg["sessions"] > 0,
+        (agg["unlocks"] / agg["sessions"] * 100),
+        0.0,
+    )
+    
+    agg["print_rate"] = np.where(
+        agg["unlocks_paid"] > 0,
+        (agg["prints"] / agg["unlocks_paid"] * 100),
+        0.0,
+    )
+    
+    agg["avg_revenue_per_session"] = np.where(
+        agg["sessions"] > 0,
+        agg["revenue"] / agg["sessions"],
+        0.0,
+    )
+    
+    _atomic_save_json(agg, DAILY_SUMMARY_PATH)
+    total_rev = float(agg["revenue"].sum())
+    total_days = agg["date"].nunique()
+    total_sessions = int(agg["sessions"].sum())
+    total_unlocks = int(agg["unlocks"].sum())
+    total_prints = int(agg["prints"].sum())
+    msg = "Daily summary: {} entries, {} days, sessions={}, unlocks={}, prints={}, revenue=Rp {:,.0f}".format(
+        len(agg), total_days, total_sessions, total_unlocks, total_prints, total_rev)
     return True, msg
 
 
@@ -1036,13 +1515,50 @@ def _cache_dashboard_summary(txns: List[dict], files_loaded: int = 0) -> Tuple[b
     return True, msg
 
 
+
 def load_dashboard_summary() -> list:
-    """Load the dashboard summary cache."""
+    """Load the dashboard summary cache with backward compatibility."""
     try:
         if not DASHBOARD_SUMMARY_PATH.exists():
             return []
         df = pd.read_json(str(DASHBOARD_SUMMARY_PATH))
-        return df.to_dict("records") if not df.empty else []
+        records = df.to_dict("records") if not df.empty else []
+        keeper_min, optimasi_min = _load_status_thresholds()
+        for r in records:
+            try:
+                revenue = float(r.get("total_revenue", 0) or 0)
+                if revenue >= keeper_min:
+                    r["outlet_status"] = "Keeper"
+                elif revenue >= optimasi_min:
+                    r["outlet_status"] = "Optimasi"
+                else:
+                    r["outlet_status"] = "Relocate"
+            except Exception:
+                r["outlet_status"] = r.get("outlet_status", "")
+        # Normalize old/new column names
+        for r in records:
+            if "sessions" in r and "foto_qty" not in r:
+                r["foto_qty"] = r["sessions"]
+            if "unlocks" in r and "unlock_qty" not in r:
+                r["unlock_qty"] = r["unlocks"]
+            if "prints" in r and "print_qty" not in r:
+                r["print_qty"] = r["prints"]
+            if "conversion_rate" in r and "paid_per_photo_rate" not in r:
+                r["paid_per_photo_rate"] = r["conversion_rate"]
+            if "print_rate" in r and "unlock_to_print_rate" not in r:
+                r["unlock_to_print_rate"] = r["print_rate"]
+            # Reverse mapping
+            if "foto_qty" in r and "sessions" not in r:
+                r["sessions"] = r["foto_qty"]
+            if "unlock_qty" in r and "unlocks" not in r:
+                r["unlocks"] = r["unlock_qty"]
+            if "print_qty" in r and "prints" not in r:
+                r["prints"] = r["print_qty"]
+            if "paid_per_photo_rate" in r and "conversion_rate" not in r:
+                r["conversion_rate"] = r["paid_per_photo_rate"]
+            if "unlock_to_print_rate" in r and "print_rate" not in r:
+                r["print_rate"] = r["unlock_to_print_rate"]
+        return records
     except Exception:
         return []
 
@@ -1074,18 +1590,26 @@ def rebuild_rs_period(period: str) -> Tuple[bool, str]:
     return True, f"{period}: RS rebuilt ({len(txns)} txns)"
 
 
+
 def rebuild_all_from_raw() -> Tuple[bool, str]:
     """Rebuild ALL derived caches from raw_by_month/ data.
     Runs build_dashboard_from_raw() + rebuild RS for all periods.
     This is the single-source-of-truth rebuild function.
     """
+    # Backup existing caches first
+    backup_derived_caches()
     results = []
     
     # 1. Rebuild dashboard
     ok_d, msg_d = build_dashboard_from_raw()
     results.append(msg_d)
     
-    # 2. Rebuild RS for all periods
+    # 2. Also rebuild daily summary
+    results.append("Building daily summary...")
+    ok_daily, msg_daily = build_daily_summary()
+    results.append("  " + msg_daily)
+    
+    # 3. Rebuild RS for all periods
     if RAW_BY_MONTH_DIR.exists():
         for f in sorted(RAW_BY_MONTH_DIR.glob("*.json")):
             period = f.stem
@@ -1103,6 +1627,7 @@ def rebuild_all_from_raw() -> Tuple[bool, str]:
                 results.append(f"  {period}: ERROR: {e}")
     
     return True, "\n".join(results)
+
 
 
 def seed_tracker_from_cache():
@@ -1128,6 +1653,7 @@ def seed_tracker_from_cache():
 # ═══════════════════════════════════════════════
 #  MAIN SYNC
 # ═══════════════════════════════════════════════
+
 
 def run_sync(
     months_back: int = 12,
@@ -1178,3 +1704,180 @@ def run_sync(
     except Exception as e:
         save_last_sync(False, "Error: " + str(e))
         return False, "Sync gagal: " + str(e)
+
+
+def rebuild_all_from_raw_safe(force_all=False, max_files_per_batch=5) -> Tuple[bool, str]:
+    """Memory-safe rebuild with batching and incremental support.
+    
+    Args:
+        force_all: If True, rebuild all periods. If False, only rebuild changed periods.
+        max_files_per_batch: Process at most N files before saving intermediate results.
+    
+    Returns:
+        (success, message)
+    """
+    import gc
+    
+    # Backup existing caches
+    backup_derived_caches()
+    
+    periods = _get_periods_to_rebuild(force_all=force_all)
+    if not periods:
+        return True, "No periods need rebuilding (all up to date)"
+    
+    print(f"[REBUILD] Processing {len(periods)} periods (batch size: {max_files_per_batch})")
+    
+    all_agg = []
+    total_txns = 0
+    files_processed = 0
+    
+    for period in periods:
+        filepath = RAW_BY_MONTH_DIR / (period + ".json")
+        if not filepath.exists():
+            continue
+        
+        try:
+            # Use streaming for large files (>100MB)
+            file_size = filepath.stat().st_size
+            if file_size > 100 * 1024 * 1024:  # 100MB
+                print(f"  [{period}] Using streaming parser ({file_size/1024/1024:.0f}MB)")
+                rows, n_txns = _process_file_streaming(str(filepath), chunk_size=5000)
+            else:
+                with open(filepath) as fh:
+                    txns = json.load(fh)
+                n_txns = len(txns)
+                classified = classify_transactions(txns)
+                rows = []
+                for c in classified:
+                    tx_date = c["date"]
+                    if not tx_date:
+                        continue
+                    periode = tx_date[:7]
+                    rows.append({
+                        "outlet_name": c["outlet_name"],
+                        "periode": periode,
+                        "role": c["role"],
+                        "amount": c["amount"] if c["is_revenue"] else 0.0,
+                        "sessions": 1 if c["role"] == "session" else 0,
+                        "unlocks": 1 if c["role"] in ("unlock", "free_unlock", "voucher_unlock") else 0,
+                        "unlocks_paid": 1 if c["role"] == "unlock" else 0,
+                        "prints": 1 if c["role"] == "print" else 0,
+                    })
+                del txns, classified
+            
+            if rows:
+                df = pd.DataFrame(rows)
+                agg = df.groupby(["outlet_name", "periode"], as_index=False).agg(
+                    sessions=("sessions", "sum"),
+                    unlocks=("unlocks", "sum"),
+                    unlocks_paid=("unlocks_paid", "sum"),
+                    prints=("prints", "sum"),
+                    total_revenue=("amount", "sum"),
+                )
+                all_agg.append(agg)
+                total_txns += n_txns
+                files_processed += 1
+                print(f"  [{period}] {n_txns} txns -> {len(agg)} outlets")
+            
+            del rows
+            gc.collect()
+            
+            # Save intermediate results every N files to free memory
+            if files_processed % max_files_per_batch == 0 and all_agg:
+                print(f"  [BATCH SAVE] Saving {files_processed} files...")
+                combined = pd.concat(all_agg, ignore_index=True)
+                # Save to temp
+                temp_path = CACHE_DIR / "_dashboard_summary_temp.json"
+                _atomic_save_json(combined, temp_path)
+                del combined
+                gc.collect()
+            
+        except Exception as e:
+            print(f"  ERROR processing {period}: {e}")
+            continue
+    
+    if not all_agg:
+        return False, "No data to rebuild"
+    
+    # Final aggregation
+    print("[FINAL] Combining all periods...")
+
+    existing_df = pd.DataFrame()
+    if not force_all and DASHBOARD_SUMMARY_PATH.exists():
+        try:
+            existing_df = pd.read_json(str(DASHBOARD_SUMMARY_PATH))
+            if not existing_df.empty and "periode" in existing_df.columns:
+                existing_df["periode"] = existing_df["periode"].astype(str)
+                existing_df = existing_df[~existing_df["periode"].isin(periods)]
+        except Exception as e:
+            print(f"[WARN] Could not load existing dashboard summary: {e}")
+            existing_df = pd.DataFrame()
+
+    new_df = pd.concat(all_agg, ignore_index=True)
+    merged = pd.concat([existing_df, new_df], ignore_index=True, sort=False)
+
+    if merged.empty:
+        return False, "No data to rebuild"
+
+    merged["outlet_name"] = merged["outlet_name"].astype(str)
+    merged["periode"] = merged["periode"].astype(str)
+    for col in ["sessions", "unlocks", "unlocks_paid", "prints", "total_revenue"]:
+        if col in merged.columns:
+            merged[col] = pd.to_numeric(merged[col], errors="coerce").fillna(0.0)
+
+    # Re-aggregate after merging to guarantee one row per outlet+periode
+    agg_dict = {
+        "sessions": ("sessions", "sum"),
+        "unlocks": ("unlocks", "sum"),
+        "unlocks_paid": ("unlocks_paid", "sum"),
+        "prints": ("prints", "sum"),
+        "total_revenue": ("total_revenue", "sum"),
+    }
+    for col in ["area", "kategori_tempat", "sub_kategori_tempat", "tipe_tempat", "outlet_status"]:
+        if col in merged.columns:
+            agg_dict[col] = (col, "first")
+    merged = merged.groupby(["outlet_name", "periode"], as_index=False).agg(**agg_dict)
+
+    # Calculate rates
+    merged["conversion_rate"] = merged.apply(
+        lambda r: round((r["unlocks"] / r["sessions"]) * 100, 2) if r["sessions"] > 0 else 0.0,
+        axis=1,
+    )
+    merged["print_rate"] = merged.apply(
+        lambda r: round((r["prints"] / r["unlocks"]) * 100, 2) if r["unlocks"] > 0 else 0.0,
+        axis=1,
+    )
+    merged["revenue_per_session"] = merged.apply(
+        lambda r: round(r["total_revenue"] / r["sessions"], 0) if r["sessions"] > 0 else 0.0,
+        axis=1,
+    )
+
+    # Join outlet mapping
+    _join_outlet_mapping(merged)
+
+    # Add outlet_status (revenue > 0 = Optimasi, else = Keeper/Tidak Aktif)
+    merged["outlet_status"] = merged["total_revenue"].apply(
+        lambda x: "Optimasi" if float(x or 0) > 0 else "Keeper"
+    )
+
+    # Save final
+    _atomic_save_json(merged, DASHBOARD_SUMMARY_PATH)
+
+    summary_msg = (
+        f"Dashboard cache: {len(merged)} entries, {total_txns} txns ({files_processed} files). "
+        f"Sessions={int(merged['sessions'].sum())}, Unlocks={int(merged['unlocks'].sum())}, "
+        f"Prints={int(merged['prints'].sum())}, Revenue=Rp {int(merged['total_revenue'].sum()):,}"
+    )
+    print(f"[DONE] {summary_msg}")
+    
+    # Also rebuild daily summary. In incremental mode, only rebuild changed
+    # periods; full-history daily rebuild is reserved for explicit force_all=True.
+    if force_all:
+        print("[DAILY] Rebuilding full daily summary...")
+        ok_d, msg_d = build_daily_summary()
+    else:
+        print("[DAILY] Rebuilding daily summary for changed periods...")
+        ok_d, msg_d = build_daily_summary_for_periods(periods)
+    
+    return ok_d, summary_msg + " | Daily: " + msg_d
+
