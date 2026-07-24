@@ -1775,6 +1775,30 @@ def create_page(c):
             ui.label(f"• {datetime.now().strftime('%d %b %Y %H:%M')}").classes(
                 "text-xs text-gray-500 ml-auto"
             )
+        ui.separator().classes("mb-3")
+
+        # ── Last Update Info ──
+        _info = _get_last_update_info()
+        with ui.row().classes("w-full items-center gap-2 mb-3"):
+            cache_str = _info.get("cache_time") or "-"
+            date_str = _info.get("latest_date") or "-"
+            hours = _info.get("hours_old")
+            if hours is not None and hours > 24:
+                color = "#ef4444"
+                icon = "🔴"
+            elif hours is not None and hours > 8:
+                color = "#f59e0b"
+                icon = "🟡"
+            else:
+                color = "#22c55e"
+                icon = "🟢"
+            ui.label(f"{icon} Update cache: {cache_str}").classes("text-xs").style(f"color: {color}")
+            ui.label(f"• Data terakhir: {date_str}").classes("text-xs text-gray-400")
+            if hours is not None:
+                ui.label(f"({hours:.0f}h yang lalu)").classes("text-xs").style(f"color: {color}")
+            else:
+                ui.label("(belum ada sync)").classes("text-xs text-red-400")
+            ui.label("• Sync tiap 6 jam").classes("text-xs text-gray-500 ml-auto")
         ui.separator().classes("mb-6")
 
         # STABLE dropdowns (never destroyed)
