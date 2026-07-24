@@ -33,6 +33,7 @@ from pages.revenue_sharing import create_page as create_revenue_page
 from pages.creative_team import create_page as create_creative_team_page
 from pages.pending import create_page as create_pending_page
 from pages.problem_booth import create_page as create_problem_booth_page
+from pages.daily_transactions import create_page as create_daily_page
 
 
 # ── Global state ──
@@ -485,6 +486,16 @@ def problem_booth():
     container = ui.column().classes("w-full p-6")
     create_problem_booth_page(container)
 
+
+
+@ui.page("/daily")
+def daily_transactions():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/daily")
+    create_daily_page(ui.column().classes("w-full p-6"))
 
 
 @ui.page("/kpi-sistem")
