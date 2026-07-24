@@ -932,7 +932,7 @@ def create_page(c):
                 ui.label(f"({hours:.0f}h yang lalu)").classes("text-xs").style(f"color: {color}")
             else:
                 ui.label("(belum ada sync)").classes("text-xs text-red-400")
-            ui.label("• Sync tiap 6 jam").classes("text-xs text-gray-500 ml-auto")
+            ui.label("• Sync tiap 1 jam").classes("text-xs text-gray-500 ml-auto")
         ui.separator().classes("mb-6")
 
         # STABLE dropdowns (never destroyed)
@@ -1798,7 +1798,7 @@ def create_page(c):
                 ui.label(f"({hours:.0f}h yang lalu)").classes("text-xs").style(f"color: {color}")
             else:
                 ui.label("(belum ada sync)").classes("text-xs text-red-400")
-            ui.label("• Sync tiap 6 jam").classes("text-xs text-gray-500 ml-auto")
+            ui.label("• Sync tiap 1 jam").classes("text-xs text-gray-500 ml-auto")
         ui.separator().classes("mb-6")
 
         # STABLE dropdowns (never destroyed)
