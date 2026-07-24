@@ -189,7 +189,7 @@ def create_page(container):
                 table_df["Konversi"] = table_df["conversion_rate"].apply(_fmt_pct)
                 
                 display_cols = ["#", "outlet_name", "Revenue", "Sesi", "Unlock", "Print", "Konversi"]
-                display_df = table_df[display_cols].rename(columns={"outlet_name": "Outlet"})
+                display_df = table_df[display_cols].copy()
                 
                 # Highlight row styling
                 rows_html = ""
