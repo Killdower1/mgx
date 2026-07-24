@@ -1,9 +1,6 @@
 """
-Sync Problem Booth data from ERPNext.
-Fetches all records, then regenerates:
-- problem_booth_cache_light.json (7MB)
-- problem_booth_summary.json (4KB)
-- problem_booth_monthly.json (42KB)
+Sync Problem Booth — now fetches subject field via ["*"] wildcard.
+Batch size reduced to 100 with stream=True to prevent timeout.
 """
 import json
 import sys
@@ -13,81 +10,78 @@ from datetime import datetime
 
 import requests
 
-# ── Config ──
 CONFIG_PATH = "/var/www/difotoin-dashboard/streamlit_template/config/erpnext_config.json"
 LIGHT_CACHE = "/var/www/difotoin-dashboard/problem_booth_cache_light.json"
 SUMMARY_PATH = "/var/www/difotoin-dashboard/problem_booth_summary.json"
 MONTHLY_PATH = "/var/www/difotoin-dashboard/problem_booth_monthly.json"
 
-# Working fields for Problem Booth
-WORKING_FIELDS = ["name", "nama_tempat", "nama_full", "branch", "tipeproblem",
-                  "description_problem", "status", "maintenance", "pbsolving",
-                  "pemilik", "visit", "device_error", "tanggal_foto",
-                  "creation", "modified", "password_krisbow_2", "owner", "modified_by"]
-
 
 def main():
-    # Load ERPNext config
     with open(CONFIG_PATH) as f:
         cfg = json.load(f)
     url = cfg["url"]
-    headers = {"Authorization": f"token {cfg['api_key']}:{cfg['api_secret']}"}
+    headers = {"Authorization": "token {}:{}".format(cfg["api_key"], cfg["api_secret"])}
 
-    print(f"🔧 Fetching Problem Booth from {url}...")
-
-    # Fetch all records with pagination
+    print("Fetching Problem Booth (wildcard)...")
     all_data = []
     limit_start = 0
+    page = 0
     while True:
+        page += 1
         try:
-            with requests.get(f"{url}/api/resource/Problem%20Booth", headers=headers,
-                params={"limit_page_length": 200, "limit_start": limit_start,
-                        "fields": json.dumps(WORKING_FIELDS)},
+            with requests.get("{}/api/resource/Problem%20Booth".format(url),
+                headers=headers,
+                params={"limit_page_length": 100, "limit_start": limit_start,
+                        "fields": '["*"]'},
                 stream=True, timeout=120) as r:
                 if r.status_code != 200:
-                    print(f"  Error at {limit_start}: {r.status_code}")
+                    print("Error at {}: {}".format(limit_start, r.status_code))
                     break
                 data = r.json().get("data", [])
                 if not data:
                     break
                 all_data.extend(data)
-                limit_start += 200
-                if limit_start % 2000 == 0:
-                    print(f"  {limit_start} records...")
-                if len(data) < 200:
+                limit_start += 100
+                if page % 10 == 0:
+                    print("  {} records...".format(limit_start))
+                if len(data) < 100:
                     break
         except Exception as e:
-            print(f"  Error at {limit_start}: {e}")
+            print("Error at {}: {}".format(limit_start, e))
             break
 
     total = len(all_data)
-    print(f"✅ Fetched {total} records")
-
+    print("Fetched {} records".format(total))
     if total == 0:
-        print("❌ No data fetched, aborting.")
         sys.exit(1)
 
     now = datetime.now().isoformat()
 
-    # ── 1. Lightweight cache (7MB) ──
+    # Save light cache with subject field
     light_records = []
     for r in all_data:
-        lr = {f: r.get(f) for f in WORKING_FIELDS if f in r}
-        desc = str(r.get("description_problem", ""))
-        desc_clean = desc.replace("<p>", " ").replace("</p>", " ").replace("<br>", " ").replace("<div", " ").replace("</div>", " ")
-        lr["description_problem"] = desc_clean[:150] if desc_clean else ""
+        lr = {}
+        # Keep all fields but truncate description
+        for k, v in r.items():
+            if k == "description_problem":
+                if v:
+                    clean = str(v).replace("<p>", " ").replace("</p>", " ").replace("<br>", " ")
+                    clean = clean.replace("<div", " ").replace("</div>", " ").replace('class="ql-editor read-mode"', "")
+                    lr[k] = clean[:150]
+                else:
+                    lr[k] = ""
+            else:
+                lr[k] = v
         light_records.append(lr)
 
     light_cache = {"last_sync": now, "total_records": total, "records": light_records}
     with open(LIGHT_CACHE, "w") as f:
         json.dump(light_cache, f)
-    light_size = os.path.getsize(LIGHT_CACHE) / 1024
-    print(f"  ✅ Light cache: {light_size:.0f}KB")
+    print("Light cache: {}KB".format(os.path.getsize(LIGHT_CACHE) // 1024))
 
-    # ── 2. Summary (4KB) ──
+    # Build summary (unchanged logic)
     def safe(v):
         return str(v).strip() if v is not None else ""
-
     statuses = Counter()
     tipeproblems = Counter()
     branches = Counter()
@@ -105,14 +99,13 @@ def main():
         d = r.get("tanggal_foto", "")
         if d:
             monthly_raw[str(d)[:7]] += 1
-
-        # Collect open problems
         if safe(r.get("status")).lower() in ("open", "on the way", "reopen", ""):
             if len(open_problems) < 20:
-                desc = str(r.get("description_problem", ""))
+                desc = str(r.get("description_problem", "") or "")
                 desc_clean = desc.replace("<p>", "").replace("</p>", " ").strip()[:100]
                 open_problems.append({
                     "name": r.get("name"),
+                    "subject": safe(r.get("subject")) or safe(r.get("nama_full")) or safe(r.get("nama_tempat")),
                     "nama_tempat": safe(r.get("nama_tempat")),
                     "tipeproblem": safe(r.get("tipeproblem")),
                     "status": safe(r.get("status")),
@@ -133,13 +126,12 @@ def main():
     }
     with open(SUMMARY_PATH, "w") as f:
         json.dump(summary, f)
-    print(f"  ✅ Summary: {os.path.getsize(SUMMARY_PATH)/1024:.0f}KB")
+    print("Summary: {}KB".format(os.path.getsize(SUMMARY_PATH) // 1024))
 
-    # ── 3. Monthly (42KB) ──
+    # Build monthly (unchanged)
     TOP_TIPES = ['Overheat', 'Listrik Mati', 'Camera', 'Printer',
                  'Remote Connection Issue', 'Flash', 'Others', 'Booth',
                  'Bug', 'Ganti Kertas', 'Print Manual', 'PC']
-
     monthly = {}
     for r in all_data:
         d = r.get("tanggal_foto", "")
@@ -182,6 +174,7 @@ def main():
         if len(m["latest_problems"]) < 3:
             m["latest_problems"].append({
                 "name": r.get("name"),
+                "subject": safe(r.get("subject")) or safe(r.get("nama_full")) or safe(r.get("nama_tempat")),
                 "nama_tempat": safe(r.get("nama_tempat")),
                 "tipeproblem": tipe,
                 "status": st or "Unknown",
@@ -201,8 +194,7 @@ def main():
 
     monthly_out = {
         "meta": {
-            "total_records": total,
-            "total_months": len(monthly),
+            "total_records": total, "total_months": len(monthly),
             "month_range": [sorted(monthly.keys())[0], sorted(monthly.keys())[-1]],
             "top_tipes": TOP_TIPES,
         },
@@ -210,9 +202,8 @@ def main():
     }
     with open(MONTHLY_PATH, "w") as f:
         json.dump(monthly_out, f)
-    print(f"  ✅ Monthly: {os.path.getsize(MONTHLY_PATH)/1024:.0f}KB ({len(monthly)} months)")
-
-    print(f"\n✅ Sync complete! {total} records, {now[:16]}")
+    print("Monthly: {}KB".format(os.path.getsize(MONTHLY_PATH) // 1024))
+    print("Done. Subject field now included in cache.")
 
 
 if __name__ == "__main__":

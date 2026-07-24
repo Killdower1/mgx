@@ -52,6 +52,8 @@ def classify_transaction(txn: dict) -> ClassifiedTransaction:
             role = TransactionRole.UNLOCK
         else:
             role = TransactionRole.UNKNOWN
+    elif tx_type == "vacation-unlock":
+        role = TransactionRole.UNLOCK
     elif tx_type_raw in (None, "") and has_capture:
         role = TransactionRole.SESSION
     else:

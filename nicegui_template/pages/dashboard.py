@@ -3,6 +3,8 @@ Dashboard v3 — dropdowns separate from content (stable), compare works.
 """
 
 from datetime import datetime
+import os
+import time
 from nicegui import ui
 import pandas as pd
 from services.dashboard_adapter import get_adapter
@@ -841,6 +843,41 @@ def _build_outlet_table(cpv, cmv):
             ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
 
 
+def _get_last_update_info() -> dict:
+    """Get data freshness info from cache file timestamps."""
+    from pathlib import Path
+    
+    info = {"cache_time": None, "latest_date": None, "hours_old": None, "is_fresh": True}
+    
+    # Dashboard summary freshness
+    cache_path = Path(__file__).resolve().parent.parent.parent
+    cache_path = cache_path / "streamlit_template" / "data" / "api_cache" / "dashboard_summary.json"
+    if cache_path.exists():
+        mtime = os.path.getmtime(str(cache_path))
+        dt = datetime.fromtimestamp(mtime)
+        info["cache_time"] = dt.strftime("%d %b %Y %H:%M")
+        info["hours_old"] = (time.time() - mtime) / 3600
+        info["is_fresh"] = info["hours_old"] <= 8
+    
+    # Latest date in raw data
+    raw_dir = cache_path.parent / "raw_by_month"
+    if raw_dir.exists():
+        files = sorted(raw_dir.glob("*.json"))
+        if files:
+            try:
+                import json as _j
+                with open(str(files[-1])) as _f:
+                    _data = _j.load(_f)
+                if _data:
+                    _dates = sorted(set(t.get("date","") for t in _data if t.get("date")))
+                    if _dates:
+                        info["latest_date"] = _dates[-1]
+            except Exception:
+                pass
+    
+    return info
+
+
 def set_filters(df, fdf, cp, cmp, area="Semua", kat="Semua", tip="Semua"):
     global _df, _ff, _cp, _cmp
     _df = df
@@ -871,6 +908,31 @@ def create_page(c):
             ui.label(f"• {datetime.now().strftime('%d %b %Y %H:%M')}").classes(
                 "text-xs text-gray-500 ml-auto"
             )
+        ui.separator().classes("mb-3")
+
+        # ── Last Update Info ──
+        _info = _get_last_update_info()
+        _info_row = ui.row().classes("w-full items-center gap-2 mb-3")
+        with _info_row:
+            cache_str = _info.get("cache_time") or "-"
+            date_str = _info.get("latest_date") or "-"
+            hours = _info.get("hours_old")
+            if hours is not None and hours > 24:
+                color = "#ef4444"  # red — stale
+                icon = "🔴"
+            elif hours is not None and hours > 8:
+                color = "#f59e0b"  # amber — aging
+                icon = "🟡"
+            else:
+                color = "#22c55e"  # green — fresh
+                icon = "🟢"
+            ui.label(f"{icon} Update cache: {cache_str}").classes("text-xs").style(f"color: {color}")
+            ui.label(f"• Data terakhir: {date_str}").classes("text-xs text-gray-400")
+            if hours is not None:
+                ui.label(f"({hours:.0f}h yang lalu)").classes("text-xs").style(f"color: {color}")
+            else:
+                ui.label("(belum ada sync)").classes("text-xs text-red-400")
+            ui.label("• Sync tiap 6 jam").classes("text-xs text-gray-500 ml-auto")
         ui.separator().classes("mb-6")
 
         # STABLE dropdowns (never destroyed)

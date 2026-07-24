@@ -176,6 +176,7 @@ ALL_NAV_ITEMS = [
     ("🎨 Creative Team", "/creative-team"),
     ("📤 Upload Data", "/upload"),
     ("🔧 Problem Booth", "/problem-booth"),
+    ("📊 KPI Sistem", "/kpi-sistem"),
 ]
 
 PAGE_STYLES = """<style>
@@ -483,6 +484,19 @@ def problem_booth():
     build_nav("/problem-booth")
     container = ui.column().classes("w-full p-6")
     create_problem_booth_page(container)
+
+
+
+@ui.page("/kpi-sistem")
+def kpi_sistem_page():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kpi-sistem")
+    from pages import kpi_sistem
+    container = ui.column().classes("w-full p-6")
+    kpi_sistem.create_page(container)
 
 
 if __name__ == "__main__":

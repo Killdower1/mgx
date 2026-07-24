@@ -8,6 +8,7 @@ from pathlib import Path
 
 from nicegui import ui
 
+from pages import kpi_sistem
 
 # ── Paths ──
 SUMMARY_PATH = Path("/var/www/difotoin-dashboard/problem_booth_summary.json")
@@ -53,6 +54,19 @@ def _fmt(n) -> str:
         return str(n)
 
 
+def _strip_html(text: str) -> str:
+    """Remove all HTML tags from text (Quill editor output, etc)."""
+    import re
+    if not text:
+        return ""
+    # Remove all HTML tags
+    clean = re.sub(r"<[^>]+>", " ", str(text))
+    # Normalize whitespace and entities
+    clean = clean.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    clean = " ".join(clean.split())
+    return clean.strip()
+
+
 def _month_name(m: str) -> str:
     """2026-07 → Jul 2026"""
     try:
@@ -62,6 +76,17 @@ def _month_name(m: str) -> str:
         return f"{months_en[dt.month]} {dt.year}"
     except Exception:
         return m
+
+
+def _outlet_label(rec: dict) -> str:
+    """Prefer outlet name (subject), fall back to other booth identifiers."""
+    for key in ("subject", "nama_full", "nama_tempat", "name"):
+        val = str(rec.get(key, "") or "").strip()
+        if val:
+            return val
+    return "?"
+
+
 
 
 # ═══════════════════════════════════════════════
@@ -174,7 +199,7 @@ def _render_dashboard_tab(s: dict):
             open_problems = s.get("open_problems", [])
             if open_problems:
                 for rec in open_problems:
-                    nama = rec.get("nama_tempat", "?")
+                    nama = _outlet_label(rec)
                     tipe = rec.get("tipeproblem", "")
                     badge = "🟢" if rec.get("status") == "Open" else "🟡"
                     with ui.row().classes("w-full items-start gap-2 py-1 border-b border-gray-800 last:border-b-0"):
@@ -182,7 +207,7 @@ def _render_dashboard_tab(s: dict):
                         with ui.column().classes("gap-0 flex-1"):
                             ui.label(f"{nama} — {tipe}").classes("text-xs font-semibold text-white")
                             if rec.get("description"):
-                                ui.label(rec["description"][:80]).classes("text-xs text-gray-400 truncate")
+                                ui.label(_strip_html(rec["description"])[:80]).classes("text-xs text-gray-400 truncate")
             else:
                 ui.label("Tidak ada problem open.").classes("text-xs text-gray-500 italic")
 
@@ -359,9 +384,10 @@ def _render_detail_tab(parent):
             with detail_container:
                 for _, rec in match.head(5).iterrows():
                     name = rec.get("name", "?")
+                    outlet = _outlet_label(rec.to_dict())
                     with ui.element("div").style(CARD).classes("w-full mb-4"):
                         with ui.row().classes("w-full items-center gap-4 mb-4"):
-                            ui.label(f"🔧 {name}").classes(MV)
+                            ui.label(f"🔧 {outlet}").classes(MV)
                             st = str(rec.get("status", "") or "")
                             sc = STATUS_COLORS.get(st, "#cdd6f4")
                             ui.element("div").style(f"background: {sc}; padding: 2px 12px; border-radius: 8px;").classes("")
@@ -372,11 +398,11 @@ def _render_detail_tab(parent):
                                         new_tab=True).classes("text-sm text-blue-400 ml-auto")
 
                         fields = [
-                            ("nama_tempat", "📍 Tempat"), ("branch", "🏙️ Branch"),
+                            ("subject", "📍 Nama Outlet"), ("nama_tempat", "🔢 Kode Mesin"),
+                            ("branch", "🏙️ Branch"),
                             ("tipeproblem", "🔧 Tipe"), ("maintenance", "🔧 PIC"),
                             ("pemilik", "🏢 Pemilik"), ("visit", "🚗 Visit"),
-                            ("device_error", "⚠️ Device Error"),
-                            ("tanggal_foto", "📅 Tanggal"), ("pbsolving", "💡 Solusi"),
+                            ("device_error", "⚠️ Device Error"), ("tanggal_foto", "📅 Tanggal"), ("pbsolving", "💡 Solusi"),
                         ]
                         for f, lbl in fields:
                             v = rec.get(f)
@@ -385,14 +411,15 @@ def _render_detail_tab(parent):
                             elif f == "device_error":
                                 v = "⚠️ Ya" if v == 1 else "✅ Tidak"
                             else:
-                                v = str(v or "—").strip()[:200]
+                                v = _strip_html(str(v or "—"))[:200]
                             ui.label(f"{lbl}: {v}").classes("text-xs text-gray-300 py-1 border-b border-gray-800")
 
                         desc = str(rec.get("description_problem", "") or "")
                         if desc:
-                            clean = desc.replace("<p>", "").replace("</p>", " ").replace("<br>", " | ")
-                            ui.label("📝 Deskripsi:").classes("text-xs font-semibold text-white mt-2 mb-1")
-                            ui.label(clean[:300]).classes("text-xs text-gray-300")
+                            clean = _strip_html(desc)
+                            if clean:
+                                ui.label("📝 Deskripsi:").classes("text-xs font-semibold text-white mt-2 mb-1")
+                                ui.label(clean[:300]).classes("text-xs text-gray-300")
 
         search_input.on("keydown.enter", _search)
         ui.button("🔍 Cari", on_click=_search).props("dense flat").classes("mt-2")
@@ -446,6 +473,7 @@ def _render_stat_tab(s: dict):
 # ═══════════════════════════════════════════════
 
 SYNC_SCRIPT = "/var/www/difotoin-dashboard/scripts/sync_problem_booth.py"
+SYNC_KPI_SCRIPT = "/var/www/difotoin-dashboard/scripts/sync_kpi_sistem.py"
 SYNC_VENV = "/var/www/difotoin-dashboard/nicegui_template/.venv/bin/python3"
 
 
@@ -458,16 +486,29 @@ def _sync_and_reload(container, tabs, panels):
 
     def _run_sync():
         try:
+            # Sync Problem Booth
             result = subprocess.run(
                 [SYNC_VENV, SYNC_SCRIPT],
                 capture_output=True, text=True, timeout=300,
             )
             if result.returncode == 0:
-                ui.notify(f"✅ Sync berhasil! {result.stdout[-200:]}", type="positive")
+                ui.notify("✅ Problem Booth sync OK", type="positive")
             else:
-                ui.notify(f"❌ Sync gagal: {result.stderr[-200:]}", type="negative")
+                ui.notify(f"⚠️ PB sync: {result.stderr[-100:]}", type="warning")
+            
+            # Sync KPI Sistem
+            ui.notify("⏳ Sync KPI Sistem...", type="info", close_button=False)
+            result2 = subprocess.run(
+                [SYNC_VENV, SYNC_KPI_SCRIPT],
+                capture_output=True, text=True, timeout=300,
+            )
+            if result2.returncode == 0:
+                ui.notify("✅ KPI Sistem sync OK", type="positive")
+            else:
+                ui.notify(f"⚠️ KPI sync: {result2.stderr[-100:]}", type="warning")
+                
         except subprocess.TimeoutExpired:
-            ui.notify("❌ Sync timeout (5 menit)", type="negative")
+            ui.notify("❌ Sync timeout", type="negative")
         except Exception as e:
             ui.notify(f"❌ Error: {e}", type="negative")
         # Rebuild page
@@ -524,6 +565,7 @@ def create_page(container: ui.column):
             ui.tab("monthly", label="📋 Data Per Bulan")
             ui.tab("detail", label="🔍 Cari ID")
             ui.tab("stats", label="📈 Statistik")
+            ui.tab("kpi", label="📊 KPI Sistem")
 
         with panels:
             with ui.tab_panel("dash"):
@@ -534,3 +576,5 @@ def create_page(container: ui.column):
                 _render_detail_tab(ui.column().classes("w-full"))
             with ui.tab_panel("stats"):
                 _render_stat_tab(s)
+            with ui.tab_panel("kpi"):
+                kpi_sistem.create_page(ui.column().classes("w-full"))

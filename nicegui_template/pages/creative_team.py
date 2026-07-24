@@ -87,28 +87,51 @@ def create_page(container: ui.column):
 # ═══════════════════════════════════════════════════════════
 
 def _load_optimasi_data() -> pd.DataFrame:
-    """Load dashboard summary and filter for Optimasi outlets."""
+    """Load dashboard summary and keep only outlets that are Optimasi in the last 3 full months."""
     try:
         data = load_dashboard_summary()
         if not data:
             return pd.DataFrame()
-        df = pd.DataFrame(data)
-        if df.empty or "outlet_status" not in df.columns:
-            return pd.DataFrame()
 
-        # Filter only Optimasi
-        df = df[df["outlet_status"] == "Optimasi"].copy()
+        df = pd.DataFrame(data)
+        if df.empty or "outlet_status" not in df.columns or "periode" not in df.columns:
+            return pd.DataFrame()
 
         # Ensure numeric columns
         for col in ["total_revenue", "foto_qty", "unlock_qty", "print_qty"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-        # Parse periode
-        if "periode" in df.columns:
-            df["periode_dt"] = pd.to_datetime(df["periode"], format="%Y-%m", errors="coerce")
-            df = df.sort_values("periode_dt")
+        # Parse periode and drop invalid rows early
+        df["periode_dt"] = pd.to_datetime(df["periode"], format="%Y-%m", errors="coerce")
+        df = df.dropna(subset=["periode_dt"]).copy()
+        if df.empty:
+            return pd.DataFrame()
 
+        # Use the last 3 FULL months only (exclude current running month)
+        current_period = pd.Period(datetime.now(), freq="M")
+        target_periods = [str(current_period - i) for i in (3, 2, 1)]
+
+        df = df[df["periode"].isin(target_periods)].copy()
+        if df.empty:
+            return pd.DataFrame()
+
+        # Keep only outlets that are Optimasi in ALL 3 target months
+        outlet_ok = (
+            df.groupby("outlet_name")
+            .agg(
+                period_count=("periode", "nunique"),
+                optimasi_all=("outlet_status", lambda s: (s == "Optimasi").all()),
+            )
+        )
+        valid_outlets = outlet_ok[(outlet_ok["period_count"] == 3) & (outlet_ok["optimasi_all"])]
+        if valid_outlets.empty:
+            return pd.DataFrame()
+
+        df = df[df["outlet_name"].isin(valid_outlets.index)].copy()
+        df["periode"] = pd.Categorical(df["periode"], categories=target_periods, ordered=True)
+        df = df.sort_values(["outlet_name", "periode"])
+        df["periode"] = df["periode"].astype(str)
         return df
     except Exception:
         return pd.DataFrame()
@@ -329,33 +352,20 @@ def _render_optimasi(container: ui.column, df: pd.DataFrame):
     with container:
         if df.empty:
             ui.label("Belum ada data outlet optimasi.").classes("text-gray-400 italic")
-            ui.label("Pastikan dashboard_summary.json tersedia dan memiliki data outlet_status='Optimasi'.").classes(
+            ui.label("Syarat: outlet harus Optimasi di 3 bulan full terakhir, tanpa bulan berjalan.").classes(
                 "text-xs text-gray-500")
             return
 
-        # Determine last 3 months
-        if "periode_dt" in df.columns:
-            all_periods = sorted(df["periode"].unique())
-            last_3 = all_periods[-3:] if len(all_periods) >= 3 else all_periods
-        else:
-            last_3 = []
-
-        # Filter for last 3 months
-        if last_3:
-            df_filtered = df[df["periode"].isin(last_3)].copy()
-        else:
-            df_filtered = df.copy()
-
-        if df_filtered.empty:
-            ui.label("Tidak ada data untuk 3 bulan terakhir.").classes("text-gray-400 italic")
+        last_3 = sorted(df["periode"].dropna().unique().tolist())
+        if len(last_3) != 3:
+            ui.label("Data 3 bulan penuh belum lengkap.").classes("text-gray-400 italic")
             return
 
-        # ── KPI Cards ──
-        total_outlet = df_filtered["outlet_name"].nunique()
-        total_omset = float(df_filtered["total_revenue"].sum())
+        # Aggregate final output per outlet across the 3 full months
+        total_outlet = df["outlet_name"].nunique()
+        total_omset = float(df["total_revenue"].sum())
         avg_omset = total_omset / total_outlet if total_outlet > 0 else 0
-        total_capture = int(df_filtered["foto_qty"].sum())
-        len(last_3)
+        total_capture = int(df["foto_qty"].sum())
 
         with ui.row().classes("w-full gap-3 mb-6"):
             kpis = [
@@ -372,13 +382,13 @@ def _render_optimasi(container: ui.column, df: pd.DataFrame):
 
         # ── Revenue Trend per Outlet ──
         with ui.card().classes("w-full mb-6").style(CARD):
-            ui.label(f"📈 Tren Omzet 3 Bulan — {total_outlet} Outlet Optimasi").style(SECTION_T)
-            _chart_optimasi_trend(df_filtered, last_3)
+            ui.label(f"📈 Tren Omzet 3 Bulan Full — {total_outlet} Outlet Optimasi Stabil").style(SECTION_T)
+            _chart_optimasi_trend(df, last_3)
 
         # ── Outlet Detail Table ──
         with ui.card().classes("w-full mb-6").style(CARD):
-            ui.label("🏪 Daftar Outlet Optimasi — Omzet 3 Bulan").style(SECTION_T)
-            _render_outlet_table(df_filtered, last_3)
+            ui.label("🏪 Daftar Outlet Optimasi — 3 Bulan Full Berturut-turut").style(SECTION_T)
+            _render_outlet_table(df, last_3)
 
 
 def _chart_optimasi_trend(df: pd.DataFrame, periods: list):

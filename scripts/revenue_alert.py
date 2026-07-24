@@ -34,7 +34,17 @@ def load_outlet_mapping():
 
 def load_daily():
     with open(DAILY_PATH) as f:
-        return json.load(f)
+        data = json.load(f)
+    # Backward compat: map old column names to new
+    for r in data:
+        if "revenue" not in r and "total_revenue" in r:
+            r["revenue"] = r["total_revenue"]
+        if "total_revenue" not in r and "revenue" in r:
+            r["total_revenue"] = r["revenue"]
+        for col in ["sessions", "unlocks", "unlocks_paid", "prints", "conversion_rate", "print_rate"]:
+            if col not in r:
+                r[col] = 0
+    return data
 
 
 def load_problems():
@@ -138,7 +148,7 @@ def _fmt_date(d):
         return d
 
 
-def format_revenue_alert(alerts, recent_dates, compare_dates):
+def format_revenue_alert(alerts, recent_dates, compare_dates, daily_data):
     """WhatsApp message: revenue alert only — no problem booth."""
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
     r_start = _fmt_date(recent_dates[0])
@@ -170,6 +180,20 @@ def format_revenue_alert(alerts, recent_dates, compare_dates):
     lines.append(f"📊 *Total:* Rp{total_loss:,.0f} dari Rp{total_compare:,.0f}")
     lines.append(f"📍 {len(alerts)} area | {total_outlets} outlet terdampak")
 
+
+    # Funnel summary
+    recent_sessions = sum(r.get("sessions", 0) for r in daily_data if r.get("date", "") in recent_dates)
+    recent_unlocks = sum(r.get("unlocks", 0) for r in daily_data if r.get("date", "") in recent_dates)
+    recent_prints = sum(r.get("prints", 0) for r in daily_data if r.get("date", "") in recent_dates)
+    
+    conv_rate = (recent_unlocks / recent_sessions * 100) if recent_sessions > 0 else 0
+    print_rate = (recent_prints / recent_unlocks * 100) if recent_unlocks > 0 else 0
+    
+    lines.append("")
+    lines.append("📊 *Funnel Summary (Last 3 Days)*")
+    lines.append(f"   📸 Sessions: {recent_sessions:,}")
+    lines.append(f"   🔓 Unlocks: {recent_unlocks:,} ({conv_rate:.1f}%)")
+    lines.append(f"   🖨️ Prints: {recent_prints:,} ({print_rate:.1f}%)")
     return "\n".join(lines)
 
 
@@ -238,7 +262,7 @@ def main():
         print(format_problem_summary(records))
     else:
         alerts, recent_dates, compare_dates = analyse(data, mapping)
-        print(format_revenue_alert(alerts, recent_dates, compare_dates))
+        print(format_revenue_alert(alerts, recent_dates, compare_dates, data))
 
 
 if __name__ == "__main__":

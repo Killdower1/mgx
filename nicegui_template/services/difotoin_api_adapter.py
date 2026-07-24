@@ -32,8 +32,8 @@ TOKEN_CREATE_URL = BASE_URL + "/api/tokens/create"
 TRANSACTIONS_URL = BASE_URL + "/api/transactions"
 
 # ── Default Account ──
-DEFAULT_EMAIL = "dataanalyst@difotoin.id"
-DEFAULT_PASSWORD = "1125toki"
+DEFAULT_EMAIL = None  # Moved to config
+DEFAULT_PASSWORD = None  # Moved to config
 
 
 # ═══════════════════════════════════════════════
@@ -54,12 +54,20 @@ def _save_config(cfg: dict):
 
 
 def get_credentials() -> tuple:
-    """Return (email, password)."""
+    """Return (email, password) from config file.
+    
+    Raises ValueError if email/password are not configured.
+    Credentials belong in streamlit_template/config/difotoin_api_config.json.
+    """
     cfg = _load_config()
-    return (
-        cfg.get("email", DEFAULT_EMAIL),
-        cfg.get("password", DEFAULT_PASSWORD),
-    )
+    email = cfg.get("email") or DEFAULT_EMAIL
+    password = cfg.get("password") or DEFAULT_PASSWORD
+    if not email or not password:
+        raise ValueError(
+            "API credentials not configured! "
+            "Add email/password to streamlit_template/config/difotoin_api_config.json"
+        )
+    return (email, password)
 
 
 def get_stored_token() -> Optional[str]:
