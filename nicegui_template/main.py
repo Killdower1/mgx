@@ -176,6 +176,7 @@ ALL_NAV_ITEMS = [
     ("💵 Revenue Sharing", "/revenue-sharing"),
     ("🎨 Creative Team", "/creative-team"),
     ("📤 Upload Data", "/upload"),
+    ("📊 Transaksi Harian", "/daily"),
     ("🔧 Problem Booth", "/problem-booth"),
     ("📊 KPI Sistem", "/kpi-sistem"),
 ]
