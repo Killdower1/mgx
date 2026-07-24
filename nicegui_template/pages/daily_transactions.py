@@ -1,27 +1,19 @@
-"""
-📊 Transaksi Harian — daily transaction dashboard.
-Data source: daily_summary.json (pre-computed from raw_by_month)
-"""
+"""Transaksi Harian — daily transaction dashboard, last 60 days."""
 import json
-from datetime import datetime, timedelta, date
+from datetime import datetime
 from pathlib import Path
 
 from nicegui import ui
 import pandas as pd
 
-# ── Paths ──
 DAILY_SUMMARY_PATH = Path(__file__).resolve().parent.parent.parent
 DAILY_SUMMARY_PATH = DAILY_SUMMARY_PATH / "streamlit_template" / "data" / "api_cache" / "daily_summary.json"
 
 CARD = "background:#1e1e2e;border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.3);"
-MV = "font-size:1.3rem;font-weight:700;color:#cdd6f4;"
-ML = "font-size:0.8rem;color:#a6adc8;text-transform:uppercase;letter-spacing:0.5px;"
 
 _df_cache = None
 
-
-def _load_data() -> pd.DataFrame:
-    """Load daily summary data."""
+def _load_data():
     global _df_cache
     if _df_cache is not None:
         return _df_cache
@@ -31,9 +23,10 @@ def _load_data() -> pd.DataFrame:
         with open(DAILY_SUMMARY_PATH) as f:
             data = json.load(f)
         _df_cache = pd.DataFrame(data)
-        for col in ["date", "outlet_name"]:
-            if col in _df_cache.columns:
-                _df_cache[col] = _df_cache[col].astype(str)
+        if "date" in _df_cache.columns:
+            _df_cache["date"] = pd.to_datetime(_df_cache["date"], errors="coerce")
+        cutoff = pd.Timestamp.now() - pd.Timedelta(days=90)
+        _df_cache = _df_cache[_df_cache["date"] >= cutoff].copy()
         for col in ["sessions", "unlocks", "unlocks_paid", "prints"]:
             if col in _df_cache.columns:
                 _df_cache[col] = pd.to_numeric(_df_cache[col], errors="coerce").fillna(0).astype(int)
@@ -44,185 +37,146 @@ def _load_data() -> pd.DataFrame:
     except Exception:
         return pd.DataFrame()
 
-
 def _fmt_rp(v):
     try:
-        return f"Rp {int(round(float(v))):,}".replace(",", ".")
+        return "Rp " + ("{:,.0f}".format(round(float(v)))).replace(",", ".")
     except (ValueError, TypeError):
         return "Rp 0"
 
-
 def _fmt_pct(v):
     try:
-        return f"{float(v):.1f}".replace(".", ",") + "%"
+        return "{:.1f}".format(float(v)).replace(".", ",") + "%"
     except (ValueError, TypeError):
         return "0,0%"
 
-
 def _fmt_n(v):
     try:
-        return f"{int(round(float(v))):,}".replace(",", ".")
+        return "{:,.0f}".format(round(float(v))).replace(",", ".")
     except (ValueError, TypeError):
         return str(v)
 
-
-def _get_available_dates(df: pd.DataFrame) -> list:
-    if df.empty or "date" not in df.columns:
-        return []
-    dates = sorted(df["date"].dropna().unique().tolist(), reverse=True)
-    return dates
-
-
-def _date_label(d: str) -> str:
-    try:
-        dt = datetime.strptime(d, "%Y-%m-%d")
-        today = date.today()
-        if dt.date() == today:
-            return f"Hari Ini ({d})"
-        yesterday = today - timedelta(days=1)
-        if dt.date() == yesterday:
-            return f"Kemarin ({d})"
-        days = (today - dt.date()).days
-        return f"{dt.strftime('%d %b %Y')} ({days}h lalu)"
-    except Exception:
-        return d
-
-
 def create_page(container):
-    """Create the daily transaction page."""
     df = _load_data()
-    dates = _get_available_dates(df)
-    
-    if df.empty or not dates:
+    if df.empty or "date" not in df.columns:
         with container:
-            ui.label("📊 Transaksi Harian").classes("text-2xl font-bold text-white mb-4")
-            ui.label("⏳ Data belum tersedia. Tunggu sync berikutnya.").classes("text-gray-400")
+            ui.label("Data belum tersedia.").classes("text-gray-400")
         return
-    
-    selected_date = dates[0]  # default to latest
-    
+
+    all_dates = sorted(df["date"].dropna().unique())
+    cutoff_60 = pd.Timestamp.now() - pd.Timedelta(days=60)
+    recent_dates = sorted(d for d in all_dates if d >= cutoff_60)
+    if not recent_dates:
+        recent_dates = [all_dates[-1]] if all_dates else []
+    if not recent_dates:
+        with container:
+            ui.label("Belum ada data transaksi harian.").classes("text-gray-400")
+        return
+
+    date_strs = [d.strftime("%Y-%m-%d") for d in recent_dates]
+    selected_str = date_strs[-1]
+
     with container:
-        ui.add_head_html("""<style>
-            .daily-card:hover { transform: translateY(-2px); transition: all 0.2s; }
-        </style>""")
-        
-        # ── Header ──
+        ui.add_head_html("<style>.daily-card:hover{transform:translateY(-2px);transition:all 0.2s}</style>")
+
         with ui.row().classes("w-full items-center gap-3 mb-2"):
-            ui.label("📊").classes("text-3xl")
+            ui.label("\U0001f4ca").classes("text-3xl")
             ui.label("Transaksi Harian").classes("text-2xl font-bold text-white")
-            ui.label("— Per Outlet").classes("text-lg text-gray-400")
-            ui.label(f"• {datetime.now().strftime('%d %b %Y %H:%M')}").classes(
-                "text-xs text-gray-500 ml-auto"
-            )
+            ui.label("— 60 Hari Terakhir").classes("text-lg text-gray-400")
+            ui.label("\u2022 " + datetime.now().strftime("%d %b %Y %H:%M")).classes("text-xs text-gray-500 ml-auto")
         ui.separator().classes("mb-4")
-        
-        # ── Date Picker ──
-        date_select = ui.select(
-            dates,
-            value=selected_date,
-            label="Pilih Tanggal",
+
+        dp = ui.select(
+            date_strs, value=selected_str, label="Pilih Tanggal",
         ).props("dense outlined dark").classes("w-72 mb-4")
-        
-        # Container for content
+
         content = ui.column().classes("w-full")
-        
-        def _render(sel_date: str):
+
+        def _update(sel_str):
             content.clear()
-            if not sel_date or sel_date not in dates:
+            if not sel_str:
                 return
-            
-            # Filter data for selected date
-            day_df = df[df["date"] == sel_date].copy()
+            sel_dt = pd.Timestamp(sel_str)
+            day_df = df[df["date"] == sel_dt]
             if day_df.empty:
                 with content:
-                    ui.label(f"Tidak ada data untuk {sel_date}").classes("text-gray-400")
+                    ui.label("Tidak ada data untuk " + sel_str).classes("text-gray-400")
                 return
-            
-            # ── Summary Cards ──
-            total_rev = day_df["revenue"].sum()
-            total_sessions = day_df["sessions"].sum()
-            total_unlocks = day_df["unlocks_paid"].sum()
-            total_prints = day_df["prints"].sum()
-            active_outlets = len(day_df[day_df["sessions"] > 0])
-            conv_rate = (total_unlocks / total_sessions * 100) if total_sessions > 0 else 0
-            
+
+            rev = day_df["revenue"].sum()
+            sess = day_df["sessions"].sum()
+            unlocks = day_df["unlocks_paid"].sum()
+            prints = day_df["prints"].sum()
+            active = int((day_df["sessions"] > 0).sum())
+            conv = (unlocks / sess * 100) if sess > 0 else 0
+
             with content:
-                with ui.row().classes("w-full gap-4 mb-6"):
-                    cards = [
-                        ("💰 Total Revenue", _fmt_rp(total_rev), "#89b4fa"),
-                        ("📸 Sessions", _fmt_n(total_sessions), "#a6e3a1"),
-                        ("🔓 Unlock Berbayar", _fmt_n(total_unlocks), "#f9e2af"),
-                        ("🖨️ Print", _fmt_n(total_prints), "#f38ba8"),
-                        ("🏪 Outlet Aktif", _fmt_n(active_outlets), "#cba6f7"),
-                        ("📈 Konversi", _fmt_pct(conv_rate), "#94e2d5"),
-                    ]
-                    for label, value, color in cards:
-                        with ui.card().classes("daily-card flex-1 min-w-[140px]").style(CARD):
-                            ui.label(label).classes("text-xs").style(f"color:{color};text-transform:uppercase;letter-spacing:0.5px;")
-                            ui.label(value).classes("text-xl font-bold text-white mt-1")
-                
-                # ── Date context ──
-                try:
-                    sel_dt = datetime.strptime(sel_date, "%Y-%m-%d").date()
-                    prev_date = (sel_dt - timedelta(days=1)).isoformat()
-                    if prev_date in dates:
-                        prev_df = df[df["date"] == prev_date]
-                        prev_rev = prev_df["revenue"].sum()
-                        diff = total_rev - prev_rev
-                        pct = (diff / prev_rev * 100) if prev_rev > 0 else 0
-                        arrow = "🟢" if diff >= 0 else "🔴"
-                        ui.label(f"{arrow} {_date_label(sel_date)} vs {prev_date}: {_fmt_rp(diff)} ({pct:+.1f}%)").classes(
-                            "text-xs text-gray-400 mb-4"
-                        )
-                except Exception:
-                    pass
-                
-                # ── Outlet Table ──
-                ui.label("📋 Perbandingan Outlet").classes("text-sm font-semibold text-gray-300 mb-2")
-                
-                table_df = day_df.sort_values("revenue", ascending=False).reset_index(drop=True)
-                table_df["#"] = range(1, len(table_df) + 1)
-                table_df["Revenue"] = table_df["revenue"].apply(_fmt_rp)
-                table_df["Sesi"] = table_df["sessions"].apply(_fmt_n)
-                table_df["Unlock"] = table_df["unlocks_paid"].apply(_fmt_n)
-                table_df["Print"] = table_df["prints"].apply(_fmt_n)
-                table_df["Konversi"] = table_df["conversion_rate"].apply(_fmt_pct)
-                
-                display_cols = ["#", "outlet_name", "Revenue", "Sesi", "Unlock", "Print", "Konversi"]
-                display_df = table_df[display_cols].copy()
-                
-                # Highlight row styling
+                with ui.row().classes("w-full gap-4 mb-4"):
+                    for lb, vl, cl in [
+                        ("\U0001f4b0 Revenue", _fmt_rp(rev), "#89b4fa"),
+                        ("\U0001f4f8 Sessions", _fmt_n(sess), "#a6e3a1"),
+                        ("\U0001f513 Unlock Bayar", _fmt_n(unlocks), "#f9e2af"),
+                        ("\U0001f5a8 Print", _fmt_n(prints), "#f38ba8"),
+                        ("\U0001f3ea Outlet Aktif", _fmt_n(active), "#cba6f7"),
+                        ("\U0001f4c8 Konversi", _fmt_pct(conv), "#94e2d5"),
+                    ]:
+                        with ui.card().classes("daily-card flex-1 min-w-[130px]").style(CARD):
+                            ui.label(lb).classes("text-xs").style("color:" + cl + ";text-transform:uppercase;letter-spacing:.5px;")
+                            ui.label(vl).classes("text-xl font-bold text-white mt-1")
+
+                # Comparison with yesterday
+                prev_dt = sel_dt - pd.Timedelta(days=1)
+                prev_df = df[df["date"] == prev_dt]
+                if not prev_df.empty:
+                    prev_rev = prev_df["revenue"].sum()
+                    diff = rev - prev_rev
+                    pct = (diff / prev_rev * 100) if prev_rev > 0 else 0
+                    arrow = "\U0001f7e2" if diff >= 0 else "\U0001f534"
+                    ui.label("{} vs {}: {} ({:+.1f}%)".format(
+                        arrow, prev_dt.strftime("%d %b"), _fmt_rp(diff), pct
+                    )).classes("text-xs text-gray-400 mb-3")
+
+                # Outlet ranking table
+                ui.label("\U0001f4cb Outlet Ranking").classes("text-sm font-semibold text-gray-300 mb-2")
+
+                tbl = day_df.sort_values("revenue", ascending=False).reset_index(drop=True)
+                tbl["No"] = range(1, len(tbl) + 1)
+                tbl["Outlet"] = tbl.get("outlet_name", "")
+                tbl["Revenue"] = tbl["revenue"].apply(_fmt_rp)
+                tbl["Sesi"] = tbl["sessions"].apply(_fmt_n)
+                tbl["Unlock"] = tbl["unlocks_paid"].apply(_fmt_n)
+                tbl["Print"] = tbl["prints"].apply(_fmt_n)
+                tbl["Konv"] = tbl["conversion_rate"].apply(_fmt_pct)
+
+                cols = ["No", "Outlet", "Revenue", "Sesi", "Unlock", "Print", "Konv"]
+
                 rows_html = ""
-                for _, row in display_df.iterrows():
-                    bg = "background:#2a2a3e" if row["#"] % 2 == 0 else ""
-                    rows_html += f"<tr style='{bg}border-bottom:1px solid #313244;'>"
-                    for col in display_cols:
-                        align = "right" if col != "#" and col != "Outlet" else "left"
-                        style = f"padding:6px 10px;text-align:{align};font-size:12px;"
-                        if col == "Revenue":
+                for i in range(len(tbl)):
+                    r = tbl.iloc[i]
+                    bg = "#2a2a3e" if i % 2 == 0 else ""
+                    rows_html += "<tr style='background:{};border-bottom:1px solid #313244;'>".format(bg)
+                    for c in cols:
+                        al = "right" if c not in ("No", "Outlet") else "left"
+                        style = "padding:6px 10px;text-align:{};font-size:12px;".format(al)
+                        if c == "Revenue":
                             style += "color:#89b4fa;font-weight:600;"
-                        rows_html += f"<td style='{style}'>{row[col]}</td>"
+                        rows_html += "<td style='{}'>{}</td>".format(style, r[c])
                     rows_html += "</tr>"
-                
-                html = f"""<div style="overflow-x:auto;border-radius:8px;border:1px solid #313244;background:#1e1e2e;">
-                    <table style="width:100%;border-collapse:collapse;">
-                        <thead>
-                            <tr style="background:#181825;border-bottom:2px solid #313244;">
-                                {''.join(f'<th style="padding:8px 10px;text-align:{"right" if c!="#" and c!="Outlet" else "left"};font-size:11px;color:#a6adc8;text-transform:uppercase;">{c}</th>' for c in display_cols)}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows_html}
-                        </tbody>
-                    </table>
-                </div>"""
-                ui.html(html).classes("w-full")
-        
-        # Date change handler
-        def _on_date_change(e):
-            _render(e.value)
-        
-        date_select.on("update:model-value", _on_date_change)
-        
-        # Initial render
-        _render(selected_date)
+
+                hdr_html = ""
+                for c in cols:
+                    al = "right" if c not in ("No", "Outlet") else "left"
+                    hdr_html += "<th style='padding:8px 10px;text-align:{};font-size:11px;color:#a6adc8;text-transform:uppercase;'>{}</th>".format(al, c)
+
+                table_html = (
+                    "<div style='overflow-x:auto;border-radius:8px;border:1px solid #313244;background:#1e1e2e;'>"
+                    "<table style='width:100%;border-collapse:collapse;'>"
+                    "<thead><tr style='background:#181825;border-bottom:2px solid #313244;'>"
+                    + hdr_html + "</tr></thead><tbody>" + rows_html + "</tbody></table></div>"
+                )
+                ui.html(table_html).classes("w-full")
+
+        def _on_change(e):
+            _update(e.value)
+
+        dp.on("update:model-value", _on_change)
+        _update(selected_str)
