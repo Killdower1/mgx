@@ -372,31 +372,31 @@ def create_page(container: ui.column):
                 if count == 0:
                     continue
                 leads_df = df[df["name"].isin(ids_set)] if ids_set else pd.DataFrame()
-                with ui.expansion(f"{icon} {label}: {count} lead", icon="list", value=(count <= 5)).classes("w-full mb-1"):
-                    if leads_df.empty:
-                        ui.label("Tidak ada data.").classes("text-gray-400 italic")
-                    else:
-                        trows = []
-                        for _, r in leads_df.iterrows():
-                            trows.append({
-                                "Outlet": r.get("nama_tempat", "-") or "-",
-                                "Kota": r.get("kota_lokasi", "-") or "-",
-                                "Status": r.get("status_lead", "-") or "-",
-                                "Tgl": _find_date(r, date_cols),
-                                "PIC": r.get("nama_pic", "-") or "-",
-                            })
-                        trows.sort(key=lambda x: x["Tgl"], reverse=True)
-                        ui.table(
-                            rows=trows,
-                            columns=[
-                                {"name": "Outlet", "label": "Outlet", "field": "Outlet", "align": "left"},
-                                {"name": "Kota", "label": "Kota", "field": "Kota", "align": "left"},
-                                {"name": "Status", "label": "Status", "field": "Status", "align": "center"},
-                                {"name": "Tgl", "label": "Tanggal", "field": "Tgl", "align": "center"},
-                                {"name": "PIC", "label": "PIC", "field": "PIC", "align": "left"},
-                            ],
-                            row_key="Outlet",
-                        ).props("dense dark flat bordered").classes("w-full")
+                ui.label(f"{icon} {label}: {count} lead").classes("text-sm font-semibold text-gray-300 mt-3 mb-1")
+                if leads_df.empty:
+                    ui.label("Tidak ada data.").classes("text-gray-400 italic")
+                else:
+                    trows = []
+                    for _, r in leads_df.iterrows():
+                        trows.append({
+                            "Outlet": r.get("nama_tempat", "-") or "-",
+                            "Kota": r.get("kota_lokasi", "-") or "-",
+                            "Status": r.get("status_lead", "-") or "-",
+                            "Tgl": _find_date(r, date_cols),
+                            "PIC": r.get("nama_pic", "-") or "-",
+                        })
+                    trows.sort(key=lambda x: x["Tgl"], reverse=True)
+                    ui.table(
+                        rows=trows,
+                        columns=[
+                            {"name": "Outlet", "label": "Outlet", "field": "Outlet", "align": "left"},
+                            {"name": "Kota", "label": "Kota", "field": "Kota", "align": "left"},
+                            {"name": "Status", "label": "Status", "field": "Status", "align": "center"},
+                            {"name": "Tgl", "label": "Tanggal", "field": "Tgl", "align": "center"},
+                            {"name": "PIC", "label": "PIC", "field": "PIC", "align": "left"},
+                        ],
+                        row_key="Outlet",
+                    ).props("dense dark flat bordered").classes("w-full")
 
             with ui.card().classes("w-full mb-6").style(CARD):
                 ui.label("📊 Grafik Tren Bulanan").style(ST)
