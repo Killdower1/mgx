@@ -93,6 +93,174 @@ def _fetch_and_rebuild(container):
     create_page(container)
 
 
+
+def _build_monthly_summary_kemitraan(df: pd.DataFrame) -> pd.DataFrame:
+    """Per-month summary from Lead Kemitraan snapshot."""
+    if df.empty:
+        return pd.DataFrame()
+    work = df.copy()
+    id_col = "name" if "name" in work.columns else None
+    if id_col is None:
+        work = work.reset_index(drop=False).rename(columns={work.index.name or "index": "name"})
+        id_col = "name"
+
+    def _month_sets(cols):
+        out = {}
+        for col in cols:
+            if col not in work.columns:
+                continue
+            ts = pd.to_datetime(work[col], errors="coerce")
+            for idx2, val in ts.dropna().items():
+                month = str(val.to_period("M"))
+                out.setdefault(month, set()).add(str(work.at[idx2, id_col]))
+        return out
+
+    created = _month_sets(["creation"])
+    updated = _month_sets(["modified", "last_follow_up", "next_follow_up", "status_updated_at"])
+
+    months = sorted(set(created.keys()) | set(updated.keys()))
+    rows = []
+    for month in months:
+        rows.append({
+            "Month": month,
+            "Lead Masuk": len(created.get(month, set())),
+            "Lead Update": len(updated.get(month, set())),
+        })
+    summary = pd.DataFrame(rows)
+    if not summary.empty:
+        summary["_period"] = pd.PeriodIndex(summary["Month"], freq="M")
+        summary = summary.sort_values("_period").drop(columns=["_period"]).reset_index(drop=True)
+    return summary
+
+
+def _render_kemitraan_monthly_inline():
+    """Render monthly achievements inline in tab panel."""
+    df = load_lk_data()
+    ci = get_cache_info().get("lead_kemitraan", {})
+
+    _user_email = get_current_email()
+    _user_name = get_current_name()
+    _role = get_current_role()
+    if _role not in ("admin", "manager") and not df.empty:
+        df = filter_by_staff(df, _user_email, _user_name)
+
+    if df.empty:
+        ui.label("Belum ada data Lead Kemitraan dari ERPNext.").classes("text-gray-400 italic")
+        if ci.get("last_sync"):
+            ui.label("Terakhir sync: " + str(ci["last_sync"])[:16]).classes("text-xs text-gray-500")
+        return
+
+    monthly = _build_monthly_summary_kemitraan(df)
+    if monthly.empty:
+        ui.label("Belum ada data bulanan yang bisa ditampilkan.").classes("text-gray-400 italic")
+        return
+
+    latest = monthly.iloc[-1]
+    with ui.card().classes("w-full mb-6").style(CARD):
+        ui.label("\U0001f4c8 Ringkasan Bulanan").style(SECTION_T)
+        ui.label("Periode terbaru: " + str(latest["Month"])).classes("text-xs text-gray-400 mb-3")
+        with ui.row().classes("w-full gap-3 mb-4"):
+            for lbl, val in [
+                ("\U0001f4e5 Lead Masuk", _fmt_num(latest["Lead Masuk"])),
+                ("\U0001f6e0\ufe0f Lead Update", _fmt_num(latest["Lead Update"])),
+            ]:
+                with ui.card().classes("flex-1 min-w-[120px]").style(CARD):
+                    ui.label(lbl).style(METRIC_LBL)
+                    ui.label(val).style(METRIC_VAL)
+
+    # Lead detail tables
+    latest_month = str(latest["Month"])
+
+    def _month_ids(col):
+        if col not in df.columns:
+            return set()
+        ts2 = pd.to_datetime(df[col], errors="coerce")
+        ids = set()
+        for idx2, val in ts2.dropna().items():
+            if str(val.to_period("M")) == latest_month:
+                ids.add(str(df.at[idx2, "name"]))
+        return ids
+
+    created_set = _month_ids("creation")
+    updated_set = (_month_ids("modified") | _month_ids("last_follow_up") |
+                   _month_ids("next_follow_up") | _month_ids("status_updated_at"))
+
+    def _find_date(row, cols):
+        for col in cols:
+            if col in row and pd.notna(row[col]) and str(row[col]).strip():
+                dt = pd.to_datetime(row[col], errors="coerce")
+                if pd.notna(dt):
+                    return str(dt)[:16]
+        return "-"
+
+    metrics = [
+        ("Lead Masuk", "\U0001f4e5", created_set, ["creation"]),
+        ("Lead Update", "\U0001f6e0\ufe0f", updated_set,
+         ["modified", "last_follow_up", "next_follow_up", "status_updated_at"]),
+    ]
+
+    for label, icon, ids_set, date_cols in metrics:
+        count = len(ids_set)
+        if count == 0:
+            continue
+        leads_df = df[df["name"].isin(ids_set)] if ids_set else pd.DataFrame()
+        ui.label(icon + " " + label + ": " + str(count) + " lead").classes("text-sm font-semibold text-gray-300 mt-3 mb-1")
+        if leads_df.empty:
+            ui.label("Tidak ada data.").classes("text-gray-400 italic")
+        else:
+            trows = []
+            for _, r in leads_df.iterrows():
+                trows.append({
+                    "Nama": r.get("nama_lengkap", r.get("lead_name", "-")) or "-",
+                    "Kota": r.get("kota_domisili", "-") or "-",
+                    "Status": r.get("status_lead", "-") or "-",
+                    "Tgl": _find_date(r, date_cols),
+                    "Sales": r.get("sales_pic", "-") or "-",
+                })
+            trows.sort(key=lambda x: x["Tgl"], reverse=True)
+            ui.table(
+                rows=trows,
+                columns=[
+                    {"name": "Nama", "label": "Nama", "field": "Nama", "align": "left"},
+                    {"name": "Kota", "label": "Kota", "field": "Kota", "align": "left"},
+                    {"name": "Status", "label": "Status", "field": "Status", "align": "center"},
+                    {"name": "Tgl", "label": "Tanggal", "field": "Tgl", "align": "center"},
+                    {"name": "Sales", "label": "Sales PIC", "field": "Sales", "align": "left"},
+                ],
+                row_key="Nama",
+            ).props("dense dark flat bordered").classes("w-full")
+
+    # Graph
+    if len(monthly) > 1:
+        with ui.card().classes("w-full mb-6").style(CARD):
+            ui.label("\U0001f4ca Grafik Tren Bulanan").style(SECTION_T)
+            # Custom monthly trend from summary
+            months = monthly["Month"].tolist()
+            masuk_vals = monthly["Lead Masuk"].tolist()
+            update_vals = monthly["Lead Update"].tolist()
+            ui.echart({
+                "tooltip": {"trigger": "axis"},
+                "legend": {"data": ["Lead Masuk", "Lead Update"], "textStyle": {"color": "#cdd6f4"}},
+                "grid": {"left": "3%", "right": "4%", "bottom": "15%", "containLabel": True},
+                "xAxis": {"type": "category", "data": months,
+                          "axisLabel": {"color": "#a6adc8", "fontSize": 10},
+                          "axisLine": {"lineStyle": {"color": "#45475a"}}},
+                "yAxis": {"type": "value",
+                          "axisLabel": {"color": "#a6adc8"},
+                          "splitLine": {"lineStyle": {"color": "#313244"}}},
+                "series": [
+                    {"name": "Lead Masuk", "type": "line", "data": masuk_vals,
+                     "smooth": True, "symbol": "circle", "symbolSize": 6,
+                     "lineStyle": {"color": "#89b4fa", "width": 2},
+                     "itemStyle": {"color": "#89b4fa"}},
+                    {"name": "Lead Update", "type": "line", "data": update_vals,
+                     "smooth": True, "symbol": "diamond", "symbolSize": 6,
+                     "lineStyle": {"color": "#a6e3a1", "width": 2},
+                     "itemStyle": {"color": "#a6e3a1"}},
+                ],
+            }).classes("w-full h-[250px]")
+
+
 def create_page(container: ui.column):
     """Build the Lead Kemitraan page."""
     container.clear()
@@ -189,12 +357,15 @@ def create_page(container: ui.column):
         with tabs:
             ui.tab("dashboard", label="📊 Dashboard Lead Kemitraan")
             ui.tab("daftar", label="Daftar Lead")
+            ui.tab("bulanan", label="📈 Bulanan")
             ui.tab("master", label="📋 Master Data")
         with tab_panels:
             with ui.tab_panel("dashboard"):
                 _dash_container = ui.column().classes("w-full")
             with ui.tab_panel("daftar"):
                 _daftar_container = ui.column().classes("w-full")
+            with ui.tab_panel("bulanan"):
+                _render_kemitraan_monthly_inline()
             with ui.tab_panel("master"):
                 _master_container = ui.column().classes("w-full")
 
