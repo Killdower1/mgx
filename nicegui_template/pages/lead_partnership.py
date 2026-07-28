@@ -60,6 +60,107 @@ def _extract_ig_username(url) -> str:
     return m.group(1) if m else "-"
 
 
+def _build_monthly_achievement_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """Build per-month achievement counts from the current Lead Partnership snapshot.
+
+    Lead Update is a unique-lead monthly count based on any meaningful change signal
+    we can observe from the snapshot cache (modified/follow-up/stage timestamps).
+    Closing is the union of Approved + Live for the same month.
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    work = df.copy()
+    id_col = "name" if "name" in work.columns else None
+    if id_col is None:
+        work = work.reset_index(drop=False).rename(columns={work.index.name or "index": "name"})
+        id_col = "name"
+
+    def _month_sets(cols):
+        out = {}
+        for col in cols:
+            if col not in work.columns:
+                continue
+            ts = pd.to_datetime(work[col], errors="coerce")
+            for idx, val in ts.dropna().items():
+                month = str(val.to_period("M"))
+                out.setdefault(month, set()).add(str(work.at[idx, id_col]))
+        return out
+
+    created = _month_sets(["creation"])
+    updated = _month_sets([
+        "modified", "last_follow_up", "next_follow_up", "status_change",
+        "datetime_contact", "datetime_qualified", "datetime_negotiation",
+        "datetime_approved", "datetime_live", "datetime_lost",
+    ])
+    approved = _month_sets(["datetime_approved"])
+    live = _month_sets(["datetime_live"])
+    lost = _month_sets(["datetime_lost"])
+
+    months = sorted(set().union(created.keys(), updated.keys(), approved.keys(), live.keys(), lost.keys()))
+    rows = []
+    for month in months:
+        closing_set = approved.get(month, set()) | live.get(month, set())
+        rows.append({
+            "Month": month,
+            "Lead Masuk": len(created.get(month, set())),
+            "Lead Update": len(updated.get(month, set())),
+            "Approved": len(approved.get(month, set())),
+            "Live": len(live.get(month, set())),
+            "Closing": len(closing_set),
+            "Lost": len(lost.get(month, set())),
+        })
+
+    summary = pd.DataFrame(rows)
+    if not summary.empty:
+        summary["_period"] = pd.PeriodIndex(summary["Month"], freq="M")
+        summary = summary.sort_values("_period").drop(columns=["_period"]).reset_index(drop=True)
+    return summary
+
+
+def _echart_monthly_achievements(summary: pd.DataFrame):
+    if summary.empty:
+        ui.label("−").classes("text-gray-400 italic text-xs")
+        return
+
+    months = summary["Month"].tolist()
+    series = [
+        ("Lead Masuk", "#89b4fa"),
+        ("Lead Update", "#f9e2af"),
+        ("Approved", "#cba6f7"),
+        ("Live", "#a6e3a1"),
+        ("Closing", "#94e2d5"),
+        ("Lost", "#f38ba8"),
+    ]
+    payload = []
+    for label, color in series:
+        payload.append({
+            "name": label,
+            "type": "bar",
+            "data": summary[label].fillna(0).astype(int).tolist(),
+            "itemStyle": {"color": color},
+            "barMaxWidth": 18,
+        })
+
+    ui.echart({
+        "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
+        "legend": {"textStyle": {"color": "#cdd6f4"}, "top": 0},
+        "grid": {"left": "3%", "right": "4%", "bottom": "12%", "containLabel": True},
+        "xAxis": {
+            "type": "category",
+            "data": months,
+            "axisLabel": {"color": "#a6adc8", "fontSize": 9, "rotate": 25},
+            "axisLine": {"lineStyle": {"color": "#45475a"}},
+        },
+        "yAxis": {
+            "type": "value",
+            "axisLabel": {"color": "#a6adc8"},
+            "splitLine": {"lineStyle": {"color": "#313244"}},
+        },
+        "series": payload,
+    },).classes("w-full h-[320px]")
+
+
 # ═══════════════════════════════════════════════
 #  ERPNext Fetch (like lead_kemitraan)
 # ═══════════════════════════════════════════════
@@ -118,6 +219,11 @@ def create_page(container: ui.column):
         ui.label("📋 Lead Partnership").classes("text-2xl font-bold text-white")
         ui.label("Dashboard & data calon partner penempatan mesin dari ERPNext — analisis untuk pengambilan keputusan.").classes(
             "text-sm text-gray-400 mb-4")
+
+        # Monthly achievement button
+        with ui.row().classes("w-full items-center gap-2 mb-4"):
+            ui.button("📈 Lihat Pencapaian Bulanan", on_click=lambda: ui.navigate.to("/lead-partnership-monthly")\
+                ).props("flat dense text-white bg-blue-700").classes("ml-auto")
 
         df = load_lp_data()
         ci = get_cache_info().get("lead_partnership", {})
@@ -221,6 +327,79 @@ def create_page(container: ui.column):
         update_content()
 
 
+def create_monthly_page(container: ui.column):
+    """Build a dedicated monthly achievement page for Lead Partnership."""
+    container.clear()
+
+    with container:
+        ui.label("📈 Pencapaian Bulanan Lead Partnership").classes("text-2xl font-bold text-white")
+        ui.label("Ringkasan performa bulanan: lead masuk, update, closing, approved, live, dan lost.").classes(
+            "text-sm text-gray-400 mb-4")
+
+        # Kembali button
+        with ui.row().classes("w-full items-center gap-2 mb-4"):
+            ui.button("◀ Kembali ke Lead Partnership", on_click=lambda: ui.navigate.to("/lead-partnership")\
+                ).props("flat dense text-white").classes("ml-auto")
+
+        df = load_lp_data()
+        ci = get_cache_info().get("lead_partnership", {})
+
+        _user_email = get_current_email()
+        _user_name = get_current_name()
+        _role = get_current_role()
+        if _role not in ("admin", "manager") and not df.empty:
+            df = filter_by_staff(df, _user_email, _user_name)
+
+        if df.empty:
+            ui.label("Belum ada data Lead Partnership dari ERPNext.").classes("text-gray-400 italic")
+            if ci.get("last_sync"):
+                ui.label(f"Terakhir sync: {ci['last_sync'][:16]}").classes("text-xs text-gray-500")
+            return
+
+        monthly = _build_monthly_achievement_summary(df)
+        if monthly.empty:
+            ui.label("Belum ada data bulanan yang bisa ditampilkan.").classes("text-gray-400 italic")
+            return
+
+        latest = monthly.iloc[-1]
+        with ui.card().classes("w-full mb-6").style(CARD):
+            ui.label("📈 Pencapaian Bulanan").style(ST)
+            ui.label(f"Periode terbaru: {latest['Month']}").classes("text-xs text-gray-400 mb-3")
+            with ui.row().classes("w-full gap-3 mb-4"):
+                for lbl, val in [
+                    ("📥 Lead Masuk", _fmt(latest["Lead Masuk"])),
+                    ("🛠️ Lead Update", _fmt(latest["Lead Update"])),
+                    ("🟢 Approved", _fmt(latest["Approved"])),
+                    ("💚 Live", _fmt(latest["Live"])),
+                    ("✅ Closing", _fmt(latest["Closing"])),
+                    ("🔴 Lost", _fmt(latest["Lost"])),
+                ]:
+                    with ui.card().classes("flex-1 min-w-[120px]").style(CARD):
+                        ui.label(lbl).style(ML)
+                        ui.label(val).style(MV)
+
+        with ui.card().classes("w-full mb-6").style(CARD):
+            ui.label("📊 Grafik Tren Bulanan").style(ST)
+            _echart_monthly_achievements(monthly)
+
+        with ui.card().classes("w-full mb-6").style(CARD):
+            ui.label("📋 Detail Per Bulan").style(ST)
+            ui.table(
+                rows=monthly.to_dict("records"),
+                columns=[
+                    {"name": "Month", "label": "Bulan", "field": "Month", "align": "left"},
+                    {"name": "Lead Masuk", "label": "Lead Masuk", "field": "Lead Masuk", "align": "center"},
+                    {"name": "Lead Update", "label": "Lead Update", "field": "Lead Update", "align": "center"},
+                    {"name": "Approved", "label": "Approved", "field": "Approved", "align": "center"},
+                    {"name": "Live", "label": "Live", "field": "Live", "align": "center"},
+                    {"name": "Closing", "label": "Closing", "field": "Closing", "align": "center"},
+                    {"name": "Lost", "label": "Lost", "field": "Lost", "align": "center"},
+                ],
+                row_key="Month",
+                pagination={"rowsPerPage": 12, "rowsNumber": len(monthly)},
+            ).props("dense dark flat bordered").classes("w-full")
+
+
 # ═══════════════════════════════════════════════
 #  DASHBOARD
 # ═══════════════════════════════════════════════
@@ -231,7 +410,6 @@ def _render_dashboard(df):
     high_prio = len(df[df.get("priority", "").astype(str).str.strip() == "High"])
     live = len(df[df.get("status_lead", "").astype(str).str.strip() == "Live"])
     unique_kota = df.get("kota_lokasi", "").dropna().nunique()
-
     # KPI (no Total Sewa)
     with ui.row().classes("w-full gap-3 mb-6"):
         for lbl, val in [("📋 Total", _fmt(total)), ("✅ Qualified", _fmt(qualified)),

@@ -161,6 +161,7 @@ def _check_page_access(route: str):
 # ── Shared Navigation ──
 
 ALL_NAV_ITEMS = [
+    ("📊 Transaksi Harian", "/daily"),
     ("📊 Dashboard", "/"),
     ("📈 Analisis Trend", "/trend"),
     ("🤖 AI Decision", "/ai-decision"),
@@ -177,7 +178,6 @@ ALL_NAV_ITEMS = [
     ("💵 Revenue Sharing", "/revenue-sharing"),
     ("🎨 Creative Team", "/creative-team"),
     ("📤 Upload Data", "/upload"),
-    ("📊 Transaksi Harian", "/daily"),
     ("📊 KPI Sistem", "/kpi-sistem"),
     ("🔧 Problem Booth", "/problem-booth"),
 ]
