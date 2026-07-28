@@ -327,6 +327,77 @@ def create_page(container: ui.column):
                             ui.label(lbl).style(ML)
                             ui.label(val).style(MV)
         
+
+            # Lead detail by category
+            ui.separator().classes("my-4")
+            ui.label("Detail Leads Bulan Ini").classes("text-md font-bold text-white mb-2")
+
+            latest_month = str(monthly.iloc[-1]["Month"])
+
+            def _month_ids(col):
+                if col not in df.columns:
+                    return set()
+                ts = pd.to_datetime(df[col], errors="coerce")
+                ids = set()
+                for idx, val in ts.dropna().items():
+                    m = str(val.to_period("M"))
+                    if m == latest_month:
+                        ids.add(str(df.at[idx, "name"]))
+                return ids
+
+            created_set = _month_ids("creation")
+            updated_set = _month_ids("modified") | _month_ids("last_follow_up") | _month_ids("status_change")
+            approved_set = _month_ids("datetime_approved")
+            live_set = _month_ids("datetime_live")
+            lost_set = _month_ids("datetime_lost")
+
+            def _find_date(row, cols):
+                for col in cols:
+                    if col in row and pd.notna(row[col]) and str(row[col]).strip():
+                        dt = pd.to_datetime(row[col], errors="coerce")
+                        if pd.notna(dt):
+                            return str(dt)[:16]
+                return "-"
+
+            metrics = [
+                ("Lead Masuk", "\U0001f4e5", created_set, ["creation"]),
+                ("Lead Update", "\U0001f6e0\ufe0f", updated_set, ["modified", "last_follow_up", "status_change"]),
+                ("Approved", "\U0001f7e2", approved_set, ["datetime_approved"]),
+                ("Live", "\U0001f49a", live_set, ["datetime_live"]),
+                ("Lost", "\U0001f534", lost_set, ["datetime_lost"]),
+            ]
+
+            for label, icon, ids_set, date_cols in metrics:
+                count = len(ids_set)
+                if count == 0:
+                    continue
+                leads_df = df[df["name"].isin(ids_set)] if ids_set else pd.DataFrame()
+                with ui.expansion(f"{icon} {label}: {count} lead", icon="list", value=(count <= 5)).classes("w-full mb-1"):
+                    if leads_df.empty:
+                        ui.label("Tidak ada data.").classes("text-gray-400 italic")
+                    else:
+                        trows = []
+                        for _, r in leads_df.iterrows():
+                            trows.append({
+                                "Outlet": r.get("nama_tempat", "-") or "-",
+                                "Kota": r.get("kota_lokasi", "-") or "-",
+                                "Status": r.get("status_lead", "-") or "-",
+                                "Tgl": _find_date(r, date_cols),
+                                "PIC": r.get("nama_pic", "-") or "-",
+                            })
+                        trows.sort(key=lambda x: x["Tgl"], reverse=True)
+                        ui.table(
+                            rows=trows,
+                            columns=[
+                                {"name": "Outlet", "label": "Outlet", "field": "Outlet", "align": "left"},
+                                {"name": "Kota", "label": "Kota", "field": "Kota", "align": "left"},
+                                {"name": "Status", "label": "Status", "field": "Status", "align": "center"},
+                                {"name": "Tgl", "label": "Tanggal", "field": "Tgl", "align": "center"},
+                                {"name": "PIC", "label": "PIC", "field": "PIC", "align": "left"},
+                            ],
+                            row_key="Outlet",
+                        ).props("dense dark flat bordered").classes("w-full")
+
             with ui.card().classes("w-full mb-6").style(CARD):
                 ui.label("📊 Grafik Tren Bulanan").style(ST)
                 _echart_monthly_achievements(monthly)
