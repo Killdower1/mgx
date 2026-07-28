@@ -333,6 +333,10 @@ def create_page(container: ui.column):
             ui.label("Detail Leads Bulan Ini").classes("text-md font-bold text-white mb-2")
 
             latest_month = str(monthly.iloc[-1]["Month"])
+            # If latest month has 0 total activity, use previous month
+            latest_total = int(monthly.iloc[-1]["Lead Masuk"]) + int(monthly.iloc[-1]["Lead Update"]) + int(monthly.iloc[-1]["Approved"]) + int(monthly.iloc[-1]["Live"]) + int(monthly.iloc[-1]["Lost"])
+            if latest_total == 0 and len(monthly) > 1:
+                latest_month = str(monthly.iloc[-2]["Month"])
 
             def _month_ids(col):
                 if col not in df.columns:
@@ -346,7 +350,7 @@ def create_page(container: ui.column):
                 return ids
 
             created_set = _month_ids("creation")
-            updated_set = _month_ids("modified") | _month_ids("last_follow_up") | _month_ids("status_change")
+            updated_set = _month_ids("modified") | _month_ids("last_follow_up") | _month_ids("status_change") | _month_ids("next_follow_up") | _month_ids("datetime_contact") | _month_ids("datetime_qualified") | _month_ids("datetime_negotiation") | _month_ids("datetime_approved") | _month_ids("datetime_live") | _month_ids("datetime_lost")
             approved_set = _month_ids("datetime_approved")
             live_set = _month_ids("datetime_live")
             lost_set = _month_ids("datetime_lost")
