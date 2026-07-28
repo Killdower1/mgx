@@ -367,6 +367,77 @@ def create_page(container: ui.column):
             with ui.tab_panel("master"):
                 _master_container = ui.column().classes("w-full")
 
+                # ── Outlet per bulan ──
+                ui.separator().classes("my-6")
+                ui.label("Outlet Diperoleh per Bulan").classes("text-lg font-bold text-white mb-2")
+
+                # Build outlet detail per month
+                df_outlet = df.copy()
+                df_outlet["month"] = pd.to_datetime(df_outlet["datetime_live"], errors="coerce").dt.to_period("M").astype(str)
+                df_live = df_outlet[df_outlet["status_lead"] == "Live"].copy()
+
+                if not df_live.empty:
+                    # Group by month
+                    for m in sorted(df_live["month"].unique(), reverse=True):
+                        month_data = df_live[df_live["month"] == m]
+                        with ui.expansion(f"{m} — {len(month_data)} outlet", icon="store").classes("w-full mb-2"):
+                            # Data preparation
+                            tbl_data = []
+                            for _, r in month_data.iterrows():
+                                tbl_data.append({
+                                    "Outlet": r.get("nama_tempat", "-") or "-",
+                                    "Kota": r.get("kota_lokasi", "-") or "-",
+                                    "PIC": r.get("nama_pic", "-") or "-",
+                                    "Sales": r.get("sales_pic_full", r.get("sales_pic", "-")) or "-",
+                                    "Tgl Live": str(r.get("datetime_live", ""))[:10] if r.get("datetime_live") else "-",
+                                })
+                            if tbl_data:
+                                ui.table(
+                                    rows=tbl_data,
+                                    columns=[
+                                        {"name": "Outlet", "label": "Outlet", "field": "Outlet", "align": "left"},
+                                        {"name": "Kota", "label": "Kota", "field": "Kota", "align": "left"},
+                                        {"name": "PIC", "label": "PIC", "field": "PIC", "align": "left"},
+                                        {"name": "Sales", "label": "Sales", "field": "Sales", "align": "left"},
+                                        {"name": "Tgl Live", "label": "Tgl Live", "field": "Tgl Live", "align": "center"},
+                                    ],
+                                    row_key="Outlet",
+                                ).props("dense dark flat bordered").classes("w-full")
+                else:
+                    ui.label("Belum ada outlet dengan status Live.").classes("text-gray-400 italic")
+
+                # Also show Approved outlets
+                df_approved = df_outlet[df_outlet["status_lead"] == "Approved"].copy()
+                if not df_approved.empty:
+                    df_approved["month"] = pd.to_datetime(df_approved["datetime_approved"], errors="coerce").dt.to_period("M").astype(str)
+                    # Filter out months already shown in Live
+                    set(df_live["month"].unique()) if not df_live.empty else set()
+                    for m in sorted(df_approved["month"].unique(), reverse=True):
+                        month_data = df_approved[df_approved["month"] == m]
+                        with ui.expansion(f"{m} — {len(month_data)} outlet (Approved)", icon="check_circle").classes("w-full mb-2"):
+                            tbl_data = []
+                            for _, r in month_data.iterrows():
+                                tbl_data.append({
+                                    "Outlet": r.get("nama_tempat", "-") or "-",
+                                    "Kota": r.get("kota_lokasi", "-") or "-",
+                                    "PIC": r.get("nama_pic", "-") or "-",
+                                    "Sales": r.get("sales_pic_full", r.get("sales_pic", "-")) or "-",
+                                    "Tgl Approved": str(r.get("datetime_approved", ""))[:10] if r.get("datetime_approved") else "-",
+                                })
+                            if tbl_data:
+                                ui.table(
+                                    rows=tbl_data,
+                                    columns=[
+                                        {"name": "Outlet", "label": "Outlet", "field": "Outlet", "align": "left"},
+                                        {"name": "Kota", "label": "Kota", "field": "Kota", "align": "left"},
+                                        {"name": "PIC", "label": "PIC", "field": "PIC", "align": "left"},
+                                        {"name": "Sales", "label": "Sales", "field": "Sales", "align": "left"},
+                                        {"name": "Tgl Approved", "label": "Tgl Approved", "field": "Tgl Approved", "align": "center"},
+                                    ],
+                                    row_key="Outlet",
+                                ).props("dense dark flat bordered").classes("w-full")
+
+
         def update_content():
             fdf = get_filtered()
             _dash_container.clear()
