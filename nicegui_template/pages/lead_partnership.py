@@ -220,11 +220,6 @@ def create_page(container: ui.column):
         ui.label("Dashboard & data calon partner penempatan mesin dari ERPNext — analisis untuk pengambilan keputusan.").classes(
             "text-sm text-gray-400 mb-4")
 
-        # Monthly achievement button
-        with ui.row().classes("w-full items-center gap-2 mb-4"):
-            ui.button("📈 Lihat Pencapaian Bulanan", on_click=lambda: ui.navigate.to("/lead-partnership-monthly")\
-                ).props("flat dense text-white bg-blue-700").classes("ml-auto")
-
         df = load_lp_data()
         ci = get_cache_info().get("lead_partnership", {})
 
@@ -298,12 +293,17 @@ def create_page(container: ui.column):
         panels = ui.tab_panels(tabs, value="dash").classes("w-full")
         with tabs:
             ui.tab("dash", label="📊 Dashboard Lead Partnership")
+            ui.tab("monthly", label="📈 Bulanan")
             ui.tab("list", label="📋 Daftar Lead")
             ui.tab("master", label="📋 Master Data")
 
         with panels:
             with ui.tab_panel("dash"):
                 _dash_container = ui.column().classes("w-full")
+            with ui.tab_panel("monthly"):
+                ui.label("Lihat ringkasan performa bulanan lead partnership.").classes("text-gray-400 mb-4")
+                ui.button("📈 Buka Pencapaian Bulanan", on_click=lambda: ui.navigate.to("/lead-partnership-monthly")\
+                    ).props("flat dense text-white bg-blue-700")
             with ui.tab_panel("list"):
                 _list_container = ui.column().classes("w-full")
             with ui.tab_panel("master"):
