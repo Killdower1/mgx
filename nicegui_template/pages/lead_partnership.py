@@ -288,6 +288,66 @@ def create_page(container: ui.column):
                 fdf = fdf[mask].copy()
             return fdf
 
+        def _render_monthly_inline():
+            """Render monthly achievements inline in the tab panel."""
+            df = load_lp_data()
+            ci = get_cache_info().get("lead_partnership", {})
+        
+            _user_email = get_current_email()
+            _user_name = get_current_name()
+            _role = get_current_role()
+            if _role not in ("admin", "manager") and not df.empty:
+                df = filter_by_staff(df, _user_email, _user_name)
+        
+            if df.empty:
+                ui.label("Belum ada data Lead Partnership dari ERPNext.").classes("text-gray-400 italic")
+                if ci.get("last_sync"):
+                    ui.label("Terakhir sync: " + str(ci["last_sync"])[:16]).classes("text-xs text-gray-500")
+                return
+        
+            monthly = _build_monthly_achievement_summary(df)
+            if monthly.empty:
+                ui.label("Belum ada data bulanan yang bisa ditampilkan.").classes("text-gray-400 italic")
+                return
+        
+            latest = monthly.iloc[-1]
+            with ui.card().classes("w-full mb-6").style(CARD):
+                ui.label("📈 Pencapaian Bulanan").style(ST)
+                ui.label("Periode terbaru: " + str(latest["Month"])).classes("text-xs text-gray-400 mb-3")
+                with ui.row().classes("w-full gap-3 mb-4"):
+                    for lbl, val in [
+                        ("📥 Lead Masuk", _fmt(latest["Lead Masuk"])),
+                        ("🛠️ Lead Update", _fmt(latest["Lead Update"])),
+                        ("🟢 Approved", _fmt(latest["Approved"])),
+                        ("💚 Live", _fmt(latest["Live"])),
+                        ("✅ Closing", _fmt(latest["Closing"])),
+                        ("🔴 Lost", _fmt(latest["Lost"])),
+                    ]:
+                        with ui.card().classes("flex-1 min-w-[120px]").style(CARD):
+                            ui.label(lbl).style(ML)
+                            ui.label(val).style(MV)
+        
+            with ui.card().classes("w-full mb-6").style(CARD):
+                ui.label("📊 Grafik Tren Bulanan").style(ST)
+                _echart_monthly_achievements(monthly)
+        
+            with ui.card().classes("w-full mb-6").style(CARD):
+                ui.label("📋 Detail Per Bulan").style(ST)
+                ui.table(
+                    rows=monthly.to_dict("records"),
+                    columns=[
+                        {"name": "Month", "label": "Bulan", "field": "Month", "align": "left"},
+                        {"name": "Lead Masuk", "label": "Lead Masuk", "field": "Lead Masuk", "align": "center"},
+                        {"name": "Lead Update", "label": "Lead Update", "field": "Lead Update", "align": "center"},
+                        {"name": "Approved", "label": "Approved", "field": "Approved", "align": "center"},
+                        {"name": "Live", "label": "Live", "field": "Live", "align": "center"},
+                        {"name": "Closing", "label": "Closing", "field": "Closing", "align": "center"},
+                        {"name": "Lost", "label": "Lost", "field": "Lost", "align": "center"},
+                    ],
+                    row_key="Month",
+                    pagination={"rowsPerPage": 12, "rowsNumber": len(monthly)},
+                ).props("dense dark flat bordered").classes("w-full")
+        
         # ── Tabs ──
         tabs = ui.tabs().classes("w-full")
         panels = ui.tab_panels(tabs, value="dash").classes("w-full")
@@ -301,9 +361,7 @@ def create_page(container: ui.column):
             with ui.tab_panel("dash"):
                 _dash_container = ui.column().classes("w-full")
             with ui.tab_panel("monthly"):
-                ui.label("Lihat ringkasan performa bulanan lead partnership.").classes("text-gray-400 mb-4")
-                ui.button("📈 Buka Pencapaian Bulanan", on_click=lambda: ui.navigate.to("/lead-partnership-monthly")\
-                    ).props("flat dense text-white bg-blue-700")
+                _render_monthly_inline()
             with ui.tab_panel("list"):
                 _list_container = ui.column().classes("w-full")
             with ui.tab_panel("master"):
