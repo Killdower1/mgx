@@ -17,7 +17,7 @@ from services.dashboard_adapter import get_adapter
 from services import auth_service
 from pages.dashboard import create_page, set_filters
 from pages.lead_kemitraan import create_page as create_lk_page
-from pages.lead_partnership import create_page as create_lp_page
+from pages.lead_partnership import create_page as create_lp_page, create_monthly_page as create_lp_monthly_page
 from pages.ranking import create_page as create_ranking_page
 from pages.conversion import create_page as create_conversion_page
 from pages.comparison import create_page as create_comparison_page
@@ -168,6 +168,7 @@ ALL_NAV_ITEMS = [
     ("🏆 Ranking Outlet", "/ranking"),
     ("🤝 Kemitraan", "/kemitraan"),
     ("📋 Lead Partnership", "/lead-partnership"),
+    ("📈 Pencapaian Bulanan", "/lead-partnership-monthly"),
     ("👥 Lead Kemitraan", "/lead-kemitraan"),
     ("📅 Perbandingan", "/comparison"),
     ("🗃️ CRUD Outlet", "/crud"),
@@ -177,8 +178,8 @@ ALL_NAV_ITEMS = [
     ("🎨 Creative Team", "/creative-team"),
     ("📤 Upload Data", "/upload"),
     ("📊 Transaksi Harian", "/daily"),
-    ("🔧 Problem Booth", "/problem-booth"),
     ("📊 KPI Sistem", "/kpi-sistem"),
+    ("🔧 Problem Booth", "/problem-booth"),
 ]
 
 PAGE_STYLES = """<style>
@@ -369,6 +370,17 @@ def lead_partnership():
     create_lp_page(container)
 
 
+@ui.page("/lead-partnership-monthly")
+def lead_partnership_monthly():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/lead-partnership-monthly")
+    container = ui.column().classes("w-full p-6")
+    create_lp_monthly_page(container)
+
+
 @ui.page("/comparison")
 def comparison():
     if _auth_guard():
@@ -486,7 +498,6 @@ def problem_booth():
     build_nav("/problem-booth")
     container = ui.column().classes("w-full p-6")
     create_problem_booth_page(container)
-
 
 
 @ui.page("/daily")
