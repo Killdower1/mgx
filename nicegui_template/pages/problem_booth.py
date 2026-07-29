@@ -240,62 +240,214 @@ def _render_monthly_tab(m: dict):
         ui.label("Tidak ada data.").classes("text-gray-400 italic")
         return
 
-    months = m["months"]
+    months_data = m.get("months", {})
     top_tipes = m.get("meta", {}).get("top_tipes", [])
-    sorted_months = sorted(months.keys(), reverse=True)
+    sorted_months = sorted(months_data.keys(), reverse=True)
 
-    # Info bar
-    meta = m.get("meta", {})
-    ui.label(f"💾 {_fmt(meta.get('total_records', 0))} problem — "
-             f"{meta.get('total_months', 0)} bulan — "
-             f"{sorted_months[-1] if sorted_months else '-'} s/d {sorted_months[0]}").classes(
-        "text-xs text-gray-500 mb-4")
+    # Month labels
+    _month_labels = [_month_name(mk) for mk in sorted_months]
 
-    # Filter: year
-    years = sorted(set(s[:4] for s in sorted_months), reverse=True)
-    with ui.row().classes("w-full gap-4 items-center mb-4"):
-        year_sel = ui.select(["Semua Tahun"] + years, value="Semua Tahun",
-                             label="Filter Tahun").props("dense outlined dark").classes("w-40")
+    # Handler for month change
+    def _on_month_change():
+        val = month_sel.value
+        for mk in sorted_months:
+            if _month_name(mk) == val:
+                _build_month_detail(mk)
+                break
 
+    # Month selector — MUST be first (before containers, controls DOM order)
+    month_sel = ui.select(_month_labels,
+                          value=_month_labels[0] if _month_labels else None,
+                          label="Pilih bulan...",
+                          on_change=_on_month_change).props(
+        "outlined dark").classes("w-56 mb-4")
+
+    # Container for month detail view
+    detail_container = ui.column().classes("w-full")
+    # Container for table
     table_container = ui.column().classes("w-full")
 
-    def _build_table(filter_year=None):
+    # Build month detail
+    def _build_month_detail(month_key):
+        detail_container.clear()
+        if not month_key or month_key not in months_data:
+            with detail_container:
+                ui.label("Pilih bulan untuk melihat detail.").classes("text-gray-500 italic")
+            return
+
+        data = months_data[month_key]
+
+        with detail_container:
+            # KPI CARDS
+            with ui.row().classes("w-full gap-3 mb-4"):
+                _kpi_card("\U0001f4ca Total Problem", _fmt(data["total"]), f"{data['booth_count']} booth terdampak", "#89b4fa")
+                _kpi_card("\U0001f7e0 Open", _fmt(data["open"]), "belum selesai", "#ef4444")
+                _kpi_card("\u2705 Closed", _fmt(data["closed"]), "", "#22c55e")
+                _kpi_card("\U0001f7e1 Uncompleted", _fmt(data["uncompleted"]), "perlu follow-up", "#f59e0b")
+
+            # 2-COLUMN GRID: Types + Branches
+            with ui.element("div").classes("w-full mb-4").style(
+                "display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr);"
+            ):
+                # Problem Types
+                with ui.element("div").style(CARD):
+                    ui.label("\U0001f527 Problem Types").style(MV)
+                    tipe_data = data.get("tipe", {})
+                    sorted_tipes = sorted(tipe_data.items(), key=lambda x: x[1], reverse=True)
+                    max_tipe = max((v for _, v in sorted_tipes), default=1)
+                    for tipe, count in sorted_tipes[:10]:
+                        pct = count / data["total"] * 100 if data["total"] else 0
+                        bar_w = max(count / max_tipe * 100, 3)
+                        icon = TIPE_ICONS.get(tipe, "\U0001f527")
+                        with ui.row().classes("w-full items-center gap-2 py-0.5"):
+                            ui.label(f"{icon}").classes("text-sm w-6")
+                            ui.label(tipe).classes("text-xs text-gray-300 flex-1")
+                            ui.label(_fmt(count)).classes("text-xs font-bold text-white w-12 text-right")
+                            ui.element("div").style(
+                                f"height: 14px; width: {bar_w:.0f}%; "
+                                f"background: linear-gradient(90deg, #89b4fa, #b4befe); "
+                                f"border-radius: 4px; min-width: 3px;"
+                            )
+                            ui.label(f"{pct:.0f}%").classes("text-xs text-gray-500 w-10")
+
+                # Branch Distribution
+                with ui.element("div").style(CARD):
+                    ui.label("\U0001f3d9\ufe0f Branch Distribution").style(MV)
+                    branches = data.get("top_branches", {})
+                    sorted_b = sorted(branches.items(), key=lambda x: x[1], reverse=True)
+                    max_b = max((v for _, v in sorted_b), default=1)
+                    for name, count in sorted_b:
+                        bar_w = max(count / max_b * 100, 3)
+                        with ui.row().classes("w-full items-center gap-2 py-0.5"):
+                            ui.label(name if name else "(empty)").classes("text-xs text-gray-300 flex-1")
+                            ui.label(_fmt(count)).classes("text-xs font-bold text-white w-12 text-right")
+                            ui.element("div").style(
+                                f"height: 12px; width: {bar_w:.0f}%; "
+                                f"background: linear-gradient(90deg, #a6e3a1, #74c7ec); "
+                                f"border-radius: 4px;"
+                            )
+
+            # Row 2: PIC + Pemilik
+            with ui.element("div").classes("w-full").style(
+                "display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr);"
+            ):
+                # PIC
+                with ui.element("div").style(CARD):
+                    ui.label("\U0001f527 Maintenance PIC").style(MV)
+                    pics = data.get("top_maintenances", {})
+                    sorted_p = sorted(pics.items(), key=lambda x: x[1], reverse=True)
+                    max_p = max((v for _, v in sorted_p), default=1)
+                    for name, count in sorted_p:
+                        bar_w = max(count / max_p * 100, 3)
+                        with ui.row().classes("w-full items-center gap-2 py-0.5"):
+                            ui.label(name if name else "(empty)").classes("text-xs text-gray-300 flex-1")
+                            ui.label(_fmt(count)).classes("text-xs font-bold text-white w-12 text-right")
+                            ui.element("div").style(
+                                f"height: 12px; width: {bar_w:.0f}%; "
+                                f"background: linear-gradient(90deg, #cba6f7, #f5c2e7); "
+                                f"border-radius: 4px;"
+                            )
+
+                # Pemilik
+                with ui.element("div").style(CARD):
+                    ui.label("\U0001f3e2 Pemilik").style(MV)
+                    pemiliks = data.get("top_pemiliks", {})
+                    sorted_pm = sorted(pemiliks.items(), key=lambda x: x[1], reverse=True)
+                    max_pm = max((v for _, v in sorted_pm), default=1)
+                    for name, count in sorted_pm:
+                        bar_w = max(count / max_pm * 100, 3)
+                        with ui.row().classes("w-full items-center gap-2 py-0.5"):
+                            ui.label(name if name else "(empty)").classes("text-xs text-gray-300 flex-1")
+                            ui.label(_fmt(count)).classes("text-xs font-bold text-white w-12 text-right")
+                            ui.element("div").style(
+                                f"height: 12px; width: {bar_w:.0f}%; "
+                                f"background: linear-gradient(90deg, #fab387, #f38ba8); "
+                                f"border-radius: 4px;"
+                            )
+
+            # LATEST PROBLEMS
+            latest = data.get("latest", [])
+            if latest:
+                with ui.element("div").style(CARD).classes("w-full mb-4"):
+                    ui.label("\U0001f195 Latest Problems").style(MV)
+                    for rec in latest[:5]:
+                        nama = _outlet_label(rec)
+                        tipe = rec.get("tipeproblem", "")
+                        st = rec.get("status", "")
+                        sc = STATUS_COLORS.get(st, "#cdd6f4")
+                        with ui.row().classes("w-full items-center gap-2 py-1 border-b border-gray-800 last:border-b-0"):
+                            ui.label(TIPE_ICONS.get(tipe, '🔧')).classes("text-sm")
+                            ui.label(f"{nama}").classes("text-xs font-semibold text-white flex-1")
+                            ui.label(tipe).classes("text-xs text-gray-400")
+                            ui.element("div").style(f"background: {sc}; padding: 1px 8px; border-radius: 6px;")
+                            with ui.element("div").style(f"color: {sc}; font-size: 0.75rem; font-weight: 600;"):
+                                ui.label(st)
+
+            # TOP PROBLEMATIC OUTLETS
+            top_outlets = data.get("top_outlets", [])
+            if top_outlets:
+                with ui.element("div").style(CARD).classes("w-full mb-4"):
+                    ui.label("\U0001f534 Top Outlet Paling Bermasalah").style(MV)
+                    ui.label("Outlet dengan problem terbanyak di bulan ini.").classes("text-xs text-gray-400 mb-3")
+                    with ui.row().classes("w-full items-center gap-2 py-1 border-b border-gray-700 mb-1"):
+                        ui.label("#").classes("text-xs text-gray-500 w-6")
+                        ui.label("Outlet").classes("text-xs text-gray-500 flex-1")
+                        ui.label("Total").classes("text-xs text-gray-500 w-14 text-right")
+                        ui.label("Top Problem Types").classes("text-xs text-gray-500")
+                    for rank, rec in enumerate(top_outlets[:10], 1):
+                        total = rec["total"]
+                        top_tipes = rec.get("top_tipes", {})
+                        tipe_str = ", ".join(
+                            f"{tipe} ({c})" for tipe, c in list(top_tipes.items())[:3]
+                        )
+                        with ui.row().classes("w-full items-center gap-2 py-1 border-b border-gray-800 last:border-b-0"):
+                            ui.label(f"{rank}.").classes("text-xs font-bold text-gray-400 w-6")
+                            ui.label(rec["name"]).classes("text-xs font-semibold text-white flex-1")
+                            ui.label(_fmt(total)).classes("text-xs font-bold text-white w-12 text-right")
+                            ui.label(tipe_str).classes("text-xs text-gray-300")
+
+    # Show first month by default
+    first_month = sorted_months[0] if sorted_months else None
+    if first_month:
+        _build_month_detail(first_month)
+
+
+    # TABLE
+    def _build_table():
         table_container.clear()
         with table_container:
-            display = [(m, data) for m, data in months.items()
-                       if not filter_year or m.startswith(filter_year)]
+            display = [(mk, data) for mk, data in months_data.items()]
             display.sort(reverse=True)
 
-            # Column defs: month | total | open | closed | uncompleted | tipe columns | booth | top branch
             col_defs = [
-                {"headerName": "📅 Bulan", "field": "bulan", "width": 110,
+                {"headerName": "\U0001f4c5 Bulan", "field": "bulan", "width": 110,
                  "pinned": "left", "sortable": True,
                  "cellStyle": {"fontWeight": "600", "color": "#89b4fa"}},
-                {"headerName": "📊 Total", "field": "total", "width": 80,
+                {"headerName": "\U0001f4ca Total", "field": "total", "width": 80,
                  "sortable": True, "cellStyle": {"fontWeight": "700"}},
-                {"headerName": "🟢 Open", "field": "open", "width": 75,
+                {"headerName": "\U0001f7e0 Open", "field": "open", "width": 75,
                  "sortable": True, "cellStyle": {"color": "#ef4444", "fontWeight": "600"}},
-                {"headerName": "✅ Closed", "field": "closed", "width": 80,
+                {"headerName": "\u2705 Closed", "field": "closed", "width": 80,
                  "sortable": True, "cellStyle": {"color": "#22c55e"}},
-                {"headerName": "🟡 Uncomp", "field": "uncompleted", "width": 85,
+                {"headerName": "\U0001f7e1 Uncomp", "field": "uncompleted", "width": 85,
                  "sortable": True, "cellStyle": {"color": "#f59e0b"}},
-                {"headerName": "🏠 Booth", "field": "booth_count", "width": 80,
+                {"headerName": "\U0001f3e0 Booth", "field": "booth_count", "width": 80,
                  "sortable": True},
-                {"headerName": "🏙️ Top Branch", "field": "top_branch", "width": 140,
+                {"headerName": "\U0001f3d9\ufe0f Top Branch", "field": "top_branch", "width": 140,
                  "sortable": True},
-                {"headerName": "🔧 Top PIC", "field": "top_pic", "width": 140},
+                {"headerName": "\U0001f527 Top PIC", "field": "top_pic", "width": 140},
             ]
 
             # Add tipe columns (top 8)
             for tipe in top_tipes[:8]:
-                icon = TIPE_ICONS.get(tipe, "🔧")
+                icon = TIPE_ICONS.get(tipe, "\U0001f527")
                 col_defs.append({
                     "headerName": f"{icon} {tipe}", "field": f"tipe_{tipe}",
                     "width": 80, "sortable": True,
                 })
 
             rows = []
-            for month, data in display:
+            for month_key, data in display:
                 top_branch = ""
                 top_pic = ""
                 if data.get("top_branches"):
@@ -306,8 +458,8 @@ def _render_monthly_tab(m: dict):
                     top_pic = f"{p} ({pc})"
 
                 row = {
-                    "bulan": _month_name(month),
-                    "_month": month,
+                    "bulan": _month_name(month_key),
+                    "_month": month_key,
                     "total": data["total"],
                     "open": data["open"],
                     "closed": data["closed"],
@@ -338,14 +490,6 @@ def _render_monthly_tab(m: dict):
 
     _build_table()
 
-    def _on_year_filter():
-        y = year_sel.value
-        _build_table(None if y == "Semua Tahun" else y)
-
-    year_sel.on("change", _on_year_filter)
-
-
-# ═══════════════════════════════════════════════
 #  TAB 3: DETAIL RECORD
 # ═══════════════════════════════════════════════
 

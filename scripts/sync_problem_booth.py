@@ -145,6 +145,7 @@ def main():
                 "branches": Counter(), "maintenances": Counter(),
                 "pemiliks": Counter(), "booth_count": 0, "booths": set(),
                 "latest_problems": [],
+                "outlets": Counter(), "outlet_tipes": {},
             }
         m = monthly[month]
         m["total"] += 1
@@ -171,6 +172,11 @@ def main():
             m["pemiliks"][pem] += 1
         m["booths"].add(safe(r.get("nama_tempat")) or safe(r.get("nama_full")))
         m["booth_count"] = len(m["booths"])
+        outlet_name = r.get("subject") or r.get("nama_full") or r.get("nama_tempat") or "Unknown"
+        m["outlets"][outlet_name] += 1
+        if outlet_name not in m["outlet_tipes"]:
+            m["outlet_tipes"][outlet_name] = Counter()
+        m["outlet_tipes"][outlet_name][tipe if tipe else "Others"] += 1
         if len(m["latest_problems"]) < 3:
             m["latest_problems"].append({
                 "name": r.get("name"),
@@ -182,6 +188,11 @@ def main():
 
     months_out = {}
     for month, m in sorted(monthly.items()):
+        top_outlets = []
+        for name, cnt in m["outlets"].most_common(10):
+            top_tipes_dict = dict(m["outlet_tipes"].get(name, Counter()).most_common(3))
+            top_outlets.append({"name": name, "total": cnt, "top_tipes": top_tipes_dict})
+
         months_out[month] = {
             "total": m["total"], "open": m["open"], "closed": m["closed"],
             "uncompleted": m["uncompleted"], "tipe": m["tipe"],
@@ -190,6 +201,7 @@ def main():
             "top_pemiliks": dict(m["pemiliks"].most_common(2)),
             "booth_count": m["booth_count"],
             "latest": m["latest_problems"],
+            "top_outlets": top_outlets,
         }
 
     monthly_out = {
