@@ -1274,49 +1274,6 @@ def _build_outlet_table(cpv, cmv):
         if md.empty:
             return
         with ui.row().classes("w-full gap-4 mb-6"):
-            with ui.card().classes("flex-1").style(CARD):
-                tp = a.get_top_performers(md, 5)
-                wr = a.get_worst_performers(md, 10)
-                ui.label("🏆 Top 5").style(ST)
-                if not tp.empty:
-                    for _, r in tp.iterrows():
-                        st = str(r.get("outlet_status", ""))
-                        sc = SC.get(st, "#94a3b8")
-                        with ui.row().classes(
-                            "items-center w-full py-1 px-2 rounded-lg"
-                        ).style("background:#181825"):
-                            ui.label(r["outlet_name"]).classes(
-                                "text-sm text-white flex-1"
-                            )
-                            ui.label(st).style(
-                                f"color:{sc};font-weight:bold;font-size:0.8rem"
-                            )
-                            ui.label(a.format_currency(r["total_revenue"])).classes(
-                                "text-sm text-green-400 ml-2"
-                            )
-                else:
-                    ui.label("Tidak ada data.").classes("text-gray-400 italic text-xs")
-                ui.separator().classes("my-3")
-                ui.label("⬇️ 10 Terjelek").style(ST)
-                if not wr.empty:
-                    for _, r in wr.iterrows():
-                        st = str(r.get("outlet_status", ""))
-                        sc = SC.get(st, "#94a3b8")
-                        with ui.row().classes(
-                            "items-center w-full py-1 px-2 rounded-lg"
-                        ).style("background:#181825;border-left:3px solid #ef4444;"):
-                            ui.label(r["outlet_name"]).classes(
-                                "text-sm text-white flex-1"
-                            )
-                            ui.label(st).style(
-                                f"color:{sc};font-weight:bold;font-size:0.8rem"
-                            )
-                            ui.label(a.format_currency(r["total_revenue"])).classes(
-                                "text-sm text-red-400 ml-2"
-                            )
-                else:
-                    ui.label("Tidak ada data.").classes("text-gray-400 italic text-xs")
-        with ui.row().classes("w-full gap-4 mb-6"):
             with ui.card().classes("flex-[2]").style(CARD):
                 ui.label("💹 Revenue by Outlet").style(ST)
                 if not md.empty and "total_revenue" in md.columns:
