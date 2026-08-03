@@ -1163,6 +1163,8 @@ def _build_outlet_table(cpv, cmv):
                         "field": "Delta Omset",
                         "minWidth": 120,
                         "flex": 1,
+                        "sortable": True,
+                        ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
             col_defs.append(
@@ -1184,6 +1186,8 @@ def _build_outlet_table(cpv, cmv):
                         "field": "Delta Foto",
                         "minWidth": 100,
                         "flex": 1,
+                        "sortable": True,
+                        ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
             col_defs.append(
@@ -1205,6 +1209,8 @@ def _build_outlet_table(cpv, cmv):
                         "field": "Delta Unlock",
                         "minWidth": 100,
                         "flex": 1,
+                        "sortable": True,
+                        ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
             col_defs.append(
@@ -1226,6 +1232,8 @@ def _build_outlet_table(cpv, cmv):
                         "field": "Delta Print",
                         "minWidth": 100,
                         "flex": 1,
+                        "sortable": True,
+                        ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
             col_defs.append(
@@ -1247,9 +1255,12 @@ def _build_outlet_table(cpv, cmv):
                         "field": "Delta Conv",
                         "minWidth": 100,
                         "flex": 1,
+                        "sortable": True,
+                        ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
-            ui.aggrid(
+            search_inp = ui.input("🔍 Cari Outlet").props("dense outlined dark").classes("w-72 mb-3")
+            grid = ui.aggrid(
                 {
                     "columnDefs": col_defs,
                     "rowData": rows,
@@ -1268,6 +1279,11 @@ def _build_outlet_table(cpv, cmv):
             ).classes("w-full ag-theme-balham-dark").style(
                 "height: auto; min-height: 300px;"
             )
+
+            def _on_search(e):
+                grid.run_grid_method("setQuickFilter", e.value)
+
+            search_inp.on_value_change(_on_search)
         else:
             ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
 
