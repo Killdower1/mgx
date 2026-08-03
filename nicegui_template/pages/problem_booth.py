@@ -213,18 +213,19 @@ def _render_dashboard_tab(s: dict):
             ui.label("🟢 Open / Uncompleted").classes(MV)
             open_problems = s.get("open_problems", [])
             if open_problems:
-                for rec in open_problems:
-                    nama = _outlet_label(rec)
-                    tipe = rec.get("tipeproblem", "")
-                    badge = "🟢" if rec.get("status") == "Open" else "🟡"
-                    with ui.row().classes("w-full items-start gap-2 py-1 border-b border-gray-800 last:border-b-0"):
-                        ui.label(f"{badge}").classes("text-sm mt-0.5")
-                        with ui.column().classes("gap-0 flex-1"):
-                            ui.label(f"{nama} — {tipe}").classes("text-xs font-semibold text-white")
-                            if rec.get("description"):
-                                ui.label(_strip_html(rec["description"])[:80]).classes("text-xs text-gray-400 truncate")
-                            if rec.get("creation"):
-                                ui.label(f"📅 {_fmt_date(rec['creation'])}").classes("text-xs text-gray-500")
+                with ui.element("div").classes("w-full overflow-y-auto").style("max-height: 520px; padding-right: 4px;"):
+                    for rec in open_problems:
+                        nama = _outlet_label(rec)
+                        tipe = rec.get("tipeproblem", "")
+                        badge = "🟢" if rec.get("status") == "Open" else "🟡"
+                        with ui.row().classes("w-full items-start gap-2 py-1 border-b border-gray-800 last:border-b-0"):
+                            ui.label(f"{badge}").classes("text-sm mt-0.5")
+                            with ui.column().classes("gap-0 flex-1"):
+                                ui.label(f"{nama} — {tipe}").classes("text-xs font-semibold text-white")
+                                if rec.get("description"):
+                                    ui.label(_strip_html(rec["description"])[:80]).classes("text-xs text-gray-400 truncate")
+                                if rec.get("creation"):
+                                    ui.label(f"📅 {_fmt_date(rec['creation'])}").classes("text-xs text-gray-500")
             else:
                 ui.label("Tidak ada problem open.").classes("text-xs text-gray-500 italic")
 

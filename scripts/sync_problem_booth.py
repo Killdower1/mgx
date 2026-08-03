@@ -180,21 +180,20 @@ def main():
         d = r.get("tanggal_foto", "")
         if d:
             monthly_raw[str(d)[:7]] += 1
-        if safe(r.get("status")).lower() in ("open", "on the way", "reopen", ""):
-            if len(open_problems) < 20:
-                desc = str(r.get("description_problem", "") or "")
-                desc_clean = desc.replace("<p>", "").replace("</p>", " ").strip()[:100]
-                open_problems.append({
-                    "name": r.get("name"),
-                    "subject": safe(r.get("subject")) or safe(r.get("nama_full")) or safe(r.get("nama_tempat")),
-                    "nama_tempat": safe(r.get("nama_tempat")),
-                    "tipeproblem": safe(r.get("tipeproblem")),
-                    "status": safe(r.get("status")),
-                    "description": desc_clean,
-                    "maintenance": safe(r.get("maintenance")),
-                    "tanggal_foto": str(r.get("tanggal_foto", ""))[:10],
-                    "creation": str(r.get("creation", ""))[:19],
-                })
+        if safe(r.get("status")).lower() in ("open", "on the way", "reopen", "", "uncompleted"):
+            desc = str(r.get("description_problem", "") or "")
+            desc_clean = desc.replace("<p>", "").replace("</p>", " ").strip()[:100]
+            open_problems.append({
+                "name": r.get("name"),
+                "subject": safe(r.get("subject")) or safe(r.get("nama_full")) or safe(r.get("nama_tempat")),
+                "nama_tempat": safe(r.get("nama_tempat")),
+                "tipeproblem": safe(r.get("tipeproblem")),
+                "status": safe(r.get("status")),
+                "description": desc_clean,
+                "maintenance": safe(r.get("maintenance")),
+                "tanggal_foto": str(r.get("tanggal_foto", ""))[:10],
+                "creation": str(r.get("creation", ""))[:19],
+            })
 
     # Problems from last 24h — all problems, no cap
     from datetime import timedelta
@@ -223,6 +222,7 @@ def main():
             except Exception:
                 pass
     recent_24h.sort(key=lambda x: x.get("creation", ""), reverse=True)
+    open_problems.sort(key=lambda x: str(x.get("creation", "")), reverse=True)
 
     summary = {
         "last_sync": now, "total": total,
