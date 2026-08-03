@@ -208,28 +208,74 @@ def _render_dashboard_tab(s: dict):
                     ).classes("")
                     ui.label(f"{pct:.0f}%").classes("text-xs text-gray-500 w-10")
 
-    def _pb_row(rec):
-        nama = _outlet_label(rec)
-        tipe = rec.get("tipeproblem", "")
-        badge = "🟢" if rec.get("status") == "Open" else "🟡"
-        with ui.row().classes("w-full items-start gap-2 py-1 border-b border-gray-800 last:border-b-0"):
-            ui.label(f"{badge}").classes("text-sm mt-0.5")
-            with ui.row().classes("gap-2 items-center flex-1"):
-                ui.link(f"{nama} — {tipe}", f"{_ERP_URL}/app/problem-booth/{rec['name']}", new_tab=True).classes("text-xs font-semibold text-white hover:text-blue-300 flex-1").style("text-decoration: none !important;")
-                if rec.get("creation"):
-                    ui.label(f"📅 {_fmt_date(rec['creation'])}").classes("text-xs text-gray-500")
-
     open_problems = s.get("open_problems", [])
     open_list = [r for r in open_problems if str(r.get("status", "")).lower() != "uncompleted"]
     unc_list = [r for r in open_problems if str(r.get("status", "")).lower() == "uncompleted"]
+
+    def _pb_rows(rec):
+        return {
+            "Outlet": _outlet_label(rec),
+            "Problem": f'<a href="{_ERP_URL}/app/problem-booth/{rec["name"]}" target="_blank" style="text-decoration:none;color:#cdd6f4;font-weight:600;">{rec["name"]} · {rec.get("tipeproblem", "")}</a>',
+            "Tgl": _fmt_date(rec.get("creation", "")),
+        }
+
+    _pb_cols = [
+        {
+            "headerName": "Outlet",
+            "field": "Outlet",
+            "pinned": "left",
+            "minWidth": 200,
+            "flex": 3,
+            "sortable": True,
+            "filter": "agTextColumnFilter",
+            "floatingFilter": True,
+        },
+        {
+            "headerName": "Problem",
+            "field": "Problem",
+            "minWidth": 180,
+            "flex": 2,
+            "sortable": True,
+            "filter": "agTextColumnFilter",
+            "floatingFilter": True,
+        },
+        {
+            "headerName": "Tgl",
+            "field": "Tgl",
+            "minWidth": 110,
+            "flex": 1,
+            "sortable": True,
+            "filter": "agTextColumnFilter",
+            "floatingFilter": True,
+            "cellStyle": {"textAlign": "right"},
+            ":comparator": "(a,b)=>{const M={Jan:'01',Feb:'02',Mar:'03',Apr:'04',Mei:'05',Jun:'06',Jul:'07',Agu:'08',Sep:'09',Okt:'10',Nov:'11',Des:'12'};const p=v=>{if(!v)return 0;const x=String(v).split(' ');return x.length===3?Number(x[2]+M[x[1]]+x[0].padStart(2,'0')):0};return p(a)-p(b)}",
+        },
+    ]
+
+    def _pb_table(rows):
+        ui.aggrid(
+            {
+                "columnDefs": _pb_cols,
+                "rowData": rows,
+                "pagination": True,
+                "paginationPageSize": 20,
+                "paginationPageSizeSelector": [20, 50, 100],
+                "domLayout": "autoHeight",
+                "defaultColDef": {"resizable": True},
+                "animateRows": True,
+                "rowHeight": 40,
+                "headerHeight": 40,
+                "enableCellTextSelection": True,
+            },
+            theme="balham",
+            html_columns=[1],
+        ).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
 
     with ui.row().classes("w-full gap-4 mt-4"):
         with ui.element("div").style(CARD).classes("w-full"):
             ui.label("🟢 Open").classes(MV)
             if open_list:
-                with ui.element("div").classes("w-full overflow-y-auto").style("max-height: 520px; padding-right: 4px;"):
-                    for rec in open_list:
-                        _pb_row(rec)
+                _pb_table([_pb_rows(r) for r in open_list])
             else:
                 ui.label("Tidak ada problem open.").classes("text-xs text-gray-500 italic")
 
@@ -237,9 +283,7 @@ def _render_dashboard_tab(s: dict):
         with ui.element("div").style(CARD).classes("w-full"):
             ui.label("🟡 Uncompleted").classes(MV)
             if unc_list:
-                with ui.element("div").classes("w-full overflow-y-auto").style("max-height: 520px; padding-right: 4px;"):
-                    for rec in unc_list:
-                        _pb_row(rec)
+                _pb_table([_pb_rows(r) for r in unc_list])
             else:
                 ui.label("Tidak ada problem uncompleted.").classes("text-xs text-gray-500 italic")
 
