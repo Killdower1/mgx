@@ -15,6 +15,7 @@ SUMMARY_PATH = Path("/var/www/difotoin-dashboard/problem_booth_summary.json")
 MONTHLY_PATH = Path("/var/www/difotoin-dashboard/problem_booth_monthly.json")
 LIGHT_CACHE_PATH = Path("/var/www/difotoin-dashboard/problem_booth_cache_light.json")
 CONFIG_PATH = Path("/var/www/difotoin-dashboard/streamlit_template/config/erpnext_config.json")
+RECENT_INDEX_PATH = Path("/var/www/difotoin-dashboard/problem_booth_recent_index.json")
 
 # ── ERPNext URL ──
 _ERP_URL = ""
@@ -59,8 +60,8 @@ def _strip_html(text: str) -> str:
     import re
     if not text:
         return ""
-    # Remove all HTML tags
-    clean = re.sub(r"<[^>]+>", " ", str(text))
+    # <[^>]*>? juga menghapus tag yang terpotong/truncated (mis. <span class="ql-ui" tanpa >)
+    clean = re.sub(r"<[^>]*>?", " ", str(text))
     # Normalize whitespace and entities
     clean = clean.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
     clean = " ".join(clean.split())
@@ -76,6 +77,19 @@ def _month_name(m: str) -> str:
         return f"{months_en[dt.month]} {dt.year}"
     except Exception:
         return m
+
+
+_MONTHS_ID = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+
+
+def _fmt_date(ts) -> str:
+    """'2026-07-14 08:30:00' -> '14 Jul 2026' (graceful fallback: raw first 10 chars)."""
+    try:
+        d = str(ts)[:10]
+        y, m, dd = d.split("-")
+        return f"{int(dd)} {_MONTHS_ID[int(m)]} {y}"
+    except Exception:
+        return str(ts)[:10]
 
 
 def _outlet_label(rec: dict) -> str:
@@ -208,6 +222,8 @@ def _render_dashboard_tab(s: dict):
                             ui.label(f"{nama} — {tipe}").classes("text-xs font-semibold text-white")
                             if rec.get("description"):
                                 ui.label(_strip_html(rec["description"])[:80]).classes("text-xs text-gray-400 truncate")
+                            if rec.get("creation"):
+                                ui.label(f"📅 {_fmt_date(rec['creation'])}").classes("text-xs text-gray-500")
             else:
                 ui.label("Tidak ada problem open.").classes("text-xs text-gray-500 italic")
 
@@ -241,8 +257,11 @@ def _render_monthly_tab(m: dict):
         return
 
     months_data = m.get("months", {})
-    top_tipes = m.get("meta", {}).get("top_tipes", [])
+    m.get("meta", {}).get("top_tipes", [])
     sorted_months = sorted(months_data.keys(), reverse=True)
+    selected_staff = {"email": None}
+    selected_problem = {"name": None}
+    current_month = {"key": None}
 
     # Month labels
     _month_labels = [_month_name(mk) for mk in sorted_months]
@@ -265,17 +284,85 @@ def _render_monthly_tab(m: dict):
     # Container for month detail view
     detail_container = ui.column().classes("w-full")
     # Container for table
-    table_container = ui.column().classes("w-full")
+
+    def show_staff_problems(rec):
+        selected_staff["email"] = rec["email"]
+        selected_problem["name"] = None
+        detail_container.clear()
+        with detail_container:
+            # Back button
+            with ui.row().classes("w-full items-center gap-2 mb-4"):
+                ui.button("← Kembali ke ringkasan", on_click=lambda: _rebuild_month(current_month["key"])).props("flat dense").classes("text-xs")
+            # Header
+            ui.label(f"⏰ Detail Problem — {rec.get('name', rec.get('email', '?'))}").style(MV)
+            problems = rec.get("problems", [])
+            ui.label(f"{len(problems)} problem dengan rata-rata delay {rec.get('avg_min', 0):.0f} menit").classes("text-xs text-gray-400 mb-4")
+            # Problem list
+            for prob in problems:
+                delay = prob.get("delay_min", 0)
+                color = "#ef4444" if delay > 180 else "#f59e0b" if delay > 60 else "#22c55e"
+                with ui.row().classes("w-full items-center gap-2 py-2 border-b border-gray-800 hover:bg-gray-800/30 cursor-pointer").on("click", lambda p=prob: show_problem_detail(p, rec)):
+                    ui.label(prob.get("name", "?")).classes("text-xs font-bold text-gray-300 w-28")
+                    ui.label(prob.get("subject", "?")).classes("text-xs text-white flex-1")
+                    ui.label(prob.get("tipeproblem", "")).classes("text-xs text-gray-400")
+                    ui.label(f"{delay:.0f} menit").style(f"color: {color}; font-size: 0.75rem; font-weight: 600;")
+                    sc = STATUS_COLORS.get(prob.get("status", ""), "#cdd6f4")
+                    ui.element("div").style(f"background: {sc}; padding: 1px 8px; border-radius: 6px;")
+                    with ui.element("div").style(f"color: {sc}; font-size: 0.75rem; font-weight: 600;"):
+                        ui.label(prob.get("status", ""))
+
+    def show_problem_detail(prob, staff_rec):
+        selected_problem["name"] = prob["name"]
+        detail_container.clear()
+        erp_link = f"{_ERP_URL}/app/problem-booth/{prob['name']}"
+        with detail_container:
+            with ui.row().classes("w-full items-center gap-2 mb-4"):
+                ui.button("← Kembali", on_click=lambda: show_staff_problems(staff_rec)).props("flat dense").classes("text-xs")
+            with ui.element("div").style(CARD).classes("w-full mb-4"):
+                ui.label(f"📋 {prob.get('name', '?')}").style(MV)
+                delay = prob.get("delay_min", 0)
+                color = "#ef4444" if delay > 180 else "#f59e0b" if delay > 60 else "#22c55e"
+                with ui.row().classes("w-full gap-4"):
+                    with ui.column().classes("flex-1"):
+                        _detail_row("Outlet", prob.get("subject", "?"))
+                        _detail_row("Tipe Problem", prob.get("tipeproblem", ""))
+                        _detail_row("Status", prob.get("status", ""))
+                        _detail_row("Request Visit", prob.get("visit_set_time", ""))
+                        _detail_row("Shift Request", prob.get("shift_name_req", ""))
+                    with ui.column().classes("flex-1"):
+                        _detail_row("Ambil Tugas", prob.get("pengambilan_tugas", ""))
+                        _detail_row("Shift Ambil", prob.get("shift_name_ambil", ""))
+                        _detail_row("On The Way", prob.get("ontheway_time", ""))
+                        _detail_row("Sampai Lokasi", prob.get("time_sampai_lokasi", ""))
+                        _detail_row("Delay", f"{delay:.0f} menit", color)
+                ui.separator().classes("my-3")
+                with ui.row().classes("w-full items-center gap-2"):
+                    ui.label("🔗 ").classes("text-sm")
+                    with ui.element("a").props(f'href="{erp_link}" target="_blank"').classes("text-blue-400 hover:text-blue-300 underline text-sm"):
+                        ui.label("Buka di ERPNext →")
+
+    def _detail_row(label, value, color=None):
+        with ui.row().classes("w-full items-center gap-2"):
+            ui.label(label).classes("text-xs text-gray-500 w-28")
+            val = ui.label(value).classes("text-xs text-white font-semibold")
+            if color:
+                val.style(f"color: {color}")
+
+    def _rebuild_month(mk):
+        detail_container.clear()
+        _build_month_detail(mk)
 
     # Build month detail
     def _build_month_detail(month_key):
         detail_container.clear()
+        current_month["key"] = month_key
         if not month_key or month_key not in months_data:
             with detail_container:
                 ui.label("Pilih bulan untuk melihat detail.").classes("text-gray-500 italic")
             return
 
         data = months_data[month_key]
+        s = load_summary()
 
         with detail_container:
             # KPI CARDS
@@ -294,91 +381,33 @@ def _render_monthly_tab(m: dict):
                     ui.label("\U0001f527 Problem Types").style(MV)
                     tipe_data = data.get("tipe", {})
                     sorted_tipes = sorted(tipe_data.items(), key=lambda x: x[1], reverse=True)
-                    max_tipe = max((v for _, v in sorted_tipes), default=1)
                     for tipe, count in sorted_tipes[:10]:
                         pct = count / data["total"] * 100 if data["total"] else 0
-                        bar_w = max(count / max_tipe * 100, 3)
                         icon = TIPE_ICONS.get(tipe, "\U0001f527")
                         with ui.row().classes("w-full items-center gap-2 py-0.5"):
                             ui.label(f"{icon}").classes("text-sm w-6")
                             ui.label(tipe).classes("text-xs text-gray-300 flex-1")
                             ui.label(_fmt(count)).classes("text-xs font-bold text-white w-12 text-right")
-                            ui.element("div").style(
-                                f"height: 14px; width: {bar_w:.0f}%; "
-                                f"background: linear-gradient(90deg, #89b4fa, #b4befe); "
-                                f"border-radius: 4px; min-width: 3px;"
-                            )
                             ui.label(f"{pct:.0f}%").classes("text-xs text-gray-500 w-10")
 
-                # Branch Distribution
-                with ui.element("div").style(CARD):
-                    ui.label("\U0001f3d9\ufe0f Branch Distribution").style(MV)
-                    branches = data.get("top_branches", {})
-                    sorted_b = sorted(branches.items(), key=lambda x: x[1], reverse=True)
-                    max_b = max((v for _, v in sorted_b), default=1)
-                    for name, count in sorted_b:
-                        bar_w = max(count / max_b * 100, 3)
-                        with ui.row().classes("w-full items-center gap-2 py-0.5"):
-                            ui.label(name if name else "(empty)").classes("text-xs text-gray-300 flex-1")
-                            ui.label(_fmt(count)).classes("text-xs font-bold text-white w-12 text-right")
-                            ui.element("div").style(
-                                f"height: 12px; width: {bar_w:.0f}%; "
-                                f"background: linear-gradient(90deg, #a6e3a1, #74c7ec); "
-                                f"border-radius: 4px;"
-                            )
 
-            # Row 2: PIC + Pemilik
-            with ui.element("div").classes("w-full").style(
-                "display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr);"
-            ):
-                # PIC
-                with ui.element("div").style(CARD):
-                    ui.label("\U0001f527 Maintenance PIC").style(MV)
-                    pics = data.get("top_maintenances", {})
-                    sorted_p = sorted(pics.items(), key=lambda x: x[1], reverse=True)
-                    max_p = max((v for _, v in sorted_p), default=1)
-                    for name, count in sorted_p:
-                        bar_w = max(count / max_p * 100, 3)
-                        with ui.row().classes("w-full items-center gap-2 py-0.5"):
-                            ui.label(name if name else "(empty)").classes("text-xs text-gray-300 flex-1")
-                            ui.label(_fmt(count)).classes("text-xs font-bold text-white w-12 text-right")
-                            ui.element("div").style(
-                                f"height: 12px; width: {bar_w:.0f}%; "
-                                f"background: linear-gradient(90deg, #cba6f7, #f5c2e7); "
-                                f"border-radius: 4px;"
-                            )
 
-                # Pemilik
-                with ui.element("div").style(CARD):
-                    ui.label("\U0001f3e2 Pemilik").style(MV)
-                    pemiliks = data.get("top_pemiliks", {})
-                    sorted_pm = sorted(pemiliks.items(), key=lambda x: x[1], reverse=True)
-                    max_pm = max((v for _, v in sorted_pm), default=1)
-                    for name, count in sorted_pm:
-                        bar_w = max(count / max_pm * 100, 3)
-                        with ui.row().classes("w-full items-center gap-2 py-0.5"):
-                            ui.label(name if name else "(empty)").classes("text-xs text-gray-300 flex-1")
-                            ui.label(_fmt(count)).classes("text-xs font-bold text-white w-12 text-right")
-                            ui.element("div").style(
-                                f"height: 12px; width: {bar_w:.0f}%; "
-                                f"background: linear-gradient(90deg, #fab387, #f38ba8); "
-                                f"border-radius: 4px;"
-                            )
-
-            # LATEST PROBLEMS
-            latest = data.get("latest", [])
-            if latest:
+            # PROBLEMS LAST 24 HOURS — from summary.recent_24h
+            recent_24h = s.get("recent_24h", [])
+            if recent_24h:
                 with ui.element("div").style(CARD).classes("w-full mb-4"):
-                    ui.label("\U0001f195 Latest Problems").style(MV)
-                    for rec in latest[:5]:
+                    ui.label(f"🔥 Problem 24 Jam Terakhir — {len(recent_24h)} problem").style(MV)
+                    for rec in recent_24h:
                         nama = _outlet_label(rec)
                         tipe = rec.get("tipeproblem", "")
                         st = rec.get("status", "")
                         sc = STATUS_COLORS.get(st, "#cdd6f4")
+                        created = rec.get("creation", "")[:16]
                         with ui.row().classes("w-full items-center gap-2 py-1 border-b border-gray-800 last:border-b-0"):
-                            ui.label(TIPE_ICONS.get(tipe, '🔧')).classes("text-sm")
+                            ui.label(f"{TIPE_ICONS.get(tipe, '🔧')}").classes("text-sm")
                             ui.label(f"{nama}").classes("text-xs font-semibold text-white flex-1")
                             ui.label(tipe).classes("text-xs text-gray-400")
+                            ui.label(created).classes("text-xs text-gray-500")
                             ui.element("div").style(f"background: {sc}; padding: 1px 8px; border-radius: 6px;")
                             with ui.element("div").style(f"color: {sc}; font-size: 0.75rem; font-weight: 600;"):
                                 ui.label(st)
@@ -406,89 +435,55 @@ def _render_monthly_tab(m: dict):
                             ui.label(_fmt(total)).classes("text-xs font-bold text-white w-12 text-right")
                             ui.label(tipe_str).classes("text-xs text-gray-300")
 
+            # PETUGAS PALING AKTIF
+            pics = data.get("top_petugas", {})
+            if pics:
+                sorted_pics = sorted(pics.items(), key=lambda x: x[1], reverse=True)
+                with ui.element("div").style(CARD).classes("w-full mb-4"):
+                    ui.label("🔧 Petugas Paling Aktif").style(MV)
+                    ui.label("Teknisi dengan penanganan problem terbanyak di bulan ini.").classes("text-xs text-gray-400 mb-3")
+                    with ui.row().classes("w-full items-center gap-2 py-1 border-b border-gray-700 mb-1"):
+                        ui.label("#").classes("text-xs text-gray-500 w-6")
+                        ui.label("Petugas").classes("text-xs text-gray-500 flex-1")
+                        ui.label("Total").classes("text-xs text-gray-500 w-24 text-right")
+                    for rank, (name, count) in enumerate(sorted_pics, 1):
+                        pct = count / data["total"] * 100 if data["total"] else 0
+                        with ui.row().classes("w-full items-center gap-2 py-1 border-b border-gray-800 last:border-b-0"):
+                            ui.label(f"{rank}.").classes("text-xs font-bold text-gray-400 w-6")
+                            ui.label(name).classes("text-xs font-semibold text-white flex-1")
+                            ui.label(_fmt(count)).classes("text-xs font-bold text-white w-12 text-right")
+                            ui.label(f"{pct:.0f}%").classes("text-xs text-gray-500 w-10")
+
+            # STAFF DELAYS
+            staff_delays = data.get("staff_delays", [])
+            if staff_delays:
+                with ui.element("div").style(CARD).classes("w-full mb-4"):
+                    ui.label("⏰ Staf Suka Pending").style(MV)
+                    ui.label("Rata-rata delay dari Request Visit ke Pengambilan Tugas.").classes("text-xs text-gray-400 mb-3")
+                    with ui.row().classes("w-full items-center gap-2 py-1 border-b border-gray-700 mb-1"):
+                        ui.label("#").classes("text-xs text-gray-500 w-6")
+                        ui.label("Staf").classes("text-xs text-gray-500 flex-1")
+                        ui.label("Problem").classes("text-xs text-gray-500 w-16 text-right")
+                        ui.label("Rata2").classes("text-xs text-gray-500 w-16 text-right")
+                        ui.label("Max").classes("text-xs text-gray-500 w-16 text-right")
+                    for rank, rec in enumerate(staff_delays[:15], 1):
+                        avg = rec.get("avg_min", 0)
+                        max_d = rec.get("max_min", 0)
+                        color = "#ef4444" if avg > 180 else "#f59e0b" if avg > 60 else "#22c55e"
+                        staff_name = rec.get("name") or rec.get("email", "?")
+                        with ui.row().classes("w-full items-center gap-2 py-1 border-b border-gray-800 last:border-b-0"):
+                            ui.label(f"{rank}.").classes("text-xs font-bold text-gray-400 w-6")
+                            ui.link(staff_name, "#").props("no-caps").classes("text-xs font-semibold text-blue-400 flex-1").on("click", lambda e, r=rec: show_staff_problems(r))
+                            ui.label(str(rec.get("count", 0))).classes("text-xs text-gray-400 w-16 text-right")
+                            ui.label(f"{avg:.0f} menit").style(f"color: {color}; font-size: 0.75rem; font-weight: 600; width: 70px; text-align: right;")
+                            ui.label(f"{max_d:.0f} menit").classes("text-xs text-gray-500 w-16 text-right")
+
     # Show first month by default
     first_month = sorted_months[0] if sorted_months else None
     if first_month:
         _build_month_detail(first_month)
 
 
-    # TABLE
-    def _build_table():
-        table_container.clear()
-        with table_container:
-            display = [(mk, data) for mk, data in months_data.items()]
-            display.sort(reverse=True)
-
-            col_defs = [
-                {"headerName": "\U0001f4c5 Bulan", "field": "bulan", "width": 110,
-                 "pinned": "left", "sortable": True,
-                 "cellStyle": {"fontWeight": "600", "color": "#89b4fa"}},
-                {"headerName": "\U0001f4ca Total", "field": "total", "width": 80,
-                 "sortable": True, "cellStyle": {"fontWeight": "700"}},
-                {"headerName": "\U0001f7e0 Open", "field": "open", "width": 75,
-                 "sortable": True, "cellStyle": {"color": "#ef4444", "fontWeight": "600"}},
-                {"headerName": "\u2705 Closed", "field": "closed", "width": 80,
-                 "sortable": True, "cellStyle": {"color": "#22c55e"}},
-                {"headerName": "\U0001f7e1 Uncomp", "field": "uncompleted", "width": 85,
-                 "sortable": True, "cellStyle": {"color": "#f59e0b"}},
-                {"headerName": "\U0001f3e0 Booth", "field": "booth_count", "width": 80,
-                 "sortable": True},
-                {"headerName": "\U0001f3d9\ufe0f Top Branch", "field": "top_branch", "width": 140,
-                 "sortable": True},
-                {"headerName": "\U0001f527 Top PIC", "field": "top_pic", "width": 140},
-            ]
-
-            # Add tipe columns (top 8)
-            for tipe in top_tipes[:8]:
-                icon = TIPE_ICONS.get(tipe, "\U0001f527")
-                col_defs.append({
-                    "headerName": f"{icon} {tipe}", "field": f"tipe_{tipe}",
-                    "width": 80, "sortable": True,
-                })
-
-            rows = []
-            for month_key, data in display:
-                top_branch = ""
-                top_pic = ""
-                if data.get("top_branches"):
-                    b, bc = list(data["top_branches"].items())[0]
-                    top_branch = f"{b} ({bc})"
-                if data.get("top_maintenances"):
-                    p, pc = list(data["top_maintenances"].items())[0]
-                    top_pic = f"{p} ({pc})"
-
-                row = {
-                    "bulan": _month_name(month_key),
-                    "_month": month_key,
-                    "total": data["total"],
-                    "open": data["open"],
-                    "closed": data["closed"],
-                    "uncompleted": data["uncompleted"],
-                    "booth_count": data["booth_count"],
-                    "top_branch": top_branch,
-                    "top_pic": top_pic,
-                }
-                for tipe in top_tipes[:8]:
-                    row[f"tipe_{tipe}"] = data.get("tipe", {}).get(tipe, 0)
-                rows.append(row)
-
-            ui.aggrid({
-                "columnDefs": col_defs,
-                "rowData": rows,
-                "pagination": True,
-                "paginationPageSize": 20,
-                "paginationPageSizeSelector": [10, 20, 34],
-                "domLayout": "autoHeight",
-                "defaultColDef": {"resizable": True, "sortable": True, "filter": True},
-                "rowHeight": 38,
-                "headerHeight": 42,
-                "enableCellTextSelection": True,
-                "animateRows": True,
-            }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 300px;")
-
-            ui.label(f"{len(display)} bulan").classes("text-xs text-gray-500 mt-1")
-
-    _build_table()
 
 #  TAB 3: DETAIL RECORD
 # ═══════════════════════════════════════════════
@@ -722,3 +717,6 @@ def create_page(container: ui.column):
                 _render_stat_tab(s)
             with ui.tab_panel("kpi"):
                 kpi_sistem.create_page(ui.column().classes("w-full"))
+
+        # ── Auto-sync: trigger background sync setelah halaman selesai render ──
+        ui.timer(3.0, lambda: _sync_and_reload(container, None, None), once=True)
