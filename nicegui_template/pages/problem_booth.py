@@ -220,10 +220,8 @@ def _render_dashboard_tab(s: dict):
                         badge = "🟢" if rec.get("status") == "Open" else "🟡"
                         with ui.row().classes("w-full items-start gap-2 py-1 border-b border-gray-800 last:border-b-0"):
                             ui.label(f"{badge}").classes("text-sm mt-0.5")
-                            with ui.column().classes("gap-0 flex-1"):
-                                ui.link(f"{nama} — {tipe}", f"{_ERP_URL}/app/problem-booth/{rec['name']}", new_tab=True).classes("text-xs font-semibold text-white hover:text-blue-300 hover:underline")
-                                if rec.get("description"):
-                                    ui.label(_strip_html(rec["description"])[:80]).classes("text-xs text-gray-400 truncate")
+                            with ui.row().classes("gap-2 items-center flex-1"):
+                                ui.link(f"{nama} — {tipe}", f"{_ERP_URL}/app/problem-booth/{rec['name']}", new_tab=True).classes("text-xs font-semibold text-white hover:text-blue-300")
                                 if rec.get("creation"):
                                     ui.label(f"📅 {_fmt_date(rec['creation'])}").classes("text-xs text-gray-500")
             else:
