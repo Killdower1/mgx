@@ -1275,48 +1275,6 @@ def _build_outlet_table(cpv, cmv):
             return
         with ui.row().classes("w-full gap-4 mb-6"):
             with ui.card().classes("flex-1").style(CARD):
-                ui.label("📊 Distribusi Status Outlet").style(ST)
-                if "outlet_status" in md.columns:
-                    sc = md["outlet_status"].value_counts()
-                    ui.echart(
-                        {
-                            "tooltip": {
-                                "trigger": "item",
-                                "formatter": "{b}:{c}({d}%)",
-                            },
-                            "color": [SC.get(s, "#94a3b8") for s in sc.index.tolist()],
-                            "series": [
-                                {
-                                    "type": "pie",
-                                    "radius": ["40%", "70%"],
-                                    "center": ["50%", "50%"],
-                                    "data": [
-                                        {"name": k, "value": v}
-                                        for k, v in zip(
-                                            sc.index.tolist(), sc.values.tolist()
-                                        )
-                                    ],
-                                    "label": {
-                                        "color": "#cdd6f4",
-                                        "fontSize": 11,
-                                        "formatter": "{b}:{c}",
-                                    },
-                                    "itemStyle": {
-                                        "borderColor": "#1e1e2e",
-                                        "borderWidth": 2,
-                                    },
-                                }
-                            ],
-                            **{
-                                k: v
-                                for k, v in ECHART.items()
-                                if k not in ("xAxis", "yAxis")
-                            },
-                        }
-                    ).classes("w-full h-[300px]")
-                else:
-                    ui.label("Tidak ada data.").classes("text-gray-400 italic")
-            with ui.card().classes("flex-1").style(CARD):
                 tp = a.get_top_performers(md, 5)
                 wr = a.get_worst_performers(md, 10)
                 ui.label("🏆 Top 5").style(ST)
