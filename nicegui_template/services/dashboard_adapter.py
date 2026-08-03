@@ -241,9 +241,10 @@ class DashboardAdapter:
         active = display_df_sorted[display_df_sorted["_aktif_current"]].drop(columns=["_aktif_current"]).reset_index(drop=True)
         inactive = display_df_sorted[~display_df_sorted["_aktif_current"]].drop(columns=["_aktif_current"]).reset_index(drop=True)
 
-        # Format currency columns
+        # Format currency columns — pakai TITIK ribuan (konsisten dgn tabel dashboard lain,
+        # dan bikin comparator sort numerik di AG Grid bekerja: Rp 133.872.727)
         def fmt_func(v):
-            return self.format_currency(v) if v else self.format_currency(0)
+            return "Rp {:,.0f}".format(round(float(v or 0))).replace(",", ".")
         for col in value_cols + ["Rata-rata"]:
             if col in active.columns:
                 active[col] = active[col].apply(fmt_func)
