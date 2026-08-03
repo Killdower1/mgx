@@ -1065,7 +1065,6 @@ def _build_outlet_table(cpv, cmv):
             unl = int(r.get("unlock_qty", 0) or 0)
             prn = int(r.get("print_qty", 0) or 0)
             cnv = float(r.get("paid_per_photo_rate", 0) or 0)
-            sta = str(r.get("outlet_status", ""))
             are = str(r.get("area", ""))
             has_cmp = cmv and k in cpm
             po = float(cpm[k].get("total_revenue", 0) or 0) if has_cmp else 0
@@ -1106,7 +1105,6 @@ def _build_outlet_table(cpv, cmv):
                 {
                     "Outlet": name,
                     "Area": are,
-                    "Status": f'<span style="color:{SC.get(sta,"#94a3b8")};font-weight:600;">{sta}</span>',
                     "Omset": _c(oms),
                     "Delta Omset": delta_oms,
                     "Foto": _n(fot),
@@ -1145,18 +1143,6 @@ def _build_outlet_table(cpv, cmv):
                     "floatingFilter": True,
                 }
             )
-            col_defs.append(
-                {
-                    "headerName": "Status",
-                    "field": "Status",
-                    "minWidth": 110,
-                    "flex": 1,
-                    "sortable": True,
-                    "filter": "agTextColumnFilter",
-                    "floatingFilter": True,
-                }
-            )
-            html_col_indices.append(len(col_defs) - 1)
             col_defs.append(
                 {
                     "headerName": "Omset",
