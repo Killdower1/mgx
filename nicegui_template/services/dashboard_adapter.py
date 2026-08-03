@@ -213,8 +213,18 @@ class DashboardAdapter:
 
         value_cols = periods_window
 
+        # Bulan berjalan (masih berjalan / datanya partial) TIDAK dihitung dalam rata-rata.
+        # Hanya exclude kalau periode aktif == bulan kalender sekarang (masih jalan).
+        # Kalau periode aktif adalah bulan lampau yang sudah selesai, tetap dihitung.
+        current_cal_month = pd.Timestamp.now().strftime("%Y-%m")
+        avg_exclude = str(active_period) if str(active_period) == current_cal_month else None
+        avg_cols = [c for c in periods_window if str(c) != avg_exclude] if avg_exclude else periods_window
+
         def _avg_real_row(row: pd.Series) -> float:
-            vals = [float(v) for v in row.tolist() if (pd.notna(v) and float(v) > 0.0)]
+            vals = [
+                float(row[c]) for c in avg_cols
+                if (pd.notna(row[c]) and float(row[c]) > 0.0)
+            ]
             return float(np.mean(vals)) if len(vals) > 0 else 0.0
 
         avg_real = pivot.apply(_avg_real_row, axis=1)
