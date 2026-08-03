@@ -1442,17 +1442,6 @@ def _build_outlet_table(cpv, cmv):
                         },
                     }
                 ).classes("w-full h-[300px]")
-        ui.separator().classes("my-4")
-        ui.label("💡 Key Insights").style(ST)
-        ins = a.get_insights(md)
-        if ins:
-            for i in ins:
-                with ui.card().classes("w-full mb-2").style(
-                    "background:#181825;border-left:3px solid #89b4fa;border-radius:8px;padding:12px 16px;"
-                ):
-                    ui.label(i).classes("text-sm text-gray-300")
-        else:
-            ui.label("Tidak ada insight.").classes("text-gray-400 italic")
         ui.separator().classes("my-6")
         ols = (
             md["outlet_name"].dropna().unique().tolist()
