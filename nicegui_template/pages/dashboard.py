@@ -2,7 +2,8 @@
 Dashboard v3 — dropdowns separate from content (stable), compare works.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
+import json
 import os
 import time
 from nicegui import ui
@@ -19,6 +20,41 @@ SC = {
     "Relocate": "#ef4444",
     "Tidak Aktif": "#94a3b8",
 }
+
+_daily_tx_cache = None
+_daily_tx_cache_mtime = None
+
+
+def _load_last_tx_dates():
+    """Map outlet_name -> tanggal transaksi terakhir (YYYY-MM-DD) dari daily_summary.json.
+    Cache by file mtime. Return {} kalau gagal load."""
+    global _daily_tx_cache, _daily_tx_cache_mtime
+    try:
+        path = os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..", "..",
+                "streamlit_template", "data", "api_cache", "daily_summary.json",
+            )
+        )
+        mtime = os.path.getmtime(path)
+        if _daily_tx_cache is not None and _daily_tx_cache_mtime == mtime:
+            return _daily_tx_cache
+        with open(path) as f:
+            data = json.load(f)
+        last = {}
+        for r in data:
+            name = str(r.get("outlet_name", "")).strip()
+            d = str(r.get("date", ""))[:10]
+            if name and d > last.get(name, ""):
+                last[name] = d
+        _daily_tx_cache = last
+        _daily_tx_cache_mtime = mtime
+        return last
+    except Exception:
+        return {}
+
+
 ECHART = {
     "backgroundColor": "#1e1e2e",
     "textStyle": {"color": "#cdd6f4"},
@@ -1416,11 +1452,17 @@ def _build_outlet_table(cpv, cmv):
                     }
                 ).classes("w-full h-[300px]")
         ui.separator().classes("my-6")
-        ols = (
-            md["outlet_name"].dropna().unique().tolist()
-            if "outlet_name" in md.columns
-            else []
-        )
+        # HANYA tabel Tren Omset: tampilkan outlet dengan transaksi terakhir <= 30 hari
+        last_tx = _load_last_tx_dates()
+        if last_tx:
+            cutoff = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+            ols = sorted(o for o, d in last_tx.items() if d >= cutoff)
+        else:
+            ols = (
+                md["outlet_name"].dropna().unique().tolist()
+                if "outlet_name" in md.columns
+                else []
+            )
         if ols:
             tr = a.build_trend_table(_ff, _cp, ols, 12)
             if tr["has_data"]:
