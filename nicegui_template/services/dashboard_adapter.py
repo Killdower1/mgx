@@ -257,6 +257,67 @@ class DashboardAdapter:
         result["has_data"] = True
         return result
 
+    def build_daily_trend_table(self, daily_df, visible_outlets, days=30, end_date=None) -> dict:
+        """Build daily omset trend: outlet rows x last N days (ending H-1/yesterday).
+
+        daily_df must have columns: outlet_name, date (YYYY-MM-DD), revenue.
+        Returns dict: {df, value_cols, has_data}
+        - value_cols: day columns newest -> oldest
+        - df columns: Outlet, Total 30 Hari, then one column per day (formatted "Rp 1.234.567")
+        - rows sorted by Total 30 Hari descending
+        """
+        result = {"df": pd.DataFrame(), "value_cols": [], "has_data": False}
+        if (
+            daily_df is None or daily_df.empty
+            or "outlet_name" not in daily_df.columns
+            or "date" not in daily_df.columns
+            or "revenue" not in daily_df.columns
+        ):
+            return result
+        df = daily_df.copy()
+        df["outlet_name"] = df["outlet_name"].astype(str).str.strip()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+        df["revenue"] = pd.to_numeric(df.get("revenue", 0), errors="coerce").fillna(0.0)
+        df = df[df["outlet_name"].isin(visible_outlets)].copy()
+        if df.empty:
+            return result
+
+        if end_date is None:
+            end_date = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)  # H-1
+        else:
+            end_date = pd.Timestamp(end_date).normalize()
+        start_date = end_date - pd.Timedelta(days=days - 1)
+
+        date_asc = pd.date_range(start_date, end_date).strftime("%Y-%m-%d").tolist()
+        date_desc = list(reversed(date_asc))
+
+        df = df[
+            (df["date"] >= date_asc[0]) & (df["date"] <= date_asc[-1])
+        ]
+        if df.empty:
+            return result
+
+        pivot = (
+            df.pivot_table(index="outlet_name", columns="date", values="revenue", aggfunc="sum")
+            .reindex(columns=date_asc)
+            .fillna(0.0)
+        )
+        display_df = pivot.reset_index().rename(columns={"outlet_name": "Outlet"})
+        total = pivot.sum(axis=1)
+        display_df.insert(1, "Total 30 Hari", total.values)
+        display_df = display_df.sort_values("Total 30 Hari", ascending=False).reset_index(drop=True)
+
+        def _fmt(v):
+            return "Rp {:,.0f}".format(round(float(v or 0))).replace(",", ".")
+
+        for col in ["Total 30 Hari"] + date_desc:
+            display_df[col] = display_df[col].apply(_fmt)
+
+        result["df"] = display_df
+        result["value_cols"] = date_desc
+        result["has_data"] = True
+        return result
+
 
 # Singleton
 _adapter: Optional[DashboardAdapter] = None

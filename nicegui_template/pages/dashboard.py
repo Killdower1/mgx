@@ -21,14 +21,13 @@ SC = {
     "Tidak Aktif": "#94a3b8",
 }
 
-_daily_tx_cache = None
-_daily_tx_cache_mtime = None
+_daily_data_cache = None
+_daily_data_cache_mtime = None
 
 
-def _load_last_tx_dates():
-    """Map outlet_name -> tanggal transaksi terakhir (YYYY-MM-DD) dari daily_summary.json.
-    Cache by file mtime. Return {} kalau gagal load."""
-    global _daily_tx_cache, _daily_tx_cache_mtime
+def _load_daily_data():
+    """List of daily_summary records (cached by file mtime). [] kalau gagal."""
+    global _daily_data_cache, _daily_data_cache_mtime
     try:
         path = os.path.abspath(
             os.path.join(
@@ -38,21 +37,26 @@ def _load_last_tx_dates():
             )
         )
         mtime = os.path.getmtime(path)
-        if _daily_tx_cache is not None and _daily_tx_cache_mtime == mtime:
-            return _daily_tx_cache
+        if _daily_data_cache is not None and _daily_data_cache_mtime == mtime:
+            return _daily_data_cache
         with open(path) as f:
             data = json.load(f)
-        last = {}
-        for r in data:
-            name = str(r.get("outlet_name", "")).strip()
-            d = str(r.get("date", ""))[:10]
-            if name and d > last.get(name, ""):
-                last[name] = d
-        _daily_tx_cache = last
-        _daily_tx_cache_mtime = mtime
-        return last
+        _daily_data_cache = data
+        _daily_data_cache_mtime = mtime
+        return data
     except Exception:
-        return {}
+        return []
+
+
+def _load_last_tx_dates():
+    """Map outlet_name -> tanggal transaksi terakhir (YYYY-MM-DD). {} kalau gagal."""
+    last = {}
+    for r in _load_daily_data():
+        name = str(r.get("outlet_name", "")).strip()
+        d = str(r.get("date", ""))[:10]
+        if name and d > last.get(name, ""):
+            last[name] = d
+    return last
 
 
 ECHART = {
@@ -1682,6 +1686,109 @@ def _build_outlet_table(cpv, cmv):
                     ui.label(
                         "Nilai kosong = 0. Rata-rata dari 12 bulan (bulan berjalan tidak dihitung), hanya omset > 0 yang dihitung."
                     ).classes("text-[10px] text-gray-500 italic")
+
+            # 📆 Tren Omset Outlet (30 Hari) — harian, 30 hari terakhir berakhir H-1
+            try:
+                daily_data = _load_daily_data()
+                if daily_data:
+                    ddf = pd.DataFrame(daily_data)
+                    dtr = a.build_daily_trend_table(ddf, ols, days=30)
+                    if dtr["has_data"]:
+                        ddays = dtr["value_cols"]
+                        with ui.expansion(
+                            "📆 Tren Omset Outlet (30 Hari)", icon="trending_up"
+                        ).classes("w-full mb-4"):
+                            drr = []
+                            for _, rd in dtr["df"].iterrows():
+                                d = {
+                                    "Outlet": str(rd.get("Outlet", "")),
+                                    "Total 30 Hari": str(rd.get("Total 30 Hari", "Rp 0")),
+                                }
+                                for p in ddays:
+                                    d[p] = str(rd.get(p, "Rp 0"))
+                                drr.append(d)
+                            d_html = list(range(2, 2 + len(ddays)))
+                            # warna: hijau jika omset > hari sebelumnya, merah jika < (urutan kronologis)
+                            for ri in drr:
+                                days_asc = sorted(list(ddays))
+                                prev_val = None
+                                for p in days_asc:
+                                    raw = ri.get(p, "Rp 0")
+                                    try:
+                                        s = raw.replace("Rp ", "").strip()
+                                        cur = float(s.replace(".", "").replace(",", ""))
+                                    except Exception:
+                                        cur = 0
+                                    if prev_val is not None and cur != prev_val:
+                                        if cur > prev_val:
+                                            ri[p] = (
+                                                '<span style="color:#a6e3a1;font-weight:600">'
+                                                + raw
+                                                + "</span>"
+                                            )
+                                        else:
+                                            ri[p] = (
+                                                '<span style="color:#f38ba8;font-weight:600">'
+                                                + raw
+                                                + "</span>"
+                                            )
+                                    prev_val = cur
+                            dcols = [
+                                {
+                                    "headerName": "Outlet",
+                                    "field": "Outlet",
+                                    "pinned": "left",
+                                    "minWidth": 180,
+                                    "flex": 2,
+                                    "sortable": True,
+                                    "filter": "agTextColumnFilter",
+                                    "floatingFilter": True,
+                                },
+                                {
+                                    "headerName": "Total 30 Hari",
+                                    "field": "Total 30 Hari",
+                                    "minWidth": 130,
+                                    "flex": 1,
+                                    "sortable": True,
+                                    "filter": "agNumberColumnFilter",
+                                    "floatingFilter": True,
+                                    ":comparator": "(a,b)=>{const x=a.split(' ').slice(-1)[0];const y=b.split(' ').slice(-1)[0];return Number(x?x.split('.').join(''):0)-Number(y?y.split('.').join(''):0)}",
+                                },
+                            ] + [
+                                {
+                                    "headerName": p,
+                                    "field": p,
+                                    "minWidth": 100,
+                                    "flex": 1,
+                                    "sortable": True,
+                                    ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'').replace('Rp ','').replace(/\\./g,'');return parseFloat(s)||0};return p(a)-p(b)}",
+                                }
+                                for p in ddays
+                            ]
+                            ui.aggrid(
+                                {
+                                    "columnDefs": dcols,
+                                    "rowData": drr,
+                                    "pagination": True,
+                                    "paginationPageSize": 50,
+                                    "paginationPageSizeSelector": [25, 50, 100],
+                                    "domLayout": "autoHeight",
+                                    "defaultColDef": {"resizable": True},
+                                    "animateRows": True,
+                                    "rowHeight": 40,
+                                    "headerHeight": 40,
+                                    "enableCellTextSelection": True,
+                                },
+                                theme="balham",
+                                html_columns=d_html,
+                            ).classes("w-full ag-theme-balham-dark").style(
+                                "height: auto; min-height: 200px;"
+                            )
+                            ui.label(
+                                "Warna: hijau = omset lebih tinggi dari hari sebelumnya, merah = lebih rendah."
+                            ).classes("text-[10px] text-gray-500 italic")
+            except Exception:
+                pass
         else:
             ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
 
