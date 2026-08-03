@@ -1515,6 +1515,8 @@ def _build_outlet_table(cpv, cmv):
                                         "minWidth": 180,
                                         "flex": 2,
                                         "sortable": True,
+                                        "filter": "agTextColumnFilter",
+                                        "floatingFilter": True,
                                     },
                                     {
                                         "headerName": "Rata-rata",
@@ -1522,6 +1524,9 @@ def _build_outlet_table(cpv, cmv):
                                         "minWidth": 130,
                                         "flex": 1,
                                         "sortable": True,
+                                        "filter": "agNumberColumnFilter",
+                                        "floatingFilter": True,
+                                        ":comparator": "(a,b)=>{const x=a.split(' ').slice(-1)[0];const y=b.split(' ').slice(-1)[0];return Number(x?x.split('.').join(''):0)-Number(y?y.split('.').join(''):0)}",
                                     },
                                 ]
                                 + [
@@ -1530,17 +1535,21 @@ def _build_outlet_table(cpv, cmv):
                                         "field": p,
                                         "minWidth": 110,
                                         "flex": 1,
+                                        "sortable": True,
+                                        ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'').replace('Rp ','').replace(/\\./g,'');return parseFloat(s)||0};return p(a)-p(b)}",
                                     }
                                     for p in vc
                                 ],
                                 "rowData": rr,
                                 "pagination": True,
-                                "paginationPageSize": 10,
+                                "paginationPageSize": 50,
+                                "paginationPageSizeSelector": [25, 50, 100],
                                 "domLayout": "autoHeight",
                                 "defaultColDef": {"resizable": True},
                                 "animateRows": True,
                                 "rowHeight": 40,
                                 "headerHeight": 40,
+                                "enableCellTextSelection": True,
                             },
                             theme="balham",
                             html_columns=trend_html_indices,
@@ -1612,6 +1621,8 @@ def _build_outlet_table(cpv, cmv):
                                         "minWidth": 180,
                                         "flex": 2,
                                         "sortable": True,
+                                        "filter": "agTextColumnFilter",
+                                        "floatingFilter": True,
                                     },
                                     {
                                         "headerName": "Rata-rata",
@@ -1619,6 +1630,9 @@ def _build_outlet_table(cpv, cmv):
                                         "minWidth": 130,
                                         "flex": 1,
                                         "sortable": True,
+                                        "filter": "agNumberColumnFilter",
+                                        "floatingFilter": True,
+                                        ":comparator": "(a,b)=>{const x=a.split(' ').slice(-1)[0];const y=b.split(' ').slice(-1)[0];return Number(x?x.split('.').join(''):0)-Number(y?y.split('.').join(''):0)}",
                                     },
                                 ]
                                 + [
@@ -1627,17 +1641,21 @@ def _build_outlet_table(cpv, cmv):
                                         "field": p,
                                         "minWidth": 110,
                                         "flex": 1,
+                                        "sortable": True,
+                                        ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'').replace('Rp ','').replace(/\\./g,'');return parseFloat(s)||0};return p(a)-p(b)}",
                                     }
                                     for p in vc
                                 ],
                                 "rowData": rr,
                                 "pagination": True,
-                                "paginationPageSize": 5,
+                                "paginationPageSize": 50,
+                                "paginationPageSizeSelector": [25, 50, 100],
                                 "domLayout": "autoHeight",
                                 "defaultColDef": {"resizable": True},
                                 "animateRows": True,
                                 "rowHeight": 40,
                                 "headerHeight": 40,
+                                "enableCellTextSelection": True,
                             },
                             theme="balham",
                             html_columns=trend_html_indices2,
@@ -1645,7 +1663,7 @@ def _build_outlet_table(cpv, cmv):
                             "height: auto; min-height: 200px;"
                         )
                     ui.label(
-                        "Nilai kosong = 0. Rata-rata dari 12 bulan, hanya omset > 0 dihitung."
+                        "Nilai kosong = 0. Rata-rata dari 12 bulan (bulan berjalan tidak dihitung), hanya omset > 0 yang dihitung."
                     ).classes("text-[10px] text-gray-500 italic")
         else:
             ui.label("Tidak ada outlet.").classes("text-gray-400 italic")
