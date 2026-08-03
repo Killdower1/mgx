@@ -208,7 +208,8 @@ def _render_dashboard_tab(s: dict):
                     ).classes("")
                     ui.label(f"{pct:.0f}%").classes("text-xs text-gray-500 w-10")
 
-        with ui.element("div").style(CARD).classes("flex-[2] min-w-[250px]"):
+    with ui.row().classes("w-full gap-4 mt-4"):
+        with ui.element("div").style(CARD).classes("w-full"):
             ui.label("🟢 Open / Uncompleted").classes(MV)
             open_problems = s.get("open_problems", [])
             if open_problems:
