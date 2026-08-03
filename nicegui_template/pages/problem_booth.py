@@ -215,7 +215,7 @@ def _render_dashboard_tab(s: dict):
         with ui.row().classes("w-full items-start gap-2 py-1 border-b border-gray-800 last:border-b-0"):
             ui.label(f"{badge}").classes("text-sm mt-0.5")
             with ui.row().classes("gap-2 items-center flex-1"):
-                ui.link(f"{nama} — {tipe}", f"{_ERP_URL}/app/problem-booth/{rec['name']}", new_tab=True).classes("text-xs font-semibold text-white hover:text-blue-300").style("text-decoration: none !important;")
+                ui.link(f"{nama} — {tipe}", f"{_ERP_URL}/app/problem-booth/{rec['name']}", new_tab=True).classes("text-xs font-semibold text-white hover:text-blue-300 flex-1").style("text-decoration: none !important;")
                 if rec.get("creation"):
                     ui.label(f"📅 {_fmt_date(rec['creation'])}").classes("text-xs text-gray-500")
 
