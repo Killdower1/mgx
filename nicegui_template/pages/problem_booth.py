@@ -208,24 +208,40 @@ def _render_dashboard_tab(s: dict):
                     ).classes("")
                     ui.label(f"{pct:.0f}%").classes("text-xs text-gray-500 w-10")
 
+    def _pb_row(rec):
+        nama = _outlet_label(rec)
+        tipe = rec.get("tipeproblem", "")
+        badge = "🟢" if rec.get("status") == "Open" else "🟡"
+        with ui.row().classes("w-full items-start gap-2 py-1 border-b border-gray-800 last:border-b-0"):
+            ui.label(f"{badge}").classes("text-sm mt-0.5")
+            with ui.row().classes("gap-2 items-center flex-1"):
+                ui.link(f"{nama} — {tipe}", f"{_ERP_URL}/app/problem-booth/{rec['name']}", new_tab=True).classes("text-xs font-semibold text-white hover:text-blue-300").style("text-decoration: none !important;")
+                if rec.get("creation"):
+                    ui.label(f"📅 {_fmt_date(rec['creation'])}").classes("text-xs text-gray-500")
+
+    open_problems = s.get("open_problems", [])
+    open_list = [r for r in open_problems if str(r.get("status", "")).lower() != "uncompleted"]
+    unc_list = [r for r in open_problems if str(r.get("status", "")).lower() == "uncompleted"]
+
     with ui.row().classes("w-full gap-4 mt-4"):
         with ui.element("div").style(CARD).classes("w-full"):
-            ui.label("🟢 Open / Uncompleted").classes(MV)
-            open_problems = s.get("open_problems", [])
-            if open_problems:
+            ui.label("🟢 Open").classes(MV)
+            if open_list:
                 with ui.element("div").classes("w-full overflow-y-auto").style("max-height: 520px; padding-right: 4px;"):
-                    for rec in open_problems:
-                        nama = _outlet_label(rec)
-                        tipe = rec.get("tipeproblem", "")
-                        badge = "🟢" if rec.get("status") == "Open" else "🟡"
-                        with ui.row().classes("w-full items-start gap-2 py-1 border-b border-gray-800 last:border-b-0"):
-                            ui.label(f"{badge}").classes("text-sm mt-0.5")
-                            with ui.row().classes("gap-2 items-center flex-1"):
-                                ui.link(f"{nama} — {tipe}", f"{_ERP_URL}/app/problem-booth/{rec['name']}", new_tab=True).classes("text-xs font-semibold text-white hover:text-blue-300").style("text-decoration: none !important;")
-                                if rec.get("creation"):
-                                    ui.label(f"📅 {_fmt_date(rec['creation'])}").classes("text-xs text-gray-500")
+                    for rec in open_list:
+                        _pb_row(rec)
             else:
                 ui.label("Tidak ada problem open.").classes("text-xs text-gray-500 italic")
+
+    with ui.row().classes("w-full gap-4 mt-4"):
+        with ui.element("div").style(CARD).classes("w-full"):
+            ui.label("🟡 Uncompleted").classes(MV)
+            if unc_list:
+                with ui.element("div").classes("w-full overflow-y-auto").style("max-height: 520px; padding-right: 4px;"):
+                    for rec in unc_list:
+                        _pb_row(rec)
+            else:
+                ui.label("Tidak ada problem uncompleted.").classes("text-xs text-gray-500 italic")
 
     with ui.row().classes("w-full gap-4 mt-4"):
         for title, key, grad in [
