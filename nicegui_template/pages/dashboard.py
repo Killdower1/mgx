@@ -1056,22 +1056,10 @@ def _build_outlet_table(cpv, cmv):
             act = k in cm
             r = cm.get(k, mt2.get(name, {}))
             if not act:
-                # Outlet ada di data historis tapi tidak ada transaksi di periode aktif:
-                # tetap tampilkan sebagai baris dormant (Rp 0, status "Tidak Ada Data")
-                st = "Tidak Ada Data"
-                r = {
-                    **r,
-                    "total_revenue": 0,
-                    "foto_qty": 0,
-                    "unlock_qty": 0,
-                    "print_qty": 0,
-                    "paid_per_photo_rate": 0,
-                    "outlet_status": st,
-                }
-            else:
-                st = str(r.get("outlet_status", ""))
-                if st in ("Tidak Aktif", "", None):
-                    continue
+                continue
+            st = str(r.get("outlet_status", ""))
+            if st in ("Tidak Aktif", "", None):
+                continue
             oms = float(r.get("total_revenue", 0) or 0)
             fot = int(r.get("foto_qty", 0) or 0)
             unl = int(r.get("unlock_qty", 0) or 0)
