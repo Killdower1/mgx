@@ -193,6 +193,7 @@ def main():
                 "maintenance": safe(r.get("maintenance")),
                 "tanggal_foto": str(r.get("tanggal_foto", ""))[:10],
                 "creation": str(r.get("creation", ""))[:19],
+                "visit": safe(r.get("visit")),
             })
 
     # Problems from last 24h — all problems, no cap

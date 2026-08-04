@@ -208,6 +208,8 @@ def _render_dashboard_tab(s: dict):
 
     open_problems = s.get("open_problems", [])
     open_list = [r for r in open_problems if str(r.get("status", "")).lower() != "uncompleted"]
+    onreview_list = [r for r in open_list if str(r.get("visit", "")).strip().lower() == "on review"]
+    open_list = [r for r in open_list if str(r.get("visit", "")).strip().lower() != "on review"]
 
     def _pb_rows(rec):
         return {
@@ -270,11 +272,19 @@ def _render_dashboard_tab(s: dict):
 
     with ui.row().classes("w-full gap-4 mt-4"):
         with ui.element("div").style(CARD).classes("w-full"):
-            ui.label("🟢 Open").classes(MV)
+            ui.label("Problem Booth Open").classes(MV)
             if open_list:
                 _pb_table([_pb_rows(r) for r in open_list])
             else:
                 ui.label("Tidak ada problem open.").classes("text-xs text-gray-500 italic")
+
+    with ui.row().classes("w-full gap-4 mt-4"):
+        with ui.element("div").style(CARD).classes("w-full"):
+            ui.label("Problem Booth On Review").classes(MV)
+            if onreview_list:
+                _pb_table([_pb_rows(r) for r in onreview_list])
+            else:
+                ui.label("Tidak ada problem on review.").classes("text-xs text-gray-500 italic")
 
     with ui.row().classes("w-full gap-4 mt-4"):
         for title, key, grad in [
