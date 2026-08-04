@@ -180,7 +180,7 @@ def main():
         d = r.get("tanggal_foto", "")
         if d:
             monthly_raw[str(d)[:7]] += 1
-        if safe(r.get("status")).lower() in ("open", "on the way", "reopen", "", "uncompleted"):
+        if safe(r.get("status")).lower() in ("open", "on the way", "reopen", ""):
             desc = str(r.get("description_problem", "") or "")
             desc_clean = desc.replace("<p>", "").replace("</p>", " ").strip()[:100]
             open_problems.append({
