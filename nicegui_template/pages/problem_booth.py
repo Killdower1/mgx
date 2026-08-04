@@ -160,6 +160,122 @@ def _kpi_card(label: str, value: str, sub: str = "", color: str = "#cdd6f4"):
             ui.label(sub).classes("text-xs text-gray-500 mt-1")
 
 
+def _pb_rows(rec):
+    return {
+        "Outlet": _outlet_label(rec),
+        "Problem": f'<a href="{_ERP_URL}/app/problem-booth/{rec["name"]}" target="_blank" style="text-decoration:none;color:#cdd6f4;font-weight:600;">{rec["name"]} · {rec.get("tipeproblem", "")}</a>',
+        "Tgl": _fmt_date(rec.get("creation", "")),
+    }
+
+
+_pb_cols = [
+    {
+        "headerName": "Outlet",
+        "field": "Outlet",
+        "pinned": "left",
+        "minWidth": 200,
+        "flex": 3,
+        "sortable": True,
+        "filter": "agTextColumnFilter",
+        "floatingFilter": True,
+    },
+    {
+        "headerName": "Problem",
+        "field": "Problem",
+        "minWidth": 180,
+        "flex": 2,
+        "sortable": True,
+        "filter": "agTextColumnFilter",
+        "floatingFilter": True,
+    },
+    {
+        "headerName": "Tgl",
+        "field": "Tgl",
+        "minWidth": 110,
+        "flex": 1,
+        "sortable": True,
+        "filter": "agTextColumnFilter",
+        "floatingFilter": True,
+        "cellStyle": {"textAlign": "right"},
+        ":comparator": "(a,b)=>{const M={Jan:'01',Feb:'02',Mar:'03',Apr:'04',Mei:'05',Jun:'06',Jul:'07',Agu:'08',Sep:'09',Okt:'10',Nov:'11',Des:'12'};const p=v=>{if(!v)return 0;const x=String(v).split(' ');return x.length===3?Number(x[2]+M[x[1]]+x[0].padStart(2,'0')):0};return p(a)-p(b)}",
+    },
+]
+
+
+def _pb_rows_60d(rec):
+    st = str(rec.get("status", "") or "")
+    sc = STATUS_COLORS.get(st, "#cdd6f4")
+    return {
+        "Outlet": _outlet_label(rec),
+        "Problem": f'<a href="{_ERP_URL}/app/problem-booth/{rec["name"]}" target="_blank" style="text-decoration:none;color:#cdd6f4;font-weight:600;">{rec["name"]} · {rec.get("tipeproblem", "")}</a>',
+        "Tgl": _fmt_date(rec.get("creation", "")),
+        "Status": f'<span style="color:{sc};font-weight:700;">{st}</span>',
+    }
+
+
+_pb_cols_60d = [
+    {
+        "headerName": "Outlet",
+        "field": "Outlet",
+        "pinned": "left",
+        "minWidth": 200,
+        "flex": 3,
+        "sortable": True,
+        "filter": "agTextColumnFilter",
+        "floatingFilter": True,
+    },
+    {
+        "headerName": "Problem",
+        "field": "Problem",
+        "minWidth": 180,
+        "flex": 2,
+        "sortable": True,
+        "filter": "agTextColumnFilter",
+        "floatingFilter": True,
+    },
+    {
+        "headerName": "Tgl",
+        "field": "Tgl",
+        "minWidth": 110,
+        "flex": 1,
+        "sortable": True,
+        "filter": "agTextColumnFilter",
+        "floatingFilter": True,
+        "cellStyle": {"textAlign": "right"},
+        ":comparator": "(a,b)=>{const M={Jan:'01',Feb:'02',Mar:'03',Apr:'04',Mei:'05',Jun:'06',Jul:'07',Agu:'08',Sep:'09',Okt:'10',Nov:'11',Des:'12'};const p=v=>{if(!v)return 0;const x=String(v).split(' ');return x.length===3?Number(x[2]+M[x[1]]+x[0].padStart(2,'0')):0};return p(a)-p(b)}",
+    },
+    {
+        "headerName": "Status",
+        "field": "Status",
+        "minWidth": 120,
+        "flex": 1,
+        "sortable": True,
+        "filter": "agTextColumnFilter",
+        "floatingFilter": True,
+    },
+]
+
+
+def _pb_table(rows, cols=None, html_cols=(1,)):
+    ui.aggrid(
+        {
+            "columnDefs": cols if cols is not None else _pb_cols,
+            "rowData": rows,
+            "pagination": True,
+            "paginationPageSize": 20,
+            "paginationPageSizeSelector": [20, 50, 100],
+            "domLayout": "autoHeight",
+            "defaultColDef": {"resizable": True},
+            "animateRows": True,
+            "rowHeight": 40,
+            "headerHeight": 40,
+            "enableCellTextSelection": True,
+        },
+        theme="balham",
+        html_columns=list(html_cols),
+    ).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+
+
 # ═══════════════════════════════════════════════
 #  TAB 1: DASHBOARD OPERASIONAL (summary.json — 4KB)
 # ═══════════════════════════════════════════════
@@ -210,65 +326,6 @@ def _render_dashboard_tab(s: dict):
     open_list = [r for r in open_problems if str(r.get("status", "")).lower() != "uncompleted"]
     onreview_list = [r for r in open_list if str(r.get("visit", "")).strip().lower() == "on review"]
     open_list = [r for r in open_list if str(r.get("visit", "")).strip().lower() != "on review"]
-
-    def _pb_rows(rec):
-        return {
-            "Outlet": _outlet_label(rec),
-            "Problem": f'<a href="{_ERP_URL}/app/problem-booth/{rec["name"]}" target="_blank" style="text-decoration:none;color:#cdd6f4;font-weight:600;">{rec["name"]} · {rec.get("tipeproblem", "")}</a>',
-            "Tgl": _fmt_date(rec.get("creation", "")),
-        }
-
-    _pb_cols = [
-        {
-            "headerName": "Outlet",
-            "field": "Outlet",
-            "pinned": "left",
-            "minWidth": 200,
-            "flex": 3,
-            "sortable": True,
-            "filter": "agTextColumnFilter",
-            "floatingFilter": True,
-        },
-        {
-            "headerName": "Problem",
-            "field": "Problem",
-            "minWidth": 180,
-            "flex": 2,
-            "sortable": True,
-            "filter": "agTextColumnFilter",
-            "floatingFilter": True,
-        },
-        {
-            "headerName": "Tgl",
-            "field": "Tgl",
-            "minWidth": 110,
-            "flex": 1,
-            "sortable": True,
-            "filter": "agTextColumnFilter",
-            "floatingFilter": True,
-            "cellStyle": {"textAlign": "right"},
-            ":comparator": "(a,b)=>{const M={Jan:'01',Feb:'02',Mar:'03',Apr:'04',Mei:'05',Jun:'06',Jul:'07',Agu:'08',Sep:'09',Okt:'10',Nov:'11',Des:'12'};const p=v=>{if(!v)return 0;const x=String(v).split(' ');return x.length===3?Number(x[2]+M[x[1]]+x[0].padStart(2,'0')):0};return p(a)-p(b)}",
-        },
-    ]
-
-    def _pb_table(rows):
-        ui.aggrid(
-            {
-                "columnDefs": _pb_cols,
-                "rowData": rows,
-                "pagination": True,
-                "paginationPageSize": 20,
-                "paginationPageSizeSelector": [20, 50, 100],
-                "domLayout": "autoHeight",
-                "defaultColDef": {"resizable": True},
-                "animateRows": True,
-                "rowHeight": 40,
-                "headerHeight": 40,
-                "enableCellTextSelection": True,
-            },
-            theme="balham",
-            html_columns=[1],
-        ).classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
 
     with ui.row().classes("w-full gap-4 mt-4"):
         with ui.element("div").style(CARD).classes("w-full"):
@@ -450,25 +507,12 @@ def _render_monthly_tab(m: dict):
 
 
 
-            # PROBLEMS LAST 24 HOURS — from summary.recent_24h
-            recent_24h = s.get("recent_24h", [])
-            if recent_24h:
+            # PROBLEMS LAST 60 DAYS — from summary.recent_60d (fallback recent_24h while sync not yet re-run)
+            recent_60d = s.get("recent_60d", []) or s.get("recent_24h", [])
+            if recent_60d:
                 with ui.element("div").style(CARD).classes("w-full mb-4"):
-                    ui.label(f"🔥 Problem 24 Jam Terakhir — {len(recent_24h)} problem").style(MV)
-                    for rec in recent_24h:
-                        nama = _outlet_label(rec)
-                        tipe = rec.get("tipeproblem", "")
-                        st = rec.get("status", "")
-                        sc = STATUS_COLORS.get(st, "#cdd6f4")
-                        created = rec.get("creation", "")[:16]
-                        with ui.row().classes("w-full items-center gap-2 py-1 border-b border-gray-800 last:border-b-0"):
-                            ui.label(f"{TIPE_ICONS.get(tipe, '🔧')}").classes("text-sm")
-                            ui.label(f"{nama}").classes("text-xs font-semibold text-white flex-1")
-                            ui.label(tipe).classes("text-xs text-gray-400")
-                            ui.label(created).classes("text-xs text-gray-500")
-                            ui.element("div").style(f"background: {sc}; padding: 1px 8px; border-radius: 6px;")
-                            with ui.element("div").style(f"color: {sc}; font-size: 0.75rem; font-weight: 600;"):
-                                ui.label(st)
+                    ui.label(f"🔥 Problem 60 Hari Terakhir — {len(recent_60d)} problem").style(MV)
+                    _pb_table([_pb_rows_60d(r) for r in recent_60d], cols=_pb_cols_60d, html_cols=(1, 3))
 
             # TOP PROBLEMATIC OUTLETS
             top_outlets = data.get("top_outlets", [])
