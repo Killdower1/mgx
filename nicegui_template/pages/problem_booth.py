@@ -173,7 +173,6 @@ def _render_dashboard_tab(s: dict):
     statuses = s.get("statuses", {})
     open_count = sum(v for k, v in statuses.items() if k.lower() in ("open", "on the way", "reopen", ""))
     closed_count = statuses.get("Closed", 0)
-    uncompleted_count = statuses.get("Uncompleted", 0)
 
     monthly = s.get("monthly", {})
     this_month = datetime.now().strftime("%Y-%m")
@@ -186,7 +185,6 @@ def _render_dashboard_tab(s: dict):
         _kpi_card("Bulan Ini", _fmt(this_month_count),
                   f"{_fmt(last_month_count)} bulan lalu" if last_month_count else "", "#89b4fa")
         _kpi_card("Open", _fmt(open_count), "belum selesai", "#ef4444")
-        _kpi_card("Uncompleted", _fmt(uncompleted_count), "perlu follow-up", "#f59e0b")
 
     with ui.row().classes("w-full gap-4"):
         with ui.element("div").style(CARD).classes("flex-[3] min-w-[300px]"):
@@ -210,7 +208,6 @@ def _render_dashboard_tab(s: dict):
 
     open_problems = s.get("open_problems", [])
     open_list = [r for r in open_problems if str(r.get("status", "")).lower() != "uncompleted"]
-    unc_list = [r for r in open_problems if str(r.get("status", "")).lower() == "uncompleted"]
 
     def _pb_rows(rec):
         return {
@@ -278,14 +275,6 @@ def _render_dashboard_tab(s: dict):
                 _pb_table([_pb_rows(r) for r in open_list])
             else:
                 ui.label("Tidak ada problem open.").classes("text-xs text-gray-500 italic")
-
-    with ui.row().classes("w-full gap-4 mt-4"):
-        with ui.element("div").style(CARD).classes("w-full"):
-            ui.label("🟡 Uncompleted").classes(MV)
-            if unc_list:
-                _pb_table([_pb_rows(r) for r in unc_list])
-            else:
-                ui.label("Tidak ada problem uncompleted.").classes("text-xs text-gray-500 italic")
 
     with ui.row().classes("w-full gap-4 mt-4"):
         for title, key, grad in [
@@ -430,7 +419,6 @@ def _render_monthly_tab(m: dict):
                 _kpi_card("\U0001f4ca Total Problem", _fmt(data["total"]), f"{data['booth_count']} booth terdampak", "#89b4fa")
                 _kpi_card("\U0001f7e0 Open", _fmt(data["open"]), "belum selesai", "#ef4444")
                 _kpi_card("\u2705 Closed", _fmt(data["closed"]), "", "#22c55e")
-                _kpi_card("\U0001f7e1 Uncompleted", _fmt(data["uncompleted"]), "perlu follow-up", "#f59e0b")
 
             # 2-COLUMN GRID: Types + Branches
             with ui.element("div").classes("w-full mb-4").style(
