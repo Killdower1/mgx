@@ -841,11 +841,230 @@ def load_rs_period_detail(period: str) -> list:
 
 
 def get_rs_periods() -> list:
-    """Get sorted list of available periods from cache."""
-    if not RS_PERIODS_DIR.exists():
-        return []
-    periods = [f.stem for f in sorted(RS_PERIODS_DIR.iterdir()) if f.suffix == ".json"]
+    """Get sorted list of available periods from cache.
+
+    Union of rs_periods/ detail files AND rs_outlet.json summary periods
+    (summary may contain periods whose detail files were never written).
+    """
+    periods = set()
+    if RS_PERIODS_DIR.exists():
+        periods |= {f.stem for f in sorted(RS_PERIODS_DIR.iterdir()) if f.suffix == ".json"}
+    try:
+        df = pd.read_json(str(RS_OUTLET_PATH))
+        if not df.empty and "periode" in df.columns:
+            periods |= set(df["periode"].astype(str).unique().tolist())
+    except Exception:
+        pass
     return sorted(periods, reverse=True)
+
+
+# ═══════════════════════════════════════════════
+#  OUTLET MASTER (difotoin.id API /api/outlets)
+# ═══════════════════════════════════════════════
+
+OUTLETS_URL = BASE_URL + "/api/outlets"
+OUTLETS_CACHE_PATH = CACHE_DIR / "outlets.json"
+
+
+def fetch_outlets(token: Optional[str] = None) -> Tuple[List[dict], str]:
+    """Fetch full outlet master from POST /api/outlets (cursor pagination).
+
+    Returns (outlets, message). Saves to OUTLETS_CACHE_PATH on success.
+    """
+    if token is None:
+        token = get_stored_token()
+    if not token:
+        token = authenticate()
+    headers = {
+        "Authorization": "Bearer " + token,
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    all_outlets: List[dict] = []
+    cursor = None
+    page = 0
+    while True:
+        page += 1
+        payload = {} if cursor is None else {"cursor": cursor}
+        try:
+            r = requests.post(OUTLETS_URL, headers=headers, json=payload, timeout=30)
+        except Exception as e:
+            return all_outlets, f"outlets page {page}: {e}"
+        if r.status_code != 200:
+            return all_outlets, f"outlets HTTP {r.status_code} page {page}: {r.text[:200]}"
+        d = r.json()
+        out = d.get("data", {}).get("outlets", {})
+        batch = out.get("data", [])
+        if not batch:
+            break
+        all_outlets.extend(batch)
+        cursor = out.get("next_cursor")
+        if not cursor:
+            break
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    _atomic_save_json(all_outlets, OUTLETS_CACHE_PATH)
+    return all_outlets, f"{len(all_outlets)} outlets saved"
+
+
+def load_outlet_master(max_age_hours: int = 24, auto_refresh: bool = True) -> List[dict]:
+    """Load outlet master cache; refresh from API when missing/stale."""
+    try:
+        if OUTLETS_CACHE_PATH.exists():
+            age_h = (datetime.now() - datetime.fromtimestamp(OUTLETS_CACHE_PATH.stat().st_mtime)).total_seconds() / 3600
+            if age_h <= max_age_hours:
+                with open(OUTLETS_CACHE_PATH) as f:
+                    data = json.load(f)
+                if isinstance(data, list) and data:
+                    return data
+    except Exception:
+        pass
+    if auto_refresh:
+        outlets, _msg = fetch_outlets()
+        if outlets:
+            return outlets
+    return []
+
+
+def refresh_outlets_if_stale(max_age_hours: int = 24) -> Tuple[bool, str]:
+    """Fetch outlet master from API and refresh cache (used by hourly cron)."""
+    outlets, msg = fetch_outlets()
+    if outlets:
+        return True, f"outlet master refreshed: {msg}"
+    return False, f"outlet master refresh FAILED: {msg}"
+
+
+# ═══════════════════════════════════════════════
+#  STREAMING RS REBUILD (OOM-safe for large raw files)
+# ═══════════════════════════════════════════════
+
+def stream_json_array(filepath):
+    """Yield objects from a top-level JSON array file with low memory.
+
+    Streaming parser: never holds more than one object + a small buffer.
+    """
+    with open(filepath, "r", encoding="utf-8") as f:
+        decoder = json.JSONDecoder()
+        buffer = ""
+        in_array = False
+        while True:
+            chunk = f.read(65536)
+            if not chunk:
+                break
+            buffer += chunk
+            if not in_array:
+                idx = buffer.find("[")
+                if idx == -1:
+                    buffer = buffer[-1:]
+                    continue
+                buffer = buffer[idx + 1:]
+                in_array = True
+            while True:
+                buffer = buffer.lstrip()
+                if not buffer:
+                    break
+                if buffer[0] == "]":
+                    return
+                if buffer[0] == ",":
+                    buffer = buffer[1:]
+                    continue
+                try:
+                    obj, end = decoder.raw_decode(buffer)
+                except json.JSONDecodeError:
+                    break
+                yield obj
+                buffer = buffer[end:]
+
+
+def rebuild_rs_period_streaming(period: str) -> Tuple[bool, str]:
+    """Rebuild RS cache for ONE period by streaming raw_by_month/<period>.json.
+
+    Memory-safe alternative to rebuild_rs_period() for 100-400MB raw files.
+    Replaces that period's rows in rs_outlet.json (same schema as
+    compute_revenue_sharing output).
+    """
+    period_path = RAW_BY_MONTH_DIR / (period + ".json")
+    if not period_path.exists():
+        return False, f"{period}: raw file not found"
+
+    agg = {}
+    n = 0
+    for t in stream_json_array(str(period_path)):
+        n += 1
+        name = str(t.get("outlet_name", "")).strip()
+        if not name:
+            continue
+        amount = float(t.get("processed_gross_amount", 0) or 0)
+        pshare = float(t.get("partner_share", 0) or 0)
+        bshare = float(t.get("broker_share", 0) or 0)
+        a = agg.setdefault(name, {
+            "total_revenue": 0.0, "partner_amount": 0.0, "broker_amount": 0.0,
+            "difotoin_amount": 0.0, "transactions": 0, "pct_sum": 0.0, "bct_sum": 0.0,
+        })
+        a["total_revenue"] += amount
+        a["partner_amount"] += amount * pshare / 100.0
+        a["broker_amount"] += amount * bshare / 100.0
+        a["difotoin_amount"] += amount * (100.0 - pshare - bshare) / 100.0
+        a["transactions"] += 1
+        a["pct_sum"] += pshare
+        a["bct_sum"] += bshare
+
+    if not agg:
+        return False, f"{period}: empty data"
+
+    rows = []
+    for name, a in agg.items():
+        rows.append({
+            "outlet_name": name,
+            "periode": period,
+            "total_revenue": round(a["total_revenue"], 2),
+            "partner_amount": round(a["partner_amount"], 2),
+            "broker_amount": round(a["broker_amount"], 2),
+            "difotoin_amount": round(a["difotoin_amount"], 2),
+            "transactions": a["transactions"],
+            "avg_partner_pct": round(a["pct_sum"] / a["transactions"], 4) if a["transactions"] else 0.0,
+            "avg_broker_pct": round(a["bct_sum"] / a["transactions"], 4) if a["transactions"] else 0.0,
+        })
+    new_df = pd.DataFrame(rows)
+
+    try:
+        existing = pd.read_json(str(RS_OUTLET_PATH))
+        existing = existing[existing["periode"].astype(str) != period]
+        merged = pd.concat([existing, new_df], ignore_index=True)
+    except (FileNotFoundError, ValueError, Exception):
+        merged = new_df
+    _atomic_save_json(merged, RS_OUTLET_PATH)
+    return True, f"{period}: RS rebuilt ({n} txns -> {len(rows)} outlets)"
+
+
+def rebuild_rs_all_streaming(force: bool = False) -> Tuple[bool, str]:
+    """Rebuild RS cache for every period whose raw file changed since last build.
+
+    Incremental by default (compares raw mtime vs rs_outlet mtime); pass
+    force=True to rebuild everything. Runs per period, sequential, OOM-safe.
+    """
+    results = []
+    if not RAW_BY_MONTH_DIR.exists():
+        return True, "RS: no raw_by_month dir"
+    periods = sorted(f.stem for f in RAW_BY_MONTH_DIR.glob("*.json"))
+    if not periods:
+        return True, "RS: no raw periods"
+
+    try:
+        existing = pd.read_json(str(RS_OUTLET_PATH))
+        have = set(existing["periode"].astype(str).unique())
+    except Exception:
+        have = set()
+    rs_mtime = RS_OUTLET_PATH.stat().st_mtime if RS_OUTLET_PATH.exists() else 0
+
+    ok = True
+    for p in periods:
+        raw_path = RAW_BY_MONTH_DIR / (p + ".json")
+        if not force and p in have and raw_path.stat().st_mtime <= rs_mtime:
+            continue  # already up to date
+        ok_p, msg_p = rebuild_rs_period_streaming(p)
+        results.append(msg_p if ok_p else msg_p)
+        ok = ok and ok_p
+    return ok, "\n".join(results) if results else "RS: cache up to date"
 
 
 # ═══════════════════════════════════════════════

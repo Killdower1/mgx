@@ -129,6 +129,20 @@ for line in msg_rebuild.split("\n"):
     if line.strip():
         print("[%s]   %s" % (ts(), line))
 
+# Rebuild Revenue Sharing cache (streaming, OOM-safe; only periods whose raw changed)
+print("[%s] Rebuilding RS cache (streaming)..." % ts())
+ok_rs, msg_rs = api.rebuild_rs_all_streaming()
+for line in msg_rs.split("\n"):
+    if line.strip():
+        print("[%s]   %s" % (ts(), line))
+
+# Refresh outlet master (partner_share / sewa) — daily at most
+print("[%s] Refreshing outlet master..." % ts())
+ok_om, msg_om = api.refresh_outlets_if_stale(max_age_hours=23)
+for line in msg_om.split("\n"):
+    if line.strip():
+        print("[%s]   %s" % (ts(), line))
+
 print("[%s] Auditing recent completed days..." % ts())
 ok_audit, audit_msg = audit_recent_daily(token, days=3)
 for line in audit_msg.split("\n"):
