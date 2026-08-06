@@ -164,8 +164,6 @@ def create_page(container: ui.column):
                 notes.append("minpay")
             if api_p is not None and so_p is not None and abs(api_p - so_p) > 0.5:
                 notes.append(f"API {api_p:.0f}%≠master {so_p:.0f}%")
-            elif p_share is not None and tx_avg_p > 0 and abs(p_share - tx_avg_p) > 2.0:
-                notes.append(f"kontrak {p_share:.0f}%≠tx {tx_avg_p:.1f}%")
 
             eff_p = o["partner_amount"]
             minpay_applied = minpay > 0 and o["partner_amount"] < minpay
