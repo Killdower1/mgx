@@ -290,6 +290,20 @@ def create_page(container: ui.column):
 
         def _render_monthly_inline():
             """Render monthly achievements inline in the tab panel."""
+            from urllib.parse import quote
+            ui.add_head_html("""
+            <style>
+            .ag-theme-balham-dark {
+                --ag-background-color: #1e1e2e;
+                --ag-header-background-color: #181825;
+                --ag-odd-row-background-color: #1a1a2e;
+                --ag-row-hover-color: #313244;
+                --ag-border-color: #313244;
+                --ag-foreground-color: #e5e7eb;
+                --ag-header-foreground-color: #ffffff;
+            }
+            </style>
+            """)
             df = load_lp_data()
             ci = get_cache_info().get("lead_partnership", {})
         
@@ -390,17 +404,34 @@ def create_page(container: ui.column):
                             "PIC": r.get("nama_pic", "-") or "-",
                         })
                     trows.sort(key=lambda x: x["Tgl"], reverse=True)
-                    ui.table(
-                        rows=trows,
-                        columns=[
-                            {"name": "Outlet", "label": "Outlet", "field": "Outlet", "align": "left"},
-                            {"name": "Kota", "label": "Kota", "field": "Kota", "align": "left"},
-                            {"name": "Status", "label": "Status", "field": "Status", "align": "center"},
-                            {"name": "Tgl", "label": "Tanggal", "field": "Tgl", "align": "center"},
-                            {"name": "PIC", "label": "PIC", "field": "PIC", "align": "left"},
+                    for _r in trows:
+                        _r["_link"] = quote(f'{_r.get("Outlet", "")} {_r.get("Kota", "")}')
+                    _g = ui.aggrid({
+                        "columnDefs": [
+                            {"field": "Outlet", "headerName": "🏪 Outlet", "flex": 2, "minWidth": 180,
+                             "cellStyle": {"color": "#89b4fa", "textDecoration": "underline", "cursor": "pointer"}},
+                            {"field": "Kota", "headerName": "📍 Kota", "flex": 1, "minWidth": 130},
+                            {"field": "Status", "headerName": "📌 Status", "flex": 1, "minWidth": 130},
+                            {"field": "Tgl", "headerName": "📅 Tanggal", "flex": 1, "minWidth": 150},
+                            {"field": "PIC", "headerName": "👤 PIC", "flex": 1, "minWidth": 150},
                         ],
-                        row_key="Outlet",
-                    ).props("dense dark flat bordered").classes("w-full")
+                        "rowData": trows,
+                        "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
+                        "enableCellTextSelection": True,
+                        "headerHeight": 44,
+                        "pagination": True,
+                        "paginationPageSize": 10,
+                        "paginationPageSizeSelector": [10, 25, 50],
+                        "domLayout": "autoHeight",
+                        "animateRows": True,
+                        "rowHeight": 40,
+                    }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+                    def _oc(e):
+                        if e.args.get("colId") == "Outlet":
+                            _lk = e.args.get("data", {}).get("_link", "")
+                            if _lk:
+                                ui.run_javascript(f"window.open('https://www.google.com/search?q={_lk}','_blank')")
+                    _g.on("cellClicked", _oc)
 
             with ui.card().classes("w-full mb-6").style(CARD):
                 ui.label("📊 Grafik Tren Bulanan").style(ST)
@@ -408,20 +439,27 @@ def create_page(container: ui.column):
         
             with ui.card().classes("w-full mb-6").style(CARD):
                 ui.label("📋 Detail Per Bulan").style(ST)
-                ui.table(
-                    rows=monthly.to_dict("records"),
-                    columns=[
-                        {"name": "Month", "label": "Bulan", "field": "Month", "align": "left"},
-                        {"name": "Lead Masuk", "label": "Lead Masuk", "field": "Lead Masuk", "align": "center"},
-                        {"name": "Lead Update", "label": "Lead Update", "field": "Lead Update", "align": "center"},
-                        {"name": "Approved", "label": "Approved", "field": "Approved", "align": "center"},
-                        {"name": "Live", "label": "Live", "field": "Live", "align": "center"},
-                        {"name": "Closing", "label": "Closing", "field": "Closing", "align": "center"},
-                        {"name": "Lost", "label": "Lost", "field": "Lost", "align": "center"},
+                ui.aggrid({
+                    "columnDefs": [
+                        {"field": "Month", "headerName": "📅 Bulan", "flex": 1, "minWidth": 120},
+                        {"field": "Lead Masuk", "headerName": "📥 Lead Masuk", "flex": 1, "minWidth": 140},
+                        {"field": "Lead Update", "headerName": "🛠️ Lead Update", "flex": 1, "minWidth": 145},
+                        {"field": "Approved", "headerName": "🟢 Approved", "flex": 1, "minWidth": 130},
+                        {"field": "Live", "headerName": "💚 Live", "flex": 1, "minWidth": 110},
+                        {"field": "Closing", "headerName": "✅ Closing", "flex": 1, "minWidth": 120},
+                        {"field": "Lost", "headerName": "🔴 Lost", "flex": 1, "minWidth": 110},
                     ],
-                    row_key="Month",
-                    pagination={"rowsPerPage": 12, "rowsNumber": len(monthly)},
-                ).props("dense dark flat bordered").classes("w-full")
+                    "rowData": monthly.to_dict("records"),
+                    "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
+                    "enableCellTextSelection": True,
+                    "headerHeight": 44,
+                    "pagination": True,
+                    "paginationPageSize": 12,
+                    "paginationPageSizeSelector": [12, 25, 50],
+                    "domLayout": "autoHeight",
+                    "animateRows": True,
+                    "rowHeight": 40,
+                }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 250px;")
         
             ui.label("Outlet Diperoleh per Bulan").classes("text-lg font-bold text-white mb-2")
 
@@ -445,18 +483,35 @@ def create_page(container: ui.column):
                                 "Sales": r.get("sales_pic_full", r.get("sales_pic", "-")) or "-",
                                 "Tgl Live": str(r.get("datetime_live", ""))[:10] if r.get("datetime_live") else "-",
                             })
+                        for _r in tbl_data:
+                            _r["_link"] = quote(f'{_r.get("Outlet", "")} {_r.get("Kota", "")}')
                         if tbl_data:
-                            ui.table(
-                                rows=tbl_data,
-                                columns=[
-                                    {"name": "Outlet", "label": "Outlet", "field": "Outlet", "align": "left"},
-                                    {"name": "Kota", "label": "Kota", "field": "Kota", "align": "left"},
-                                    {"name": "PIC", "label": "PIC", "field": "PIC", "align": "left"},
-                                    {"name": "Sales", "label": "Sales", "field": "Sales", "align": "left"},
-                                    {"name": "Tgl Live", "label": "Tgl Live", "field": "Tgl Live", "align": "center"},
+                            _g = ui.aggrid({
+                                "columnDefs": [
+                                    {"field": "Outlet", "headerName": "🏪 Outlet", "flex": 2, "minWidth": 180,
+                                     "cellStyle": {"color": "#89b4fa", "textDecoration": "underline", "cursor": "pointer"}},
+                                    {"field": "Kota", "headerName": "📍 Kota", "flex": 1, "minWidth": 130},
+                                    {"field": "PIC", "headerName": "👤 PIC", "flex": 1, "minWidth": 150},
+                                    {"field": "Sales", "headerName": "💼 Sales", "flex": 1, "minWidth": 150},
+                                    {"field": "Tgl Live", "headerName": "📅 Tgl Live", "flex": 1, "minWidth": 140},
                                 ],
-                                row_key="Outlet",
-                            ).props("dense dark flat bordered").classes("w-full")
+                                "rowData": tbl_data,
+                                "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
+                                "enableCellTextSelection": True,
+                                "headerHeight": 44,
+                                "pagination": True,
+                                "paginationPageSize": 10,
+                                "paginationPageSizeSelector": [10, 25, 50],
+                                "domLayout": "autoHeight",
+                                "animateRows": True,
+                                "rowHeight": 40,
+                            }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+                        def _oc(e):
+                            if e.args.get("colId") == "Outlet":
+                                _lk = e.args.get("data", {}).get("_link", "")
+                                if _lk:
+                                    ui.run_javascript(f"window.open('https://www.google.com/search?q={_lk}','_blank')")
+                        _g.on("cellClicked", _oc)
             else:
                 ui.label("Belum ada outlet dengan status Live.").classes("text-gray-400 italic")
 
@@ -478,19 +533,35 @@ def create_page(container: ui.column):
                                 "Sales": r.get("sales_pic_full", r.get("sales_pic", "-")) or "-",
                                 "Tgl Approved": str(r.get("datetime_approved", ""))[:10] if r.get("datetime_approved") else "-",
                             })
+                        for _r in tbl_data:
+                            _r["_link"] = quote(f'{_r.get("Outlet", "")} {_r.get("Kota", "")}')
                         if tbl_data:
-                            ui.table(
-                                rows=tbl_data,
-                                columns=[
-                                    {"name": "Outlet", "label": "Outlet", "field": "Outlet", "align": "left"},
-                                    {"name": "Kota", "label": "Kota", "field": "Kota", "align": "left"},
-                                    {"name": "PIC", "label": "PIC", "field": "PIC", "align": "left"},
-                                    {"name": "Sales", "label": "Sales", "field": "Sales", "align": "left"},
-                                    {"name": "Tgl Approved", "label": "Tgl Approved", "field": "Tgl Approved", "align": "center"},
+                            _g = ui.aggrid({
+                                "columnDefs": [
+                                    {"field": "Outlet", "headerName": "🏪 Outlet", "flex": 2, "minWidth": 180,
+                                     "cellStyle": {"color": "#89b4fa", "textDecoration": "underline", "cursor": "pointer"}},
+                                    {"field": "Kota", "headerName": "📍 Kota", "flex": 1, "minWidth": 130},
+                                    {"field": "PIC", "headerName": "👤 PIC", "flex": 1, "minWidth": 150},
+                                    {"field": "Sales", "headerName": "💼 Sales", "flex": 1, "minWidth": 150},
+                                    {"field": "Tgl Approved", "headerName": "📅 Tgl Approved", "flex": 1, "minWidth": 165},
                                 ],
-                                row_key="Outlet",
-                            ).props("dense dark flat bordered").classes("w-full")
-
+                                "rowData": tbl_data,
+                                "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
+                                "enableCellTextSelection": True,
+                                "headerHeight": 44,
+                                "pagination": True,
+                                "paginationPageSize": 10,
+                                "paginationPageSizeSelector": [10, 25, 50],
+                                "domLayout": "autoHeight",
+                                "animateRows": True,
+                                "rowHeight": 40,
+                            }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 200px;")
+                        def _oc(e):
+                            if e.args.get("colId") == "Outlet":
+                                _lk = e.args.get("data", {}).get("_link", "")
+                                if _lk:
+                                    ui.run_javascript(f"window.open('https://www.google.com/search?q={_lk}','_blank')")
+                        _g.on("cellClicked", _oc)
 
         # ── Tabs ──
         tabs = ui.tabs().classes("w-full")
@@ -530,6 +601,19 @@ def create_page(container: ui.column):
 
 def create_monthly_page(container: ui.column):
     """Build a dedicated monthly achievement page for Lead Partnership."""
+    ui.add_head_html("""
+    <style>
+    .ag-theme-balham-dark {
+        --ag-background-color: #1e1e2e;
+        --ag-header-background-color: #181825;
+        --ag-odd-row-background-color: #1a1a2e;
+        --ag-row-hover-color: #313244;
+        --ag-border-color: #313244;
+        --ag-foreground-color: #e5e7eb;
+        --ag-header-foreground-color: #ffffff;
+    }
+    </style>
+    """)
     container.clear()
 
     with container:
@@ -585,20 +669,27 @@ def create_monthly_page(container: ui.column):
 
         with ui.card().classes("w-full mb-6").style(CARD):
             ui.label("📋 Detail Per Bulan").style(ST)
-            ui.table(
-                rows=monthly.to_dict("records"),
-                columns=[
-                    {"name": "Month", "label": "Bulan", "field": "Month", "align": "left"},
-                    {"name": "Lead Masuk", "label": "Lead Masuk", "field": "Lead Masuk", "align": "center"},
-                    {"name": "Lead Update", "label": "Lead Update", "field": "Lead Update", "align": "center"},
-                    {"name": "Approved", "label": "Approved", "field": "Approved", "align": "center"},
-                    {"name": "Live", "label": "Live", "field": "Live", "align": "center"},
-                    {"name": "Closing", "label": "Closing", "field": "Closing", "align": "center"},
-                    {"name": "Lost", "label": "Lost", "field": "Lost", "align": "center"},
+            ui.aggrid({
+                "columnDefs": [
+                    {"field": "Month", "headerName": "📅 Bulan", "flex": 1, "minWidth": 120},
+                    {"field": "Lead Masuk", "headerName": "📥 Lead Masuk", "flex": 1, "minWidth": 140},
+                    {"field": "Lead Update", "headerName": "🛠️ Lead Update", "flex": 1, "minWidth": 145},
+                    {"field": "Approved", "headerName": "🟢 Approved", "flex": 1, "minWidth": 130},
+                    {"field": "Live", "headerName": "💚 Live", "flex": 1, "minWidth": 110},
+                    {"field": "Closing", "headerName": "✅ Closing", "flex": 1, "minWidth": 120},
+                    {"field": "Lost", "headerName": "🔴 Lost", "flex": 1, "minWidth": 110},
                 ],
-                row_key="Month",
-                pagination={"rowsPerPage": 12, "rowsNumber": len(monthly)},
-            ).props("dense dark flat bordered").classes("w-full")
+                "rowData": monthly.to_dict("records"),
+                "defaultColDef": {"resizable": True, "sortable": True, "filter": True, "floatingFilter": True},
+                "enableCellTextSelection": True,
+                "headerHeight": 44,
+                "pagination": True,
+                "paginationPageSize": 12,
+                "paginationPageSizeSelector": [12, 25, 50],
+                "domLayout": "autoHeight",
+                "animateRows": True,
+                "rowHeight": 40,
+            }, theme="balham").classes("w-full ag-theme-balham-dark").style("height: auto; min-height: 250px;")
 
 
 # ═══════════════════════════════════════════════
