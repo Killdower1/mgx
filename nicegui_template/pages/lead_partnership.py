@@ -50,6 +50,28 @@ def _fmt(n) -> str:
         return str(n)
 
 
+def _fmt_month(period_str) -> str:
+    months = {
+        1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
+        5: "Mei", 6: "Jun", 7: "Jul", 8: "Agu",
+        9: "Sep", 10: "Okt", 11: "Nov", 12: "Des",
+    }
+    try:
+        period = pd.Period(str(period_str), freq="M")
+        return f"{months.get(period.month, period.month)} {period.year}"
+    except Exception:
+        return str(period_str)
+
+
+def _headline_month_row(summary: pd.DataFrame) -> pd.Series:
+    latest_idx = len(summary) - 1
+    latest_period = pd.Period(str(summary.iloc[latest_idx]["Month"]), freq="M")
+    current_period = pd.Period(datetime.now(), freq="M")
+    if latest_period == current_period and latest_idx > 0:
+        latest_idx -= 1
+    return summary.iloc[latest_idx]
+
+
 def _extract_ig_username(url) -> str:
     """Extract Instagram username from URL like https://www.instagram.com/atdbengkong/"""
     import re
@@ -63,46 +85,87 @@ def _extract_ig_username(url) -> str:
 def _build_monthly_achievement_summary(df: pd.DataFrame) -> pd.DataFrame:
     """Build per-month achievement counts from the current Lead Partnership snapshot.
 
-    Lead Update is a unique-lead monthly count based on any meaningful change signal
-    we can observe from the snapshot cache (modified/follow-up/stage timestamps).
-    Closing is the union of Approved + Live for the same month.
+    Lead Masuk uses tanggal_masuk, falling back to creation. Lead Update counts
+    unique leads with real activity timestamps on or after creation, excluding
+    modified and next_follow_up. Approved, Live, and Lost use current status_lead
+    with their status timestamp, falling back to creation when missing. Closing is
+    the per-month union of Approved and Live leads.
     """
     if df.empty:
         return pd.DataFrame()
 
     work = df.copy()
-    id_col = "name" if "name" in work.columns else None
-    if id_col is None:
-        work = work.reset_index(drop=False).rename(columns={work.index.name or "index": "name"})
-        id_col = "name"
+    id_col = "name"
+    if id_col not in work.columns:
+        work[id_col] = work.index.astype(str)
 
-    def _month_sets(cols):
+    if "creation" not in work.columns:
+        return pd.DataFrame()
+    creation_ts = pd.to_datetime(work["creation"], errors="coerce")
+    earliest_creation = creation_ts.dropna().dt.to_period("M").min()
+    if pd.isna(earliest_creation):
+        return pd.DataFrame()
+
+    def _lead_month(row_idx, primary_col):
+        primary = pd.to_datetime(work.at[row_idx, primary_col], errors="coerce") if primary_col in work.columns else pd.NaT
+        if pd.notna(primary):
+            return str(primary.to_period("M"))
+        created = creation_ts.at[row_idx] if row_idx in creation_ts.index else pd.NaT
+        if pd.notna(created):
+            return str(created.to_period("M"))
+        return None
+
+    def _date_month_sets(cols, require_after_creation=False):
         out = {}
         for col in cols:
             if col not in work.columns:
                 continue
             ts = pd.to_datetime(work[col], errors="coerce")
             for idx, val in ts.dropna().items():
+                created = creation_ts.at[idx] if idx in creation_ts.index else pd.NaT
+                if require_after_creation and pd.notna(created) and val < created:
+                    continue
                 month = str(val.to_period("M"))
                 out.setdefault(month, set()).add(str(work.at[idx, id_col]))
         return out
 
-    created = _month_sets(["creation"])
-    updated = _month_sets([
-        "modified", "last_follow_up", "next_follow_up", "status_change",
+    def _fallback_status_sets(status, date_col):
+        out = {}
+        if "status_lead" not in work.columns:
+            return out
+        mask = work["status_lead"].astype(str).eq(status)
+        for idx in work[mask].index:
+            month = _lead_month(idx, date_col)
+            if month:
+                out.setdefault(month, set()).add(str(work.at[idx, id_col]))
+        return out
+
+    created = {}
+    for idx in work.index:
+        month = _lead_month(idx, "tanggal_masuk")
+        if month:
+            created.setdefault(month, set()).add(str(work.at[idx, id_col]))
+
+    updated = _date_month_sets([
+        "last_follow_up", "status_change",
         "datetime_contact", "datetime_qualified", "datetime_negotiation",
         "datetime_approved", "datetime_live", "datetime_lost",
-    ])
-    approved = _month_sets(["datetime_approved"])
-    live = _month_sets(["datetime_live"])
-    lost = _month_sets(["datetime_lost"])
+    ], require_after_creation=True)
+    approved = _fallback_status_sets("Approved", "datetime_approved")
+    live = _fallback_status_sets("Live", "datetime_live")
+    lost = _fallback_status_sets("Lost", "datetime_lost")
 
-    months = sorted(set().union(created.keys(), updated.keys(), approved.keys(), live.keys(), lost.keys()))
+    all_months = set().union(created.keys(), updated.keys(), approved.keys(), live.keys(), lost.keys())
+    months = sorted(
+        month for month in all_months
+        if pd.Period(month, freq="M") >= earliest_creation
+    )
     rows = []
     for month in months:
         closing_set = approved.get(month, set()) | live.get(month, set())
         rows.append({
             "Month": month,
+            "Bulan": _fmt_month(month),
             "Lead Masuk": len(created.get(month, set())),
             "Lead Update": len(updated.get(month, set())),
             "Approved": len(approved.get(month, set())),
@@ -123,7 +186,8 @@ def _echart_monthly_achievements(summary: pd.DataFrame):
         ui.label("−").classes("text-gray-400 italic text-xs")
         return
 
-    months = summary["Month"].tolist()
+    summary = summary.tail(12).copy()
+    months = [_fmt_month(m) for m in summary["Month"].tolist()]
     series = [
         ("Lead Masuk", "#89b4fa"),
         ("Lead Update", "#f9e2af"),
@@ -324,10 +388,11 @@ def create_page(container: ui.column):
                 ui.label("Belum ada data bulanan yang bisa ditampilkan.").classes("text-gray-400 italic")
                 return
         
-            latest = monthly.iloc[-1]
+            latest = _headline_month_row(monthly)
+            latest_month = str(latest["Month"])
             with ui.card().classes("w-full mb-6").style(CARD):
                 ui.label("📈 Pencapaian Bulanan").style(ST)
-                ui.label("Periode terbaru: " + str(latest["Month"])).classes("text-xs text-gray-400 mb-3")
+                ui.label("Periode: " + _fmt_month(latest_month)).classes("text-xs text-gray-400 mb-3")
                 with ui.row().classes("w-full gap-3 mb-4"):
                     for lbl, val in [
                         ("📥 Lead Masuk", _fmt(latest["Lead Masuk"])),
@@ -346,28 +411,39 @@ def create_page(container: ui.column):
             ui.separator().classes("my-4")
             ui.label("Detail Leads Bulan Ini").classes("text-md font-bold text-white mb-2")
 
-            latest_month = str(monthly.iloc[-1]["Month"])
-            # If latest month has 0 total activity, use previous month
-            latest_total = int(monthly.iloc[-1]["Lead Masuk"]) + int(monthly.iloc[-1]["Lead Update"]) + int(monthly.iloc[-1]["Approved"]) + int(monthly.iloc[-1]["Live"]) + int(monthly.iloc[-1]["Lost"])
-            if latest_total == 0 and len(monthly) > 1:
-                latest_month = str(monthly.iloc[-2]["Month"])
+            creation_ts = pd.to_datetime(df.get("creation"), errors="coerce")
 
-            def _month_ids(col):
-                if col not in df.columns:
-                    return set()
-                ts = pd.to_datetime(df[col], errors="coerce")
+            def _month_ids(cols, fallback_col=None, status=None, require_after_creation=False):
+                source_df = df
+                if status and "status_lead" in source_df.columns:
+                    source_df = source_df[source_df["status_lead"].astype(str).eq(status)]
                 ids = set()
-                for idx, val in ts.dropna().items():
-                    m = str(val.to_period("M"))
-                    if m == latest_month:
-                        ids.add(str(df.at[idx, "name"]))
+                for idx in source_df.index:
+                    found = False
+                    for col in cols:
+                        if col not in source_df.columns:
+                            continue
+                        val = pd.to_datetime(source_df.at[idx, col], errors="coerce")
+                        if pd.isna(val):
+                            continue
+                        created = creation_ts.at[idx] if idx in creation_ts.index else pd.NaT
+                        if require_after_creation and pd.notna(created) and val < created:
+                            continue
+                        if str(val.to_period("M")) == latest_month:
+                            ids.add(str(source_df.at[idx, "name"]))
+                        found = True
+                    if not found and fallback_col and fallback_col in source_df.columns:
+                        val = pd.to_datetime(source_df.at[idx, fallback_col], errors="coerce")
+                        if pd.notna(val) and str(val.to_period("M")) == latest_month:
+                            ids.add(str(source_df.at[idx, "name"]))
                 return ids
 
-            created_set = _month_ids("creation")
-            updated_set = _month_ids("modified") | _month_ids("last_follow_up") | _month_ids("status_change") | _month_ids("next_follow_up") | _month_ids("datetime_contact") | _month_ids("datetime_qualified") | _month_ids("datetime_negotiation") | _month_ids("datetime_approved") | _month_ids("datetime_live") | _month_ids("datetime_lost")
-            approved_set = _month_ids("datetime_approved")
-            live_set = _month_ids("datetime_live")
-            lost_set = _month_ids("datetime_lost")
+            activity_cols = ["last_follow_up", "status_change", "datetime_contact", "datetime_qualified", "datetime_negotiation", "datetime_approved", "datetime_live", "datetime_lost"]
+            created_set = _month_ids(["tanggal_masuk"], fallback_col="creation")
+            updated_set = _month_ids(activity_cols, require_after_creation=True)
+            approved_set = _month_ids(["datetime_approved"], fallback_col="creation", status="Approved")
+            live_set = _month_ids(["datetime_live"], fallback_col="creation", status="Live")
+            lost_set = _month_ids(["datetime_lost"], fallback_col="creation", status="Lost")
 
             def _find_date(row, cols):
                 for col in cols:
@@ -378,11 +454,11 @@ def create_page(container: ui.column):
                 return "-"
 
             metrics = [
-                ("Lead Masuk", "\U0001f4e5", created_set, ["creation"]),
-                ("Lead Update", "\U0001f6e0\ufe0f", updated_set, ["modified", "last_follow_up", "status_change"]),
-                ("Approved", "\U0001f7e2", approved_set, ["datetime_approved"]),
-                ("Live", "\U0001f49a", live_set, ["datetime_live"]),
-                ("Lost", "\U0001f534", lost_set, ["datetime_lost"]),
+                ("Lead Masuk", "\U0001f4e5", created_set, ["tanggal_masuk", "creation"]),
+                ("Lead Update", "\U0001f6e0\ufe0f", updated_set, activity_cols),
+                ("Approved", "\U0001f7e2", approved_set, ["datetime_approved", "creation"]),
+                ("Live", "\U0001f49a", live_set, ["datetime_live", "creation"]),
+                ("Lost", "\U0001f534", lost_set, ["datetime_lost", "creation"]),
             ]
 
             for label, icon, ids_set, date_cols in metrics:
@@ -441,7 +517,8 @@ def create_page(container: ui.column):
                 ui.label("📋 Detail Per Bulan").style(ST)
                 ui.aggrid({
                     "columnDefs": [
-                        {"field": "Month", "headerName": "📅 Bulan", "flex": 1, "minWidth": 120},
+                        {"field": "Bulan", "headerName": "📅 Bulan", "flex": 1, "minWidth": 120},
+                        {"field": "Month", "hide": True, "sort": "asc"},
                         {"field": "Lead Masuk", "headerName": "📥 Lead Masuk", "flex": 1, "minWidth": 140},
                         {"field": "Lead Update", "headerName": "🛠️ Lead Update", "flex": 1, "minWidth": 145},
                         {"field": "Approved", "headerName": "🟢 Approved", "flex": 1, "minWidth": 130},
@@ -465,14 +542,16 @@ def create_page(container: ui.column):
 
             # Build outlet detail per month
             df_outlet = df.copy()
-            df_outlet["month"] = pd.to_datetime(df_outlet["datetime_live"], errors="coerce").dt.to_period("M").astype(str)
+            df_outlet["month"] = pd.to_datetime(df_outlet["datetime_live"], errors="coerce").dt.to_period("M")
             df_live = df_outlet[df_outlet["status_lead"] == "Live"].copy()
+            df_live = df_live[df_live["month"].notna()].copy()
+            df_live["month"] = df_live["month"].astype(str)
 
             if not df_live.empty:
                 # Group by month
                 for m in sorted(df_live["month"].unique(), reverse=True):
                     month_data = df_live[df_live["month"] == m]
-                    with ui.expansion(f"{m} — {len(month_data)} outlet", icon="store", value=True).classes("w-full mb-2"):
+                    with ui.expansion(f"{_fmt_month(m)} — {len(month_data)} outlet", icon="store", value=True).classes("w-full mb-2"):
                         # Data preparation
                         tbl_data = []
                         for _, r in month_data.iterrows():
@@ -518,12 +597,12 @@ def create_page(container: ui.column):
             # Also show Approved outlets
             df_approved = df_outlet[df_outlet["status_lead"] == "Approved"].copy()
             if not df_approved.empty:
-                df_approved["month"] = pd.to_datetime(df_approved["datetime_approved"], errors="coerce").dt.to_period("M").astype(str)
-                # Filter out months already shown in Live
-                set(df_live["month"].unique()) if not df_live.empty else set()
+                df_approved["month"] = pd.to_datetime(df_approved["datetime_approved"], errors="coerce").dt.to_period("M")
+                df_approved = df_approved[df_approved["month"].notna()].copy()
+                df_approved["month"] = df_approved["month"].astype(str)
                 for m in sorted(df_approved["month"].unique(), reverse=True):
                     month_data = df_approved[df_approved["month"] == m]
-                    with ui.expansion(f"{m} — {len(month_data)} outlet (Approved)", icon="check_circle", value=True).classes("w-full mb-2"):
+                    with ui.expansion(f"{_fmt_month(m)} — {len(month_data)} outlet (Approved)", icon="check_circle", value=True).classes("w-full mb-2"):
                         tbl_data = []
                         for _, r in month_data.iterrows():
                             tbl_data.append({
@@ -646,10 +725,11 @@ def create_monthly_page(container: ui.column):
             ui.label("Belum ada data bulanan yang bisa ditampilkan.").classes("text-gray-400 italic")
             return
 
-        latest = monthly.iloc[-1]
+        latest = _headline_month_row(monthly)
+        latest_month = str(latest["Month"])
         with ui.card().classes("w-full mb-6").style(CARD):
             ui.label("📈 Pencapaian Bulanan").style(ST)
-            ui.label(f"Periode terbaru: {latest['Month']}").classes("text-xs text-gray-400 mb-3")
+            ui.label(f"Periode: {_fmt_month(latest_month)}").classes("text-xs text-gray-400 mb-3")
             with ui.row().classes("w-full gap-3 mb-4"):
                 for lbl, val in [
                     ("📥 Lead Masuk", _fmt(latest["Lead Masuk"])),
@@ -671,7 +751,8 @@ def create_monthly_page(container: ui.column):
             ui.label("📋 Detail Per Bulan").style(ST)
             ui.aggrid({
                 "columnDefs": [
-                    {"field": "Month", "headerName": "📅 Bulan", "flex": 1, "minWidth": 120},
+                    {"field": "Bulan", "headerName": "📅 Bulan", "flex": 1, "minWidth": 120},
+                    {"field": "Month", "hide": True, "sort": "asc"},
                     {"field": "Lead Masuk", "headerName": "📥 Lead Masuk", "flex": 1, "minWidth": 140},
                     {"field": "Lead Update", "headerName": "🛠️ Lead Update", "flex": 1, "minWidth": 145},
                     {"field": "Approved", "headerName": "🟢 Approved", "flex": 1, "minWidth": 130},
