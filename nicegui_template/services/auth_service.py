@@ -24,7 +24,7 @@ ERPNEXT_CONFIG_PATH = CONFIG_DIR / "erpnext_config.json"
 
 # ── All known NAV routes ──
 ALL_ROUTES = [
-    "/", "/pending", "/trend", "/ai-decision", "/conversion", "/ranking",
+    "/", "/ceo-command-center", "/pending", "/trend", "/ai-decision", "/conversion", "/ranking",
     "/kemitraan", "/lead-partnership", "/lead-kemitraan",
     "/comparison", "/crud", "/admin", "/upload", "/master-data",
     "/revenue-sharing", "/creative-team", "/problem-booth", "/daily",
