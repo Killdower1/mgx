@@ -34,6 +34,7 @@ from pages.creative_team import create_page as create_creative_team_page
 from pages.pending import create_page as create_pending_page
 from pages.problem_booth import create_page as create_problem_booth_page
 from pages.daily_transactions import create_page as create_daily_page
+from pages.ceo_command_center import create_page as create_ceo_command_center_page
 
 
 # ── Global state ──
@@ -161,6 +162,7 @@ def _check_page_access(route: str):
 # ── Shared Navigation ──
 
 ALL_NAV_ITEMS = [
+    ("👑 CEO Command Center", "/ceo-command-center"),
     ("📊 Transaksi Harian", "/daily"),
     ("📊 Dashboard", "/"),
     ("📈 Analisis Trend", "/trend"),
@@ -277,6 +279,15 @@ def build_nav(current_route: str, show_filters: bool = False, minimal: bool = Fa
 
 
 # ── Pages ──
+
+@ui.page("/ceo-command-center")
+def ceo_command_center():
+    if not _check_page_access("/ceo-command-center"):
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/ceo-command-center")
+    create_ceo_command_center_page(ui.column().classes("w-full p-6"))
 
 @ui.page("/")
 def index():
