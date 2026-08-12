@@ -167,6 +167,7 @@ ALL_NAV_ITEMS = [
     ("🧪 CEO Option 1", "/ceo-option-1"),
     ("🧪 CEO Option 2", "/ceo-option-2"),
     ("🧪 CEO Option 3", "/ceo-option-3"),
+    ("⚖️ CEO Fair Option", "/ceo-option-fair"),
     ("📊 Transaksi Harian", "/daily"),
     ("📊 Dashboard", "/"),
     ("📈 Analisis Trend", "/trend"),
@@ -317,6 +318,17 @@ def ceo_option_2():
 @ui.page("/ceo-option-3")
 def ceo_option_3():
     _render_ceo_option(3)
+
+
+@ui.page("/ceo-option-fair")
+def ceo_option_fair():
+    route = "/ceo-option-fair"
+    if not _check_page_access(route):
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav(route)
+    create_ceo_option_review_page(ui.column().classes("w-full p-6 pb-12"), "fair")
 
 @ui.page("/")
 def index():
