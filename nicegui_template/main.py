@@ -35,6 +35,7 @@ from pages.pending import create_page as create_pending_page
 from pages.problem_booth import create_page as create_problem_booth_page
 from pages.daily_transactions import create_page as create_daily_page
 from pages.ceo_command_center import create_page as create_ceo_command_center_page
+from pages.ceo_option_reviews import create_page as create_ceo_option_review_page
 
 
 # ── Global state ──
@@ -163,6 +164,9 @@ def _check_page_access(route: str):
 
 ALL_NAV_ITEMS = [
     ("👑 CEO Command Center", "/ceo-command-center"),
+    ("🧪 CEO Option 1", "/ceo-option-1"),
+    ("🧪 CEO Option 2", "/ceo-option-2"),
+    ("🧪 CEO Option 3", "/ceo-option-3"),
     ("📊 Transaksi Harian", "/daily"),
     ("📊 Dashboard", "/"),
     ("📈 Analisis Trend", "/trend"),
@@ -288,6 +292,31 @@ def ceo_command_center():
     ui.add_head_html(PAGE_STYLES)
     build_nav("/ceo-command-center")
     create_ceo_command_center_page(ui.column().classes("w-full p-6"))
+
+
+def _render_ceo_option(option: int):
+    route = f"/ceo-option-{option}"
+    if not _check_page_access(route):
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav(route)
+    create_ceo_option_review_page(ui.column().classes("w-full p-6 pb-12"), option)
+
+
+@ui.page("/ceo-option-1")
+def ceo_option_1():
+    _render_ceo_option(1)
+
+
+@ui.page("/ceo-option-2")
+def ceo_option_2():
+    _render_ceo_option(2)
+
+
+@ui.page("/ceo-option-3")
+def ceo_option_3():
+    _render_ceo_option(3)
 
 @ui.page("/")
 def index():
