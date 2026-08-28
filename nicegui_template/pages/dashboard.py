@@ -3,8 +3,11 @@ Dashboard v3 — dropdowns separate from content (stable), compare works.
 """
 
 from datetime import datetime, timedelta
+from html import unescape
 import json
 import os
+import re
+import tempfile
 import time
 from nicegui import ui
 import pandas as pd
@@ -1018,6 +1021,175 @@ def create_page(c):
         _build_outlet_table(_cp or (_periods[-1] if _periods else None), _cmp)
 
 
+
+_EXPORT_HTML_RE = re.compile(r"<[^>]+>")
+
+
+def _clean_export_value(value):
+    """Strip AG Grid HTML coloring so Excel/PDF berisi angka/text bersih."""
+    if value is None:
+        return ""
+    text = unescape(_EXPORT_HTML_RE.sub("", str(value)))
+    return " ".join(text.split())
+
+
+def _trend_export_columns(value_cols):
+    return ["Outlet", "Rata-rata"] + list(value_cols)
+
+
+def _trend_export_rows(rows, value_cols):
+    columns = _trend_export_columns(value_cols)
+    clean_rows = []
+    for row in rows or []:
+        clean_rows.append([_clean_export_value(row.get(col, "")) for col in columns])
+    return columns, clean_rows
+
+
+def _export_tmp_path(prefix, ext):
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return os.path.join(tempfile.gettempdir(), f"{prefix}_{stamp}.{ext}")
+
+
+def _download_trend_excel(rows, value_cols, label):
+    if not rows:
+        ui.notify("Pilih outlet dulu yang mau didownload.", type="warning")
+        return
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+
+        columns, clean_rows = _trend_export_rows(rows, value_cols)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Tren Omset 12 Bulan"
+        ws.append(["Tren Omset Outlet (12 Bulan)"])
+        ws.append(["Kategori", label])
+        ws.append(["Generated", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+        ws.append([])
+        ws.append(columns)
+        for row in clean_rows:
+            ws.append(row)
+
+        header_row = 5
+        for cell in ws[header_row]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="1E1E2E")
+            cell.alignment = Alignment(horizontal="center")
+        for row in ws.iter_rows(min_row=header_row + 1):
+            for cell in row:
+                cell.alignment = Alignment(horizontal="right" if cell.column > 1 else "left")
+        ws.freeze_panes = "C6"
+        for idx, col in enumerate(columns, start=1):
+            letter = ws.cell(row=header_row, column=idx).column_letter
+            if col == "Outlet":
+                ws.column_dimensions[letter].width = 32
+            elif col == "Rata-rata":
+                ws.column_dimensions[letter].width = 16
+            else:
+                ws.column_dimensions[letter].width = 14
+
+        path = _export_tmp_path("tren_omset_12_bulan", "xlsx")
+        wb.save(path)
+        ui.download(path)
+        ui.notify(f"Download Excel siap: {len(clean_rows)} outlet", type="positive")
+    except Exception as exc:
+        ui.notify(f"Gagal export Excel: {exc}", type="negative")
+
+
+def _pdf_escape(text):
+    return str(text).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _pdf_text_cmd(x, y, text, size=7):
+    return f"BT /F1 {size} Tf 1 0 0 1 {x:.1f} {y:.1f} Tm ({_pdf_escape(text)}) Tj ET"
+
+
+def _pdf_line_cmd(x1, y1, x2, y2):
+    return f"0.35 w {x1:.1f} {y1:.1f} m {x2:.1f} {y2:.1f} l S"
+
+
+def _write_simple_pdf(path, title, columns, rows):
+    # A4 landscape; compact fixed-width report tanpa dependency eksternal.
+    width, height = 842, 595
+    margin = 24
+    col_widths = [155, 82]
+    rest = max(42, (width - margin * 2 - sum(col_widths)) / max(1, len(columns) - 2))
+    col_widths += [rest] * (len(columns) - 2)
+
+    def clip(text, col_w):
+        text = _clean_export_value(text)
+        max_chars = max(4, int(col_w / 3.7))
+        return text if len(text) <= max_chars else text[: max_chars - 1] + "…"
+
+    pages = []
+    row_h = 13
+    data_start_y = height - 82
+    min_y = margin + 20
+    rows_per_page = max(1, int((data_start_y - min_y) / row_h))
+    chunks = [rows[i : i + rows_per_page] for i in range(0, len(rows), rows_per_page)] or [[]]
+    total_pages = len(chunks)
+
+    for page_no, chunk in enumerate(chunks, start=1):
+        cmds = []
+        cmds.append(_pdf_text_cmd(margin, height - 32, title, 11))
+        cmds.append(_pdf_text_cmd(margin, height - 48, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Rows: {len(rows)}", 7))
+        cmds.append(_pdf_text_cmd(width - 88, height - 48, f"Page {page_no}/{total_pages}", 7))
+        y = height - 68
+        x = margin
+        for col, cw in zip(columns, col_widths):
+            cmds.append(_pdf_text_cmd(x + 2, y, clip(col, cw), 6.5))
+            x += cw
+        cmds.append(_pdf_line_cmd(margin, y - 4, width - margin, y - 4))
+        y -= row_h
+        for row in chunk:
+            x = margin
+            for val, cw in zip(row, col_widths):
+                cmds.append(_pdf_text_cmd(x + 2, y, clip(val, cw), 6.2))
+                x += cw
+            cmds.append(_pdf_line_cmd(margin, y - 4, width - margin, y - 4))
+            y -= row_h
+        pages.append("\n".join(cmds))
+
+    objects = ["<< /Type /Catalog /Pages 2 0 R >>"]
+    kids = []
+    for i, commands in enumerate(pages):
+        page_obj = 3 + i * 2
+        content_obj = page_obj + 1
+        kids.append(f"{page_obj} 0 R")
+        stream = commands.encode("latin-1", "replace")
+        objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] /Resources << /Font << /F1 {3 + len(pages) * 2} 0 R >> >> /Contents {content_obj} 0 R >>")
+        objects.append(f"<< /Length {len(stream)} >>\nstream\n{commands}\nendstream")
+    objects.insert(1, f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(kids)} >>")
+    objects.append("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+
+    out = ["%PDF-1.4\n"]
+    offsets = [0]
+    for idx, obj in enumerate(objects, start=1):
+        offsets.append(sum(len(part.encode("latin-1", "replace")) for part in out))
+        out.append(f"{idx} 0 obj\n{obj}\nendobj\n")
+    xref_at = sum(len(part.encode("latin-1", "replace")) for part in out)
+    out.append(f"xref\n0 {len(objects)+1}\n0000000000 65535 f \n")
+    for off in offsets[1:]:
+        out.append(f"{off:010d} 00000 n \n")
+    out.append(f"trailer\n<< /Size {len(objects)+1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+    with open(path, "wb") as fh:
+        fh.write("".join(out).encode("latin-1", "replace"))
+
+
+def _download_trend_pdf(rows, value_cols, label):
+    if not rows:
+        ui.notify("Pilih outlet dulu yang mau didownload.", type="warning")
+        return
+    try:
+        columns, clean_rows = _trend_export_rows(rows, value_cols)
+        path = _export_tmp_path("tren_omset_12_bulan", "pdf")
+        _write_simple_pdf(path, f"Tren Omset Outlet (12 Bulan) - {label}", columns, clean_rows)
+        ui.download(path)
+        ui.notify(f"Download PDF siap: {len(clean_rows)} outlet", type="positive")
+    except Exception as exc:
+        ui.notify(f"Gagal export PDF: {exc}", type="negative")
+
+
 def _build_outlet_table(cpv, cmv):
     """Rebuild just the outlet table content."""
     global _a
@@ -1207,6 +1379,7 @@ def _build_outlet_table(cpv, cmv):
                         ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
+                html_col_indices.append(len(col_defs) - 1)
             col_defs.append(
                 {
                     "headerName": "Foto",
@@ -1230,6 +1403,7 @@ def _build_outlet_table(cpv, cmv):
                         ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
+                html_col_indices.append(len(col_defs) - 1)
             col_defs.append(
                 {
                     "headerName": "Unlock",
@@ -1253,6 +1427,7 @@ def _build_outlet_table(cpv, cmv):
                         ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
+                html_col_indices.append(len(col_defs) - 1)
             col_defs.append(
                 {
                     "headerName": "Print",
@@ -1276,6 +1451,7 @@ def _build_outlet_table(cpv, cmv):
                         ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
+                html_col_indices.append(len(col_defs) - 1)
             col_defs.append(
                 {
                     "headerName": "Conv",
@@ -1299,6 +1475,7 @@ def _build_outlet_table(cpv, cmv):
                         ":comparator": "(a,b)=>{const p=v=>{if(v==null)return 0;const s=String(v).replace(/<[^>]*>/g,'');const n=parseFloat(s.replace(/[^0-9.,]/g,'').replace(/\\./g,'').replace(',','.'));return (s.indexOf('▼')>=0?-1:1)*(isNaN(n)?0:n)};return p(a)-p(b)}",
                     }
                 )
+                html_col_indices.append(len(col_defs) - 1)
             search_inp = ui.input("🔍 Cari Outlet").props("dense outlined dark").classes("w-72 mb-3")
             grid = ui.aggrid(
                 {
@@ -1538,7 +1715,20 @@ def _build_outlet_table(cpv, cmv):
                                             + "</span>"
                                         )
                                 prev_val = cur
-                        ui.aggrid(
+                        async def _download_active_excel():
+                            selected = await active_grid.get_selected_rows() if active_grid else []
+                            _download_trend_excel(selected, vc, "Outlet Aktif")
+
+                        async def _download_active_pdf():
+                            selected = await active_grid.get_selected_rows() if active_grid else []
+                            _download_trend_pdf(selected, vc, "Outlet Aktif")
+
+                        with ui.row().classes("items-center gap-2 mb-2"):
+                            ui.button("⬇️ Excel", on_click=_download_active_excel).props("dense color=green")
+                            ui.button("⬇️ PDF", on_click=_download_active_pdf).props("dense color=red")
+                            ui.label("Centang outlet di tabel, lalu pilih format download.").classes("text-xs text-gray-500")
+
+                        active_grid = ui.aggrid(
                             {
                                 "columnDefs": [
                                     {
@@ -1550,6 +1740,8 @@ def _build_outlet_table(cpv, cmv):
                                         "sortable": True,
                                         "filter": "agTextColumnFilter",
                                         "floatingFilter": True,
+                                        "checkboxSelection": True,
+                                        "headerCheckboxSelection": True,
                                     },
                                     {
                                         "headerName": "Rata-rata",
@@ -1583,6 +1775,8 @@ def _build_outlet_table(cpv, cmv):
                                 "rowHeight": 40,
                                 "headerHeight": 40,
                                 "enableCellTextSelection": True,
+                                "rowSelection": "multiple",
+                                "suppressRowClickSelection": True,
                             },
                             theme="balham",
                             html_columns=trend_html_indices,
@@ -1632,7 +1826,20 @@ def _build_outlet_table(cpv, cmv):
                                             + "</span>"
                                         )
                                 prev_val = cur
-                        ui.aggrid(
+                        async def _download_inactive_excel():
+                            selected = await inactive_grid.get_selected_rows() if inactive_grid else []
+                            _download_trend_excel(selected, vc, "Outlet Tidak Aktif")
+
+                        async def _download_inactive_pdf():
+                            selected = await inactive_grid.get_selected_rows() if inactive_grid else []
+                            _download_trend_pdf(selected, vc, "Outlet Tidak Aktif")
+
+                        with ui.row().classes("items-center gap-2 mb-2"):
+                            ui.button("⬇️ Excel", on_click=_download_inactive_excel).props("dense color=green")
+                            ui.button("⬇️ PDF", on_click=_download_inactive_pdf).props("dense color=red")
+                            ui.label("Centang outlet di tabel, lalu pilih format download.").classes("text-xs text-gray-500")
+
+                        inactive_grid = ui.aggrid(
                             {
                                 "columnDefs": [
                                     {
@@ -1644,6 +1851,8 @@ def _build_outlet_table(cpv, cmv):
                                         "sortable": True,
                                         "filter": "agTextColumnFilter",
                                         "floatingFilter": True,
+                                        "checkboxSelection": True,
+                                        "headerCheckboxSelection": True,
                                     },
                                     {
                                         "headerName": "Rata-rata",
@@ -1677,6 +1886,8 @@ def _build_outlet_table(cpv, cmv):
                                 "rowHeight": 40,
                                 "headerHeight": 40,
                                 "enableCellTextSelection": True,
+                                "rowSelection": "multiple",
+                                "suppressRowClickSelection": True,
                             },
                             theme="balham",
                             html_columns=trend_html_indices2,
