@@ -196,10 +196,10 @@ def main():
                 "visit": safe(r.get("visit")),
             })
 
-    # Problems from last 24h — all problems, no cap
+    # Problems from last 60 days — all problems, no cap
     from datetime import timedelta
-    cutoff = datetime.now() - timedelta(hours=24)
-    recent_24h = []
+    cutoff = datetime.now() - timedelta(days=60)
+    recent_60d = []
     for r in all_data:
         created = r.get("creation", "")
         if created:
@@ -210,7 +210,7 @@ def main():
                 if created_dt >= cutoff:
                     desc = str(r.get("description_problem", "") or "")
                     desc_clean = desc.replace("<p>", " ").replace("</p>", " ").replace("<br>", " ").strip()[:100]
-                    recent_24h.append({
+                    recent_60d.append({
                         "name": r.get("name"),
                         "subject": safe(r.get("subject")) or safe(r.get("nama_full")) or safe(r.get("nama_tempat")),
                         "nama_tempat": safe(r.get("nama_tempat")),
@@ -222,7 +222,7 @@ def main():
                     })
             except Exception:
                 pass
-    recent_24h.sort(key=lambda x: x.get("creation", ""), reverse=True)
+    recent_60d.sort(key=lambda x: x.get("creation", ""), reverse=True)
     open_problems.sort(key=lambda x: str(x.get("creation", "")), reverse=True)
 
     summary = {
@@ -234,7 +234,7 @@ def main():
         "maintenances": dict(maintenances.most_common(15)),
         "monthly": dict(sorted(monthly_raw.items())),
         "open_problems": open_problems,
-        "recent_24h": recent_24h,
+        "recent_60d": recent_60d,
     }
     with open(SUMMARY_PATH, "w") as f:
         json.dump(summary, f)
