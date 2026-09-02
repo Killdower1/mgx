@@ -704,12 +704,11 @@ def _cc_ms(value) -> int:
         raw = str(value).strip()
         if raw.isdigit():
             return int(raw)
-        return int(
-            datetime.fromisoformat(
-                raw.replace("Z", "")[:19].replace("T", " ")
-            ).timestamp()
-            * 1000
-        )
+        if raw.endswith("Z"):
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        else:
+            dt = datetime.fromisoformat(raw.replace("T", " ")[:19])
+        return int(dt.timestamp() * 1000)
     except Exception:
         return 0
 
@@ -1218,15 +1217,20 @@ def _cc_table(rows, cols, html_cols=()):
             "paginationPageSize": 20,
             "paginationPageSizeSelector": [20, 50, 100],
             "domLayout": "autoHeight",
-            "defaultColDef": {"resizable": True},
+            "defaultColDef": {
+                "resizable": True,
+                "cellStyle": {"fontSize": "11px", "lineHeight": "1.25"},
+            },
             "animateRows": True,
-            "rowHeight": 48,
-            "headerHeight": 42,
+            "rowHeight": 42,
+            "headerHeight": 36,
             "enableCellTextSelection": True,
         },
         theme="balham",
         html_columns=list(html_cols),
-    ).classes("w-full ag-theme-balham-dark").style("height:auto; min-height:240px;")
+    ).classes("w-full ag-theme-balham-dark text-xs").style(
+        "height:auto; min-height:220px; --ag-font-size:11px; --ag-row-height:42px; --ag-header-height:36px;"
+    )
 
 
 def _render_command_center_tab():
