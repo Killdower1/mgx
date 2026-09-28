@@ -34,6 +34,7 @@ from pages.creative_team import create_page as create_creative_team_page
 from pages.pending import create_page as create_pending_page
 from pages.problem_booth import create_page as create_problem_booth_page
 from pages.daily_transactions import create_page as create_daily_page
+from pages.mobile_sales import create_page as create_mobile_sales_page
 
 
 # ── Global state ──
@@ -161,6 +162,7 @@ def _check_page_access(route: str):
 # ── Shared Navigation ──
 
 ALL_NAV_ITEMS = [
+    ("📱 Sales APK", "/m/sales"),
     ("📊 Transaksi Harian", "/daily"),
     ("📊 Dashboard", "/"),
     ("📈 Analisis Trend", "/trend"),
@@ -508,6 +510,16 @@ def daily_transactions():
     ui.add_head_html(PAGE_STYLES)
     build_nav("/daily")
     create_daily_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/m/sales")
+def mobile_sales():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/m/sales")
+    create_mobile_sales_page(ui.column().classes("w-full"))
 
 
 @ui.page("/kpi-sistem")

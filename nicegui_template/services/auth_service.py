@@ -27,18 +27,18 @@ ALL_ROUTES = [
     "/", "/pending", "/trend", "/ai-decision", "/conversion", "/ranking",
     "/kemitraan", "/lead-partnership", "/lead-kemitraan",
     "/comparison", "/crud", "/admin", "/upload", "/master-data",
-    "/revenue-sharing", "/creative-team", "/problem-booth", "/daily",
+    "/revenue-sharing", "/creative-team", "/problem-booth", "/daily", "/m/sales",
 ]
 
 # ── Default roles (used as fallback) ──
 DEFAULT_ROLES = {
     "admin": ALL_ROUTES,
     "guest": ["/pending"],
-    "manager": ["/", "/problem-booth", "/trend", "/conversion", "/ranking", "/kemitraan",
+    "manager": ["/", "/m/sales", "/problem-booth", "/trend", "/conversion", "/ranking", "/kemitraan",
                 "/lead-partnership", "/lead-kemitraan", "/comparison", "/master-data", "/daily"],
     "creative": ["/creative-team", "/"],
-    "staff": ["/", "/problem-booth", "/ranking", "/kemitraan", "/lead-partnership", "/lead-kemitraan", "/master-data", "/daily"],
-    "viewer": ["/"],
+    "staff": ["/", "/m/sales", "/problem-booth", "/ranking", "/kemitraan", "/lead-partnership", "/lead-kemitraan", "/master-data", "/daily"],
+    "viewer": ["/", "/m/sales"],
 }
 
 
