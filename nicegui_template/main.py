@@ -23,6 +23,7 @@ from pages.conversion import create_page as create_conversion_page
 from pages.comparison import create_page as create_comparison_page
 from pages.trend import create_page as create_trend_page
 from pages.ai_decision import create_page as create_ai_decision_page
+from pages.ai_hq import create_page as create_ai_hq_page
 from pages.upload import create_page as create_upload_page
 from pages.kemitraan import create_page as create_kemitraan_page
 from pages.admin import create_page as create_admin_page
@@ -167,6 +168,7 @@ ALL_NAV_ITEMS = [
     ("📊 Dashboard", "/"),
     ("📈 Analisis Trend", "/trend"),
     ("🤖 AI Decision", "/ai-decision"),
+    ("🧠 AI HQ", "/ai-hq"),
     ("🔄 Analisis Konversi", "/conversion"),
     ("🏆 Ranking Outlet", "/ranking"),
     ("🤝 Kemitraan", "/kemitraan"),
@@ -328,6 +330,16 @@ def ai_decision():
     ui.add_head_html(PAGE_STYLES)
     build_nav("/ai-decision")
     create_ai_decision_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/ai-hq")
+def ai_hq():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/ai-hq")
+    create_ai_hq_page(ui.column().classes("w-full p-6"))
 
 
 @ui.page("/conversion")

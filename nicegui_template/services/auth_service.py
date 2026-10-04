@@ -24,7 +24,7 @@ ERPNEXT_CONFIG_PATH = CONFIG_DIR / "erpnext_config.json"
 
 # ── All known NAV routes ──
 ALL_ROUTES = [
-    "/", "/pending", "/trend", "/ai-decision", "/conversion", "/ranking",
+    "/", "/pending", "/trend", "/ai-decision", "/ai-hq", "/conversion", "/ranking",
     "/kemitraan", "/lead-partnership", "/lead-kemitraan",
     "/comparison", "/crud", "/admin", "/upload", "/master-data",
     "/revenue-sharing", "/creative-team", "/problem-booth", "/daily", "/m/sales",
@@ -34,7 +34,7 @@ ALL_ROUTES = [
 DEFAULT_ROLES = {
     "admin": ALL_ROUTES,
     "guest": ["/pending"],
-    "manager": ["/", "/m/sales", "/problem-booth", "/trend", "/conversion", "/ranking", "/kemitraan",
+    "manager": ["/", "/m/sales", "/problem-booth", "/ai-hq", "/trend", "/conversion", "/ranking", "/kemitraan",
                 "/lead-partnership", "/lead-kemitraan", "/comparison", "/master-data", "/daily"],
     "creative": ["/creative-team", "/"],
     "staff": ["/", "/m/sales", "/problem-booth", "/ranking", "/kemitraan", "/lead-partnership", "/lead-kemitraan", "/master-data", "/daily"],
