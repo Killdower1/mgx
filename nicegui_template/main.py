@@ -488,17 +488,17 @@ def pending():
 # ── Login Page ──
 
 @ui.page("/login")
-def login():
+def login(next: str = "/"):
     """Login page — minimal nav, no menu."""
-    # If already logged in, redirect to dashboard
+    target = next if next.startswith("/") and not next.startswith("//") and not next.startswith("/login") else "/"
+    # If already logged in, continue to the originally requested page.
     if is_authenticated():
-        return RedirectResponse(url="/")
-        return
+        return RedirectResponse(url=target)
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/login", minimal=True)
     container = ui.column().classes("w-full p-6")
-    create_login_page(container)
+    create_login_page(container, next_route=target)
 
 
 # ── Run ──

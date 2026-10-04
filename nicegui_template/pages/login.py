@@ -9,9 +9,18 @@ from services import auth_service
 CARD = "background-color: #1e1e2e; border-radius: 12px; padding: 32px; box-shadow: 0 16px 48px rgba(0,0,0,0.35); max-width: 420px; margin: 0 auto;"
 
 
-def create_page(container: ui.column):
+def _safe_next_route(next_route: str | None) -> str:
+    """Return a safe internal route to continue after login."""
+    route = str(next_route or "/").strip()
+    if not route.startswith("/") or route.startswith("//") or route.startswith("/login"):
+        return "/"
+    return route
+
+
+def create_page(container: ui.column, next_route: str = "/"):
     """Build the Login page."""
     container.clear()
+    target_route = _safe_next_route(next_route)
 
     with container:
         with ui.column().classes("w-full items-center justify-center min-h-[80vh]"):
@@ -57,7 +66,7 @@ def create_page(container: ui.column):
                         if role == "guest":
                             ui.navigate.to("/pending")
                         else:
-                            ui.navigate.to("/")
+                            ui.navigate.to(target_route)
                     else:
                         error_lbl.classes("text-red-400")
                         error_lbl.set_text("❌ Email atau password salah.")
