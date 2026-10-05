@@ -23,7 +23,6 @@ from pages.conversion import create_page as create_conversion_page
 from pages.comparison import create_page as create_comparison_page
 from pages.trend import create_page as create_trend_page
 from pages.ai_decision import create_page as create_ai_decision_page
-from pages.ai_hq import create_page as create_ai_hq_page
 from pages.upload import create_page as create_upload_page
 from pages.kemitraan import create_page as create_kemitraan_page
 from pages.admin import create_page as create_admin_page
@@ -334,12 +333,8 @@ def ai_decision():
 
 @ui.page("/ai-hq")
 def ai_hq():
-    if _auth_guard():
-        return
-    ui.dark_mode().enable()
-    ui.add_head_html(PAGE_STYLES)
-    build_nav("/ai-hq")
-    create_ai_hq_page(ui.column().classes("w-full p-6"))
+    """Legacy AI HQ route: standalone virtual office now lives at hq.gempor.my.id."""
+    return RedirectResponse(url="https://hq.gempor.my.id", status_code=302)
 
 
 @ui.page("/conversion")
