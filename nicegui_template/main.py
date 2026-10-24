@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from services.dashboard_adapter import get_adapter
 from services import auth_service
 from pages.dashboard import create_page, set_filters
+from pages.control_tower import create_page as create_control_tower_page
 from pages.lead_kemitraan import create_page as create_lk_page
 from pages.lead_partnership import create_page as create_lp_page, create_monthly_page as create_lp_monthly_page
 from pages.ranking import create_page as create_ranking_page
@@ -283,15 +284,33 @@ def build_nav(current_route: str, show_filters: bool = False, minimal: bool = Fa
 
 @ui.page("/")
 def index():
-    """Main dashboard page."""
+    """Control Tower — ringkasan bulan berjalan (MTD vs MTD)."""
     redirect = _auth_guard()
     if redirect:
         return redirect
+
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/", show_filters=False)
+
+    with ui.column().classes("w-full p-4"):
+        container = ui.column().classes("w-full")
+        create_control_tower_page(container)
+
+
+@ui.page("/dashboard-classic")
+def dashboard_classic():
+    """Dashboard lama (filter periode/area + tabel lengkap). Fallback & pembanding."""
+    redirect = _auth_guard()
+    if redirect:
+        return redirect
+    if get_current_role() not in ("admin", "manager"):
+        return RedirectResponse(url="/")
     global _dashboard_container
 
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
-    build_nav("/", show_filters=True)
+    build_nav("/dashboard-classic", show_filters=True)
 
     with ui.column().classes("w-full p-6"):
         _dashboard_container = ui.column().classes("w-full")
