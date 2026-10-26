@@ -180,7 +180,15 @@ def build(df: pd.DataFrame, month: str, span: int = 6) -> dict:
             "_verdict": verdict,
         }
         for m in window:
-            row["m_" + m] = round(val(rev, o, m) / 1e6, 1)
+            key = m.replace("-", "")
+            row["m_" + key] = round(val(rev, o, m) / 1e6, 1)
+            i_m = months.index(m)
+            if i_m > 0:
+                before = val(rev, o, months[i_m - 1])
+                now = val(rev, o, m)
+                row["u_" + key] = 1 if now > before else (-1 if now < before else 0)
+            else:
+                row["u_" + key] = 0
         rows.append(row)
 
     rows.sort(key=lambda r: -r["omzet"])
@@ -221,6 +229,8 @@ def _css() -> str:
       --ag-odd-row-background-color: #171720; --ag-row-hover-color: #23233a;
       --ag-border-color: #26262f; --ag-font-size: 12px; --ag-header-height: 40px; --ag-row-height: 36px;
       --ag-foreground-color: #eceef4; --ag-header-foreground-color: #8e93a6; }
+  .ag-theme-balham-dark .rk-up { color: #3ddc97 !important; font-weight: 650; }
+  .ag-theme-balham-dark .rk-down { color: #ff6b6b !important; font-weight: 650; }
   .rk-note { font-size: 10.5px; color: @MUT@; line-height: 1.55; margin-top: 10px; }
   @media (max-width: 768px) {
     .ag-theme-balham-dark { --ag-row-height: 46px !important; --ag-font-size: 11px !important; }
@@ -252,23 +262,37 @@ def _columns(window: list) -> list:
         {"headerName": "Outlet", "field": "outlet", "pinned": "left", "minWidth": 185, "flex": 2,
          "cellStyle": {"fontWeight": "600"}},
         {"headerName": "Area", "field": "area", "minWidth": 100, "flex": 1},
-        {"headerName": "Putusan", "field": "verdict", "minWidth": 125},
+        {"headerName": "Putusan", "field": "verdict", "minWidth": 118},
     ]
-    for m in window:
-        cols.append({"headerName": lbl_month(m), "field": "m_" + m, "minWidth": 82,
-                     "type": "numericColumn"})
+    # bulan terbaru di kiri, rapat, hijau kalau naik dari bulan sebelumnya
+    for m in list(window)[::-1]:
+        key = m.replace("-", "")
+        cols.append({
+            "headerName": lbl_month(m),
+            "field": "m_" + key,
+            "width": 78,
+            "minWidth": 70,
+            "maxWidth": 92,
+            "type": "numericColumn",
+            ":cellStyle": (
+                "(p) => ({"
+                "color: p.data.u_" + key + " > 0 ? '#3ddc97'"
+                " : (p.data.u_" + key + " < 0 ? '#ff6b6b' : '#cdd3e2'),"
+                "fontWeight: 600})"
+            ),
+        })
     cols += [
-        {"headerName": "Omzet (jt)", "field": "omzet", "minWidth": 105, "type": "numericColumn"},
-        {"headerName": "Δ MoM %", "field": "mom", "minWidth": 95, "type": "numericColumn"},
-        {"headerName": "Δ YoY %", "field": "yoy", "minWidth": 95, "type": "numericColumn"},
-        {"headerName": "Rata2 3bln (jt)", "field": "avg3", "minWidth": 118, "type": "numericColumn"},
-        {"headerName": "Tren", "field": "tren", "minWidth": 85},
-        {"headerName": "Sesi", "field": "sesi", "minWidth": 80, "type": "numericColumn"},
-        {"headerName": "Konv %", "field": "conv", "minWidth": 80, "type": "numericColumn"},
-        {"headerName": "Rp/sesi", "field": "arps", "minWidth": 95, "type": "numericColumn"},
-        {"headerName": "Hari aktif", "field": "hari", "minWidth": 95, "type": "numericColumn"},
-        {"headerName": "Sepi (hari)", "field": "sepi", "minWidth": 100, "type": "numericColumn"},
-        {"headerName": "Kenapa", "field": "why", "minWidth": 190, "flex": 2},
+        {"headerName": "Omzet (jt)", "field": "omzet", "minWidth": 100, "type": "numericColumn"},
+        {"headerName": "Δ MoM %", "field": "mom", "minWidth": 92, "type": "numericColumn"},
+        {"headerName": "Δ YoY %", "field": "yoy", "minWidth": 92, "type": "numericColumn"},
+        {"headerName": "Rata2 3bln (jt)", "field": "avg3", "minWidth": 112, "type": "numericColumn"},
+        {"headerName": "Tren", "field": "tren", "minWidth": 82},
+        {"headerName": "Sesi", "field": "sesi", "minWidth": 78, "type": "numericColumn"},
+        {"headerName": "Konv %", "field": "conv", "minWidth": 78, "type": "numericColumn"},
+        {"headerName": "Rp/sesi", "field": "arps", "minWidth": 92, "type": "numericColumn"},
+        {"headerName": "Hari aktif", "field": "hari", "minWidth": 92, "type": "numericColumn"},
+        {"headerName": "Sepi (hari)", "field": "sepi", "minWidth": 96, "type": "numericColumn"},
+        {"headerName": "Kenapa", "field": "why", "minWidth": 185, "flex": 2},
     ]
     return cols
 
