@@ -299,24 +299,26 @@ def create_page(container: ui.column):
         state = {"month": months[-1], "outlet": None}
 
         head = ui.row().classes("w-full items-end gap-3 mb-2")
-        body = ui.column().classes("w-full")
-        pane = ui.column().classes("w-full mt-3")
 
         with head:
             ui.html('<div><div style="font-size:19px;font-weight:750;letter-spacing:-.02em">🏆 Ranking &amp; Vitalitas Outlet</div>'
                     '<div style="font-size:11.5px;color:' + C_MUT + '">Semua outlet, semua bulan. Klik header kolom untuk '
                     'sortir, pakai filter di bawah header. Pilih outlet untuk lihat tren 12 bulan.</div></div>',
                     sanitize=False)
-            ui.space()
+
+        with ui.row().classes("w-full items-center gap-3 mb-3"):
             sel = ui.select({m: lbl_month(m) for m in months[::-1]}, value=state["month"],
-                            label="Bulan acuan").props("dense outlined dark").classes("w-[140px]")
+                            label="Bulan acuan").props("dense outlined dark").classes("w-[150px]")
             span_sel = ui.select({6: "6 bulan", 12: "12 bulan"}, value=6,
-                                 label="Rentang").props("dense outlined dark").classes("w-[110px]")
+                                 label="Rentang").props("dense outlined dark").classes("w-[130px]")
             outlet_sel = ui.select([], label="Lihat tren outlet", with_input=True,
                                    on_change=lambda e: draw_detail(e.value)).props(
-                "dense outlined dark use-input input-debounce=200").classes("w-[230px]")
+                "dense outlined dark use-input input-debounce=200").classes("w-[260px]")
             state["arsip"] = ui.checkbox("Tampilkan arsip", value=False).props("dense dark")
             state["arsip"].on("change", lambda e: render())
+
+        body = ui.column().classes("w-full")
+        pane = ui.column().classes("w-full mt-3")
 
         def draw_detail(outlet: str | None):
             pane.clear()
