@@ -20,6 +20,7 @@ from pages.control_tower import create_page as create_control_tower_page
 from pages.lead_kemitraan import create_page as create_lk_page
 from pages.lead_partnership import create_page as create_lp_page, create_monthly_page as create_lp_monthly_page
 from pages.ranking import create_page as create_ranking_page
+from pages.ranking_v2 import create_page as create_ranking_v2_page
 from pages.conversion import create_page as create_conversion_page
 from pages.comparison import create_page as create_comparison_page
 from pages.trend import create_page as create_trend_page
@@ -390,6 +391,16 @@ def conversion():
 
 @ui.page("/ranking")
 def ranking():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/ranking")
+    create_ranking_v2_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/ranking-classic")
+def ranking_classic():
     if _auth_guard():
         return
     ui.dark_mode().enable()
