@@ -87,7 +87,7 @@ def _areas() -> dict:
         return {}
 
 
-def build(df: pd.DataFrame, month: str, span: int = 6) -> dict:
+def build(df: pd.DataFrame, month: str, span: int = 13) -> dict:
     months = sorted(df["month"].unique())
     idx = months.index(month) if month in months else len(months) - 1
     end = idx + 1
@@ -181,7 +181,7 @@ def build(df: pd.DataFrame, month: str, span: int = 6) -> dict:
         }
         for m in window:
             key = m.replace("-", "")
-            row["m_" + key] = round(val(rev, o, m) / 1e6, 1)
+            row["m_" + key] = int(round(val(rev, o, m) / 1e6))
             i_m = months.index(m)
             if i_m > 0:
                 before = val(rev, o, months[i_m - 1])
@@ -228,7 +228,8 @@ def _css() -> str:
   .ag-theme-balham-dark { --ag-background-color: #1a1a24; --ag-header-background-color: #15151d;
       --ag-odd-row-background-color: #171720; --ag-row-hover-color: #23233a;
       --ag-border-color: #26262f; --ag-font-size: 12px; --ag-header-height: 40px; --ag-row-height: 36px;
-      --ag-foreground-color: #eceef4; --ag-header-foreground-color: #8e93a6; }
+      --ag-foreground-color: #eceef4; --ag-header-foreground-color: #8e93a6;
+      --ag-header-font-size: 10px; --ag-cell-horizontal-padding: 5px; }
   .ag-theme-balham-dark .rk-up { color: #3ddc97 !important; font-weight: 650; }
   .ag-theme-balham-dark .rk-down { color: #ff6b6b !important; font-weight: 650; }
   .rk-note { font-size: 10.5px; color: @MUT@; line-height: 1.55; margin-top: 10px; }
@@ -259,10 +260,10 @@ def kpis_html(m: dict) -> str:
 
 def _columns(window: list) -> list:
     cols = [
-        {"headerName": "Outlet", "field": "outlet", "pinned": "left", "minWidth": 185, "flex": 2,
+        {"headerName": "Outlet", "field": "outlet", "pinned": "left", "width": 152, "minWidth": 130,
          "cellStyle": {"fontWeight": "600"}},
-        {"headerName": "Area", "field": "area", "minWidth": 100, "flex": 1},
-        {"headerName": "Putusan", "field": "verdict", "minWidth": 118},
+        {"headerName": "Area", "field": "area", "width": 74, "minWidth": 60},
+        {"headerName": "Putusan", "field": "verdict", "width": 104, "minWidth": 92},
     ]
     # bulan terbaru di kiri, rapat, hijau kalau naik dari bulan sebelumnya
     for m in list(window)[::-1]:
@@ -270,9 +271,9 @@ def _columns(window: list) -> list:
         cols.append({
             "headerName": lbl_month(m),
             "field": "m_" + key,
-            "width": 78,
-            "minWidth": 70,
-            "maxWidth": 92,
+            "width": 46,
+            "minWidth": 42,
+            "maxWidth": 52,
             "type": "numericColumn",
             ":cellStyle": (
                 "(p) => ({"
@@ -333,7 +334,7 @@ def create_page(container: ui.column):
         with ui.row().classes("w-full items-center gap-3 mb-3"):
             sel = ui.select({m: lbl_month(m) for m in months[::-1]}, value=state["month"],
                             label="Bulan acuan").props("dense outlined dark").classes("w-[150px]")
-            span_sel = ui.select({6: "6 bulan", 12: "12 bulan"}, value=6,
+            span_sel = ui.select({13: "13 bulan", 12: "12 bulan", 6: "6 bulan"}, value=13,
                                  label="Rentang").props("dense outlined dark").classes("w-[130px]")
             outlet_sel = ui.select([], label="Lihat tren outlet", with_input=True,
                                    on_change=lambda e: draw_detail(e.value)).props(
@@ -347,7 +348,7 @@ def create_page(container: ui.column):
         def draw_detail(outlet: str | None):
             pane.clear()
             month = sel.value or months[-1]
-            m = build(df, month, int(span_sel.value or 6))
+            m = build(df, month, int(span_sel.value or 13))
             if not outlet or outlet not in m["detail"]:
                 return
             d = m["detail"][outlet]
@@ -368,7 +369,7 @@ def create_page(container: ui.column):
 
         def render():
             month = sel.value or months[-1]
-            m = build(df, month, int(span_sel.value or 6))
+            m = build(df, month, int(span_sel.value or 13))
             show_archive = bool(state["arsip"].value)
             rows = [r for r in m["rows"] if show_archive or r["_verdict"] != "ARSIP"]
             body.clear()
