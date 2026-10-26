@@ -23,7 +23,9 @@ from pages.ranking import create_page as create_ranking_page
 from pages.conversion import create_page as create_conversion_page
 from pages.comparison import create_page as create_comparison_page
 from pages.trend import create_page as create_trend_page
+from pages.trend_v2 import create_page as create_trend_v2_page
 from pages.ai_decision import create_page as create_ai_decision_page
+from pages.ai_decision_v2 import create_page as create_ai_decision_v2_page
 from pages.upload import create_page as create_upload_page
 from pages.kemitraan import create_page as create_kemitraan_page
 from pages.admin import create_page as create_admin_page
@@ -337,11 +339,31 @@ def trend():
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/trend")
+    create_trend_v2_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/trend-classic")
+def trend_classic():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/trend")
     create_trend_page(ui.column().classes("w-full p-6"))
 
 
 @ui.page("/ai-decision")
 def ai_decision():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/ai-decision")
+    create_ai_decision_v2_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/ai-decision-classic")
+def ai_decision_classic():
     if _auth_guard():
         return
     ui.dark_mode().enable()
