@@ -27,6 +27,7 @@ def create_page(container):
             ui.label('Data transaksi belum tersedia.')
         return
     first_ledger = months[0]
+    ui.add_head_html('<style>.km-invest-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;width:100%}@media(max-width:1100px){.km-invest-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.km-invest-grid{grid-template-columns:1fr}}</style>')
     with container:
         ui.label('🤝 Kemitraan').classes('text-xl font-bold')
         ui.label('Modal yang dicatat pemilik vs bagian kemitraan aktual dari outlet yang sudah dicocokkan. Tanpa asumsi jumlah atau perpindahan mesin.').classes('text-xs text-gray-400')
@@ -36,7 +37,7 @@ def create_page(container):
         content = ui.column().classes('w-full gap-4 mt-4')
 
     def card(label, value, sub, color='#edf0f7'):
-        with ui.card().classes('col-12 col-sm-6 col-md-3').style('background:#1a1a24;border:1px solid #2d2d38;min-height:120px'):
+        with ui.card().style('background:#1a1a24;border:1px solid #2d2d38;min-height:120px;min-width:0;width:100%'):
             ui.label(label).classes('text-xs uppercase text-gray-400')
             ui.label(value).classes('text-xl font-bold').style('color:'+color)
             ui.label(sub).classes('text-xs text-gray-400')
@@ -51,7 +52,7 @@ def create_page(container):
         confirmed = sum(sum(o['state'] == 'confirmed' and not o['conflict'] for o in s['outlets']) for s in owners)
         content.clear()
         with content:
-            with ui.row().classes('w-full'):
+            with ui.element('div').classes('km-invest-grid'):
                 card('Modal tercatat', rp(capital), f"{sum(s['entries'] for s in owners)} pembelian · {len(owners)} mitra", '#5b8cff')
                 card('Hasil kemitraan tercatat', rp(returned), f'{confirmed} outlet sudah cocok', '#a78bfa')
                 card('Progres balik modal', f'{returned/capital*100:.1f}%' if capital else '—',
