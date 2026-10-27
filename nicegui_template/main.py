@@ -22,6 +22,7 @@ from pages.lead_partnership import create_page as create_lp_page, create_monthly
 from pages.ranking import create_page as create_ranking_page
 from pages.ranking_v2 import create_page as create_ranking_v2_page
 from pages.conversion import create_page as create_conversion_page
+from pages.conversion_v2 import create_page as create_conversion_v2_page
 from pages.comparison import create_page as create_comparison_page
 from pages.trend import create_page as create_trend_page
 from pages.trend_v2 import create_page as create_trend_v2_page
@@ -381,6 +382,16 @@ def ai_hq():
 
 @ui.page("/conversion")
 def conversion():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/conversion")
+    create_conversion_v2_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/conversion-classic")
+def conversion_classic():
     if _auth_guard():
         return
     ui.dark_mode().enable()
