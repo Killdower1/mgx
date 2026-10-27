@@ -16,15 +16,24 @@ if str(PROJECT_ROOT) not in sys.path:
 from services.dashboard_adapter import get_adapter
 from services import auth_service
 from pages.dashboard import create_page, set_filters
+from pages.control_tower import create_page as create_control_tower_page
 from pages.lead_kemitraan import create_page as create_lk_page
 from pages.lead_partnership import create_page as create_lp_page, create_monthly_page as create_lp_monthly_page
 from pages.ranking import create_page as create_ranking_page
+from pages.ranking_v2 import create_page as create_ranking_v2_page
 from pages.conversion import create_page as create_conversion_page
+from pages.conversion_v2 import create_page as create_conversion_v2_page
 from pages.comparison import create_page as create_comparison_page
 from pages.trend import create_page as create_trend_page
+from pages.trend_v2 import create_page as create_trend_v2_page
 from pages.ai_decision import create_page as create_ai_decision_page
+from pages.ai_decision_v2 import create_page as create_ai_decision_v2_page
 from pages.upload import create_page as create_upload_page
 from pages.kemitraan import create_page as create_kemitraan_page
+from pages.kemitraan_v2 import create_page as create_kemitraan_v2_page
+from pages.kemitraan_portfolio_page import create_page as create_kemitraan_portfolio_page
+from pages.kemitraan_portfolio_setting import create_page as create_kemitraan_portfolio_setting_page
+from pages.kemitraan_setting import create_page as create_kemitraan_setting_page
 from pages.admin import create_page as create_admin_page
 from pages.crud import create_page as create_crud_page
 from pages.master_data import create_page as create_master_data_page
@@ -283,15 +292,33 @@ def build_nav(current_route: str, show_filters: bool = False, minimal: bool = Fa
 
 @ui.page("/")
 def index():
-    """Main dashboard page."""
+    """Control Tower — ringkasan bulan berjalan (MTD vs MTD)."""
     redirect = _auth_guard()
     if redirect:
         return redirect
+
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/", show_filters=False)
+
+    with ui.column().classes("w-full p-4"):
+        container = ui.column().classes("w-full")
+        create_control_tower_page(container)
+
+
+@ui.page("/dashboard-classic")
+def dashboard_classic():
+    """Dashboard lama (filter periode/area + tabel lengkap). Fallback & pembanding."""
+    redirect = _auth_guard()
+    if redirect:
+        return redirect
+    if get_current_role() not in ("admin", "manager"):
+        return RedirectResponse(url="/")
     global _dashboard_container
 
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
-    build_nav("/", show_filters=True)
+    build_nav("/dashboard-classic", show_filters=True)
 
     with ui.column().classes("w-full p-6"):
         _dashboard_container = ui.column().classes("w-full")
@@ -318,11 +345,31 @@ def trend():
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/trend")
+    create_trend_v2_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/trend-classic")
+def trend_classic():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/trend")
     create_trend_page(ui.column().classes("w-full p-6"))
 
 
 @ui.page("/ai-decision")
 def ai_decision():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/ai-decision")
+    create_ai_decision_v2_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/ai-decision-classic")
+def ai_decision_classic():
     if _auth_guard():
         return
     ui.dark_mode().enable()
@@ -344,11 +391,31 @@ def conversion():
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/conversion")
+    create_conversion_v2_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/conversion-classic")
+def conversion_classic():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/conversion")
     create_conversion_page(ui.column().classes("w-full p-6"))
 
 
 @ui.page("/ranking")
 def ranking():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/ranking")
+    create_ranking_v2_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/ranking-classic")
+def ranking_classic():
     if _auth_guard():
         return
     ui.dark_mode().enable()
@@ -364,6 +431,56 @@ def kemitraan():
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/kemitraan")
+    container = ui.column().classes("w-full p-6")
+    create_kemitraan_portfolio_page(container)
+
+
+@ui.page("/kemitraan-mesin-lama")
+def kemitraan_mesin_lama():
+    """Read-only rollback view of the previous unit-oriented dashboard."""
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kemitraan")
+    create_kemitraan_v2_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/kemitraan-setting")
+def kemitraan_setting():
+    """Setting unit mesin mitra: modal, HPP, tanggal beli, pindah lokasi."""
+    if _auth_guard():
+        return
+    if get_current_role() not in ("admin", "manager"):
+        return RedirectResponse(url="/kemitraan")
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kemitraan-setting")
+    create_kemitraan_portfolio_setting_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/kemitraan-setting-mesin-lama")
+def kemitraan_setting_mesin_lama():
+    if _auth_guard():
+        return
+    if get_current_role() not in ("admin", "manager"):
+        return RedirectResponse(url="/kemitraan")
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kemitraan-setting")
+    create_kemitraan_setting_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/kemitraan-classic")
+def kemitraan_classic():
+    """Halaman Kemitraan lama: setelan kontrak & tabel mentah. Fallback admin."""
+    if _auth_guard():
+        return
+    if get_current_role() not in ("admin", "manager"):
+        return RedirectResponse(url="/")
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kemitraan-classic")
     container = ui.column().classes("w-full p-6")
     create_kemitraan_page(container)
 
