@@ -458,6 +458,18 @@ def kemitraan_setting():
     create_kemitraan_portfolio_setting_page(ui.column().classes("w-full p-6"))
 
 
+@ui.page("/kemitraan-setting-mesin-lama")
+def kemitraan_setting_mesin_lama():
+    if _auth_guard():
+        return
+    if get_current_role() not in ("admin", "manager"):
+        return RedirectResponse(url="/kemitraan")
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kemitraan-setting")
+    create_kemitraan_setting_page(ui.column().classes("w-full p-6"))
+
+
 @ui.page("/kemitraan-classic")
 def kemitraan_classic():
     """Halaman Kemitraan lama: setelan kontrak & tabel mentah. Fallback admin."""
