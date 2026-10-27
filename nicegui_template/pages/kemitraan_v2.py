@@ -31,7 +31,7 @@ import pandas as pd
 from nicegui import ui
 from plotly import graph_objects as go
 
-from services import unit_mesin_store as ums
+from services import mitra_units_store as mus
 
 ROOT = Path(__file__).resolve().parents[2]
 CACHE = ROOT / "streamlit_template" / "data" / "api_cache"
@@ -229,12 +229,15 @@ def build(month: str) -> dict:
     tot_dif = float(cur["difotoin_amount"].sum())
     rent_now = float(live["rent"].sum())
 
-    # ── modal & balik modal per MESIN (investasi ikut unit, bukan outlet)
-    doc = ums.ensure_doc(d["outlets"], d["sharing"], months[0])
-    attr = ums.attribution(doc, rs)
-    pb = ums.payback(doc, rs)
+    # ── modal & balik modal per MESIN (input per mitra, lokasi dari transaksi)
+    doc = mus.ensure_doc(rs, pd.DataFrame(), d["sharing"], d["outlets"])
+    attr = mus.attribution(doc, rs)
+    pb = mus.payback(doc, rs)
+    adu = mus.adu_rows(doc, pb)
 
-    def status(p: float) -> tuple[str, str]:
+    def status(p: float, harga: float) -> tuple[str, str]:
+        if not harga or harga <= 0:
+            return "Harga belum diisi", C_MUT
         if p >= 100:
             return "Balik modal", C_MINT
         if p >= 75:
@@ -244,27 +247,27 @@ def build(month: str) -> dict:
         return "Seret", C_RED
 
     if pb is not None and not pb.empty:
-        pb["status"], pb["tone"] = zip(*[status(p) for p in pb["progress"]])
+        pb["status"], pb["tone"] = zip(*[status(p, h) for p, h in zip(pb["progress"], pb["harga"])])
         payback_rows = pb.sort_values("progress").reset_index(drop=True)
-        capital = float(pb["harga_jual"].sum())
+        capital = float(pb["harga"].sum())
         capital_back = float(pb["kembali"].sum())
         capital_remain = float(pb["remain"].sum())
         capital_done = int((pb["progress"] >= 100).sum())
         capital_units = int(len(pb))
-        idle_mask = (pb["per_bulan"] <= 0) & (pb["status"] != "dijual")
+        idle_mask = (pb["per_bulan"] <= 0) & (~pb["status"].isin(["dijual", "stok"]))
         machines_idle = int(idle_mask.sum())
-        machines_idle_rp = float(pb.loc[idle_mask, "harga_jual"].sum())
-        hpp_filled = int(pb["modal"].notna().sum())
-        hpp_total = float(pd.to_numeric(pb["modal"], errors="coerce").fillna(0).sum())
-        margin_rows = pb[pb["modal"].notna()].copy()
-        margin_rows["margin"] = margin_rows["harga_jual"] - margin_rows["modal"]
+        machines_idle_rp = float(pb.loc[idle_mask, "harga"].sum())
+        hpp_filled = int(pb["hpp"].notna().sum())
+        hpp_total = float(pd.to_numeric(pb["hpp"], errors="coerce").fillna(0).sum())
+        margin_rows = pb[pb["hpp"].notna()].copy()
+        margin_rows["margin"] = margin_rows["harga"] - margin_rows["hpp"]
         margin_rows["margin_pct"] = np.where(
-            margin_rows["harga_jual"] > 0, margin_rows["margin"] / margin_rows["harga_jual"] * 100, 0.0
+            margin_rows["harga"] > 0, margin_rows["margin"] / margin_rows["harga"] * 100, 0.0
         )
         margin_total = float(margin_rows["margin"].sum())
         no_beli = int(pb["tgl_beli"].isna().sum())
         moved = int((pb["pindah"] > 0).sum())
-        partners = ums.by_partner(pb, attr, month)
+        partners = mus.by_partner(pb, attr, month)
     else:
         payback_rows = pb if pb is not None else pd.DataFrame()
         capital = capital_back = capital_remain = hpp_total = margin_total = 0.0
@@ -296,6 +299,9 @@ def build(month: str) -> dict:
         "hpp_filled": hpp_filled,
         "no_beli": no_beli,
         "moved": moved,
+        "mitra": int(len(doc.get("partners", []))),
+        "lokasi": int(adu["lokasi"].sum()) if not adu.empty else 0,
+        "lokasi_tanpa_tx": int(adu["lokasi_tanpa_transaksi"].sum()) if not adu.empty else 0,
     }
 
     return {
@@ -325,6 +331,7 @@ def build(month: str) -> dict:
         "payback": payback_rows,
         "trend": trend,
         "margins": margins,
+        "adu": adu,
         "hygiene": hygiene,
         "generated": pd.Timestamp.now().strftime("%d %b %H:%M"),
     }
@@ -397,8 +404,8 @@ def kpis_html(m: dict) -> str:
 
 def partners_html(m: dict) -> str:
     head = (
-        "<tr><th>Mitra</th><th class=\"num\">Unit</th><th class=\"num\">Harga jual</th>"
-        "<th class=\"num\">Kembali</th><th class=\"num\">Payout bulan ini</th>"
+        "<tr><th>Mitra</th><th class=\"num\">Mesin</th><th class=\"num km-hide-sm\">Lokasi</th>"
+        "<th class=\"num\">Modal</th><th class=\"num\">Kembali</th><th class=\"num\">Payout bulan ini</th>"
         "<th style=\"width:130px\">Progres balik modal</th><th class=\"num km-hide-sm\">%</th></tr>"
     )
     body = []
@@ -408,9 +415,10 @@ def partners_html(m: dict) -> str:
         w = min(100.0, max(2.0, prog))
         body.append(
             "<tr>"
-            f"<td><b>{html.escape(str(r['mitra_name']))}</b></td>"
-            f"<td class=\"num\">{int(r['unit'])}</td>"
-            f"<td class=\"num\">{rp_short(r['jual'])}</td>"
+            f"<td><b>{html.escape(str(r['mitra']))}</b></td>"
+            f"<td class=\"num\">{int(r['mesin'])}</td>"
+            f"<td class=\"num km-hide-sm\">{int(r['lokasi'])}</td>"
+            f"<td class=\"num\">{rp_short(r['harga'])}</td>"
             f"<td class=\"num\">{rp_short(r['kembali'])}</td>"
             f"<td class=\"num\">{rp_short(r['payout_now'])}</td>"
             f"<td><span class=\"km-bar\"><i style=\"width:{w:.0f}%;background:{tone}\"></i></span></td>"
@@ -418,7 +426,31 @@ def partners_html(m: dict) -> str:
             "</tr>"
         )
     if not body:
-        body.append('<tr><td colspan="7" style="color:' + C_MUT + '">Belum ada unit mesin. Isi di Setting Unit Mesin.</td></tr>')
+        body.append('<tr><td colspan="8" style="color:' + C_MUT + '">Belum ada mitra. Isi di Setting Mitra & Mesin.</td></tr>')
+    return '<div style="overflow:auto"><table class="km-table">' + head + "".join(body) + "</table></div>"
+
+
+def adu_html(m: dict) -> str:
+    rows = m.get("adu")
+    if rows is None or len(rows) == 0:
+        return '<div class="km-note">Belum ada mitra.</div>'
+    head = ("<tr><th>Mitra</th><th class=\"num\">Mesin</th><th class=\"num\">Lokasi tercatat</th>"
+            "<th class=\"num km-hide-sm\">Tanpa transaksi</th><th class=\"num\">Harga terisi</th>"
+            "<th class=\"num\">Modal</th></tr>")
+    body = []
+    for _, r in rows.iterrows():
+        tone = C_AMBER if r["lokasi_tanpa_transaksi"] else C_MUT
+        body.append(
+            "<tr>"
+            f"<td><b>{html.escape(str(r['mitra']))}</b>"
+            f"<div class=\"km-meta\">{html.escape(str(r['alias'] or ''))}</div></td>"
+            f"<td class=\"num\">{int(r['mesin'])}</td>"
+            f"<td class=\"num\">{int(r['lokasi'])}</td>"
+            f"<td class=\"num km-hide-sm\" style=\"color:{tone}\">{int(r['lokasi_tanpa_transaksi'])}</td>"
+            f"<td class=\"num\">{int(r['berharga'])}/{int(r['mesin'])}</td>"
+            f"<td class=\"num\">{rp_short(r['modal'])}</td>"
+            "</tr>"
+        )
     return '<div style="overflow:auto"><table class="km-table">' + head + "".join(body) + "</table></div>"
 
 
@@ -427,7 +459,7 @@ def payback_html(m: dict) -> str:
         "<tr><th>Mesin</th><th class=\"km-hide-sm\">Mitra</th><th>Outlet</th>"
         "<th class=\"num\">Harga jual</th><th class=\"num\">Kembali</th><th class=\"num\">Sisa</th>"
         "<th class=\"num\">%</th><th class=\"num km-hide-sm\">Sisa bln</th>"
-        "<th class=\"num km-hide-sm\">Pindah</th><th>Status</th></tr>"
+        "<th class=\"num km-hide-sm\">Lokasi</th><th>Status</th></tr>"
     )
     body = []
     for _, r in m["payback"].iterrows():
@@ -440,15 +472,15 @@ def payback_html(m: dict) -> str:
             mi_txt = f"{float(mi):.0f}"
         body.append(
             "<tr>"
-            f"<td><b>{html.escape(str(r['label']))}</b><div class=\"km-meta\">{html.escape(str(r['id']))}</div></td>"
+            f"<td><b>{html.escape(str(r['label']))}</b><div class=\"km-meta\">{html.escape(str(r['machine_id']))} · {int(r['pindah'])}× pindah</div></td>"
             f"<td class=\"km-hide-sm\" style=\"color:{C_MUT}\">{html.escape(str(r['mitra'] or '—'))}</td>"
             f"<td>{html.escape(str(r['outlet']))}</td>"
-            f"<td class=\"num\">{rp_short(r['harga_jual'])}</td>"
+            f"<td class=\"num\">{rp_short(r['harga'])}</td>"
             f"<td class=\"num\">{rp_short(r['kembali'])}</td>"
             f"<td class=\"num\" style=\"color:{C_MUT}\">{rp_short(r['remain'])}</td>"
             f"<td class=\"num\" style=\"color:{r['tone']};font-weight:700\">{pct(r['progress'])}%</td>"
             f"<td class=\"num km-hide-sm\" style=\"color:{C_MUT}\">{mi_txt}</td>"
-            f"<td class=\"num km-hide-sm\" style=\"color:{C_MUT}\">{int(r['pindah'])}×</td>"
+            f"<td class=\"num km-hide-sm\" style=\"color:{C_MUT}\">{len(str(r['chains']).split(' → '))}</td>"
             f"<td><span class=\"km-chip\" style=\"background:{r['tone']}22;color:{r['tone']}\">{r['status']}</span></td>"
             "</tr>"
         )
@@ -461,7 +493,7 @@ def machines_html(m: dict) -> str:
     rows = m.get("margin_rows")
     if rows is None or len(rows) == 0:
         return ('<div class="km-note">Modal/HPP mesin belum diisi. Isi di '
-                '<a href="/kemitraan-setting" style="color:#5b8cff;text-decoration:none">Setting Unit Mesin</a> '
+                '<a href="/kemitraan-setting" style="color:#5b8cff;text-decoration:none">Setting Mitra & Mesin</a> '
                 'supaya margin penjualan mesin bisa dihitung.</div>')
     head = (
         "<tr><th>Mesin</th><th class=\"km-hide-sm\">Mitra</th><th class=\"num\">Harga jual ke mitra</th>"
@@ -476,16 +508,16 @@ def machines_html(m: dict) -> str:
             "<tr>"
             f"<td><b>{html.escape(str(r['label']))}</b></td>"
             f"<td class=\"km-hide-sm\" style=\"color:{C_MUT}\">{html.escape(str(r['mitra'] or '—'))}</td>"
-            f"<td class=\"num\">{rp_short(r['harga_jual'])}</td>"
-            f"<td class=\"num\">{rp_short(r['modal'])}</td>"
+            f"<td class=\"num\">{rp_short(r['harga'])}</td>"
+            f"<td class=\"num\">{rp_short(r['hpp'])}</td>"
             f"<td class=\"num\" style=\"color:{tone};font-weight:700\">{rp_short(r['margin'])}</td>"
             f"<td class=\"num\" style=\"color:{tone}\">{pct(mp)}%</td>"
             "</tr>"
         )
     body.append(
         "<tr><td><b>Total</b></td><td class=\"km-hide-sm\"></td>"
-        f"<td class=\"num\">{rp_short(rows['harga_jual'].sum())}</td>"
-        f"<td class=\"num\">{rp_short(rows['modal'].sum())}</td>"
+        f"<td class=\"num\">{rp_short(rows['harga'].sum())}</td>"
+        f"<td class=\"num\">{rp_short(rows['hpp'].sum())}</td>"
         f"<td class=\"num\">{rp_short(rows['margin'].sum())}</td><td></td></tr>"
     )
     return '<div style="overflow:auto"><table class="km-table">' + head + "".join(body) + "</table></div>"
@@ -581,6 +613,13 @@ def create_page(container: ui.column):
                         sanitize=False).classes("w-full")
                 ui.html(partners_html(m), sanitize=False).classes("w-full")
 
+                ui.html('<div class="km-sec">Adu: yang tercatat vs yang diinput</div>'
+                        '<div class="km-sub">Mesin dihitung dari bentrokan waktu — satu mesin tidak bisa '
+                        'di dua lokasi pada bulan yang sama. Lokasi tanpa transaksi = pernah dipakai '
+                        'tapi tidak pernah menghasilkan omzet.</div>',
+                        sanitize=False).classes("w-full")
+                ui.html(adu_html(m), sanitize=False).classes("w-full")
+
                 ui.html('<div class="km-sec">Balik modal per mesin</div>'
                         '<div class="km-sub">Diurut dari yang paling jauh dari balik modal. '
                         'Kalau mesin pindah, payout dari lokasi lama dan baru tetap dijumlahkan '
@@ -605,11 +644,13 @@ def create_page(container: ui.column):
                     f'• {h["no_contract"]} outlet bertransaksi tanpa baris kontrak di master '
                     f'(omzet {rp_short(h["no_contract_rev"])} bulan ini) — bagi hasilnya jalan, '
                     'tapi syaratnya tidak tercatat.<br>'
-                    f'• {h["cap_outlets"]} unit mesin mitra; {h["idle_cap"]} di antaranya tidak '
-                    f'menghasilkan payout 3 bulan terakhir (harga jual {rp_short(h["idle_cap_rp"])}).<br>'
-                    f'• HPP terisi {h["hpp_filled"]}/{h["cap_outlets"]} unit, tgl beli kosong '
-                    f'{h["no_beli"]} unit — margin penjualan mesin baru bisa dihitung kalau HPP diisi '
-                    'di Setting Unit Mesin.<br>'
+                    f'• {h["mitra"]} mitra · {h["cap_outlets"]} mesin · {h["lokasi"]} lokasi tercatat, '
+                    f'{h["lokasi_tanpa_tx"]} lokasi di antaranya tidak pernah menghasilkan omzet.<br>'
+                    f'• {h["idle_cap"]} mesin tidak menghasilkan payout 3 bulan terakhir '
+                    f'(harga jual {rp_short(h["idle_cap_rp"])}).<br>'
+                    f'• HPP terisi {h["hpp_filled"]}/{h["cap_outlets"]} mesin, tgl beli kosong '
+                    f'{h["no_beli"]} mesin — margin penjualan mesin baru bisa dihitung kalau HPP diisi '
+                    'di Setting Mitra & Mesin.<br>' 
                     f'• {h["moved"]} unit pernah pindah lokasi; payout-nya tetap dihitung ke mesin '
                     'yang sama.<br>'
                     f'• Master kontrak terakhir {h["sharing_period"]} '
@@ -626,7 +667,7 @@ def create_page(container: ui.column):
 
                 ui.html('<div class="km-note" style="margin-top:8px">'
                         '⚙️ <a href="/kemitraan-setting" style="color:#5b8cff;text-decoration:none">'
-                        'Setting Unit Mesin</a> — modal, HPP, tanggal beli, pindah lokasi · '
+                        'Setting Mitra & Mesin</a> — modal, HPP, tanggal beli, pindah lokasi · '
                         'tabel kontrak lama: <a href="/kemitraan-classic" '
                         'style="color:#5b8cff;text-decoration:none">/kemitraan-classic</a></div>',
                         sanitize=False).classes("w-full")
