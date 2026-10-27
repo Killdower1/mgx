@@ -33,6 +33,7 @@ from pages.kemitraan import create_page as create_kemitraan_page
 from pages.kemitraan_v2 import create_page as create_kemitraan_v2_page
 from pages.kemitraan_portfolio_page import create_page as create_kemitraan_portfolio_page
 from pages.kemitraan_portfolio_setting import create_page as create_kemitraan_portfolio_setting_page
+from pages.kemitraan_setting import create_page as create_kemitraan_setting_page
 from pages.admin import create_page as create_admin_page
 from pages.crud import create_page as create_crud_page
 from pages.master_data import create_page as create_master_data_page
