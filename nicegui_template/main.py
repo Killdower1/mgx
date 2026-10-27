@@ -31,7 +31,8 @@ from pages.ai_decision_v2 import create_page as create_ai_decision_v2_page
 from pages.upload import create_page as create_upload_page
 from pages.kemitraan import create_page as create_kemitraan_page
 from pages.kemitraan_v2 import create_page as create_kemitraan_v2_page
-from pages.kemitraan_setting import create_page as create_kemitraan_setting_page
+from pages.kemitraan_portfolio_page import create_page as create_kemitraan_portfolio_page
+from pages.kemitraan_portfolio_setting import create_page as create_kemitraan_portfolio_setting_page
 from pages.admin import create_page as create_admin_page
 from pages.crud import create_page as create_crud_page
 from pages.master_data import create_page as create_master_data_page
@@ -430,7 +431,18 @@ def kemitraan():
     ui.add_head_html(PAGE_STYLES)
     build_nav("/kemitraan")
     container = ui.column().classes("w-full p-6")
-    create_kemitraan_v2_page(container)
+    create_kemitraan_portfolio_page(container)
+
+
+@ui.page("/kemitraan-mesin-lama")
+def kemitraan_mesin_lama():
+    """Read-only rollback view of the previous unit-oriented dashboard."""
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kemitraan")
+    create_kemitraan_v2_page(ui.column().classes("w-full p-6"))
 
 
 @ui.page("/kemitraan-setting")
@@ -443,7 +455,7 @@ def kemitraan_setting():
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/kemitraan-setting")
-    create_kemitraan_setting_page(ui.column().classes("w-full p-6"))
+    create_kemitraan_portfolio_setting_page(ui.column().classes("w-full p-6"))
 
 
 @ui.page("/kemitraan-classic")
