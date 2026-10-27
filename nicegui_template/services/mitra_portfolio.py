@@ -138,3 +138,58 @@ def reconcile(doc, rs, month):
                           'progress': returned / capital * 100 if capital else None,
                           'outlets': breakdown, 'conflicts': conflicts})
     return summaries
+
+
+def discover_outlets(doc, api_outlets, today):
+    """Suggest franchise outlets without changing confirmed/excluded decisions.
+
+    The outlet API currently has no investor field; such rows stay unassigned.
+    Only an explicit investor name matching one canonical name/alias can route a
+    candidate to a partner. Never interpret partner_id or share % as ownership.
+    Returns a new document and counts so callers can avoid no-op writes.
+    """
+    import copy
+    updated = copy.deepcopy(doc)
+    partners = updated.get('partners', [])
+    seen = {key(o.get('name')) for p in partners for o in p.get('outlets', [])}
+    unassigned = updated.setdefault('unassigned_outlets', [])
+    seen.update(key(o.get('name')) for o in unassigned)
+    added = {'assigned': 0, 'unassigned': 0}
+    for outlet in api_outlets:
+        if outlet.get('is_franchise') not in (1, True, '1'):
+            continue
+        name = str(outlet.get('name') or '').strip()
+        k = key(name)
+        if not k or k in seen:
+            continue
+        # Explicit names only. API's partner_id is not the investor identity.
+        investor = key(outlet.get('investor_name') or outlet.get('mitra_name'))
+        matches = [p for p in partners if investor and investor in
+                   {key(p.get('name')), *(key(a) for a in p.get('aliases', []))}]
+        item = {'name': name, 'state': 'candidate', 'source': 'API outlet',
+                'discovered_at': today}
+        if len(matches) == 1:
+            matches[0].setdefault('outlets', []).append(item)
+            added['assigned'] += 1
+        else:
+            unassigned.append({'name': name, 'source': 'API outlet',
+                               'discovered_at': today,
+                               'investor_hint': str(outlet.get('investor_name') or
+                                                    outlet.get('mitra_name') or '').strip()})
+            added['unassigned'] += 1
+        seen.add(k)
+    return updated, added
+
+
+def assign_unassigned(doc, name, partner_id):
+    """Move an unassigned suggestion to a partner; never confirm automatically."""
+    unassigned = doc.get('unassigned_outlets', [])
+    match = next((o for o in unassigned if key(o.get('name')) == key(name)), None)
+    owner = next((p for p in doc.get('partners', []) if p.get('id') == partner_id), None)
+    if match is None or owner is None:
+        raise ValueError('Usulan atau mitra tidak ditemukan')
+    if any(key(o.get('name')) == key(name) for o in owner.get('outlets', [])):
+        raise ValueError('Outlet sudah ada di daftar mitra')
+    owner.setdefault('outlets', []).append({k: match[k] for k in ('name', 'source', 'discovered_at')})
+    owner['outlets'][-1]['state'] = 'candidate'
+    unassigned.remove(match)
