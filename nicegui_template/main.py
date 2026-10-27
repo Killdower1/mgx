@@ -31,6 +31,7 @@ from pages.ai_decision_v2 import create_page as create_ai_decision_v2_page
 from pages.upload import create_page as create_upload_page
 from pages.kemitraan import create_page as create_kemitraan_page
 from pages.kemitraan_v2 import create_page as create_kemitraan_v2_page
+from pages.kemitraan_setting import create_page as create_kemitraan_setting_page
 from pages.admin import create_page as create_admin_page
 from pages.crud import create_page as create_crud_page
 from pages.master_data import create_page as create_master_data_page
@@ -430,6 +431,19 @@ def kemitraan():
     build_nav("/kemitraan")
     container = ui.column().classes("w-full p-6")
     create_kemitraan_v2_page(container)
+
+
+@ui.page("/kemitraan-setting")
+def kemitraan_setting():
+    """Setting unit mesin mitra: modal, HPP, tanggal beli, pindah lokasi."""
+    if _auth_guard():
+        return
+    if get_current_role() not in ("admin", "manager"):
+        return RedirectResponse(url="/kemitraan")
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kemitraan-setting")
+    create_kemitraan_setting_page(ui.column().classes("w-full p-6"))
 
 
 @ui.page("/kemitraan-classic")

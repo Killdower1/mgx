@@ -31,6 +31,8 @@ import pandas as pd
 from nicegui import ui
 from plotly import graph_objects as go
 
+from services import unit_mesin_store as ums
+
 ROOT = Path(__file__).resolve().parents[2]
 CACHE = ROOT / "streamlit_template" / "data" / "api_cache"
 SHARING = ROOT / "streamlit_template" / "data" / "sharing_outlets"
@@ -188,7 +190,14 @@ def load_data() -> dict:
     term["rent"] = term["monthly_rent"].fillna(0.0)
     term["contract_pct"] = term["partner_share"]
 
-    data = {"rs": rs, "term": term, "sharing_period": per, "sharing_age": _staleness_days(per)}
+    data = {
+        "rs": rs,
+        "term": term,
+        "outlets": outlets,
+        "sharing": sharing,
+        "sharing_period": per,
+        "sharing_age": _staleness_days(per),
+    }
     _cache["stamp"] = stamp
     _cache["data"] = data
     return data
@@ -220,21 +229,10 @@ def build(month: str) -> dict:
     tot_dif = float(cur["difotoin_amount"].sum())
     rent_now = float(live["rent"].sum())
 
-    # ── modal & balik modal (kumulatif seluruh periode yang tersedia)
-    cap = term[(term["initial_cost"] > 0)].copy()
-    cum = rs.groupby("key")["partner_amount"].sum()
-    cum_dif = rs.groupby("key")["difotoin_amount"].sum()
-    last3 = sorted(months)[-3:]
-    avg3 = rs[rs["periode"].isin(last3)].groupby("key")["partner_amount"].sum() / max(len(last3), 1)
-    cap["cum_partner"] = cap.index.map(lambda k: float(cum.get(k, 0.0)))
-    cap["cum_dif"] = cap.index.map(lambda k: float(cum_dif.get(k, 0.0)))
-    cap["avg3"] = cap.index.map(lambda k: float(avg3.get(k, 0.0)))
-    cap["progress"] = cap["cum_partner"] / cap["initial_cost"] * 100
-    remain = (cap["initial_cost"] - cap["cum_partner"]).clip(lower=0)
-    cap["remain"] = remain
-    cap["months_left"] = np.where(
-        (remain > 0) & (cap["avg3"] > 0), remain / cap["avg3"].replace(0, np.nan), np.nan
-    )
+    # ── modal & balik modal per MESIN (investasi ikut unit, bukan outlet)
+    doc = ums.ensure_doc(d["outlets"], d["sharing"], months[0])
+    attr = ums.attribution(doc, rs)
+    pb = ums.payback(doc, rs)
 
     def status(p: float) -> tuple[str, str]:
         if p >= 100:
@@ -245,29 +243,35 @@ def build(month: str) -> dict:
             return "Jalan", C_AMBER
         return "Seret", C_RED
 
-    if len(cap):
-        cap["status"], cap["tone"] = zip(*[status(p) for p in cap["progress"]])
+    if pb is not None and not pb.empty:
+        pb["status"], pb["tone"] = zip(*[status(p) for p in pb["progress"]])
+        payback_rows = pb.sort_values("progress").reset_index(drop=True)
+        capital = float(pb["harga_jual"].sum())
+        capital_back = float(pb["kembali"].sum())
+        capital_remain = float(pb["remain"].sum())
+        capital_done = int((pb["progress"] >= 100).sum())
+        capital_units = int(len(pb))
+        idle_mask = (pb["per_bulan"] <= 0) & (pb["status"] != "dijual")
+        machines_idle = int(idle_mask.sum())
+        machines_idle_rp = float(pb.loc[idle_mask, "harga_jual"].sum())
+        hpp_filled = int(pb["modal"].notna().sum())
+        hpp_total = float(pd.to_numeric(pb["modal"], errors="coerce").fillna(0).sum())
+        margin_rows = pb[pb["modal"].notna()].copy()
+        margin_rows["margin"] = margin_rows["harga_jual"] - margin_rows["modal"]
+        margin_rows["margin_pct"] = np.where(
+            margin_rows["harga_jual"] > 0, margin_rows["margin"] / margin_rows["harga_jual"] * 100, 0.0
+        )
+        margin_total = float(margin_rows["margin"].sum())
+        no_beli = int(pb["tgl_beli"].isna().sum())
+        moved = int((pb["pindah"] > 0).sum())
+        partners = ums.by_partner(pb, attr, month)
     else:
-        cap["status"], cap["tone"] = [], []
-    payback_rows = cap.sort_values("progress").reset_index().rename(columns={"key": "key"})
-    payback_rows["outlet"] = payback_rows["key"].map(rs.drop_duplicates("key").set_index("key")["outlet_name"])
-
-    # ── per mitra (hanya outlet bermodal; nama dari master sharing)
-    named = cap.copy()
-    named["outlet_key"] = named.index
-    named["mitra"] = named["investor"].replace("", "Tanpa nama")
-    grp = named.groupby("mitra", as_index=False).agg(
-        outlet=("initial_cost", "size"),
-        modal=("initial_cost", "sum"),
-        kembali=("cum_partner", "sum"),
-        keys=("outlet_key", list),
-    )
-    grp["payout_oct"] = grp["keys"].apply(
-        lambda ks: float(cur[cur["key"].isin(ks)]["partner_amount"].sum())
-    )
-    grp = grp.drop(columns=["keys"])
-    grp["progress"] = grp["kembali"] / grp["modal"].replace(0, np.nan) * 100
-    grp = grp.sort_values("modal", ascending=False)
+        payback_rows = pb if pb is not None else pd.DataFrame()
+        capital = capital_back = capital_remain = hpp_total = margin_total = 0.0
+        capital_done = capital_units = machines_idle = hpp_filled = no_beli = moved = 0
+        machines_idle_rp = 0.0
+        margin_rows = pd.DataFrame()
+        partners = pd.DataFrame()
 
     # ── trend 13 bulan
     tm = months[max(0, idx - 12): idx + 1]
@@ -280,16 +284,18 @@ def build(month: str) -> dict:
 
     # ── kualitas data
     no_contract = cur[(cur["total_revenue"] > 0) & (~cur["in_master"].fillna(False))]
-    idle_cap = cap[(cap["avg3"] <= 0)]
     hygiene = {
         "no_contract": int(len(no_contract)),
         "no_contract_rev": float(no_contract["total_revenue"].sum()),
-        "cap_outlets": int(len(cap)),
-        "idle_cap": int(len(idle_cap)),
-        "idle_cap_rp": float(idle_cap["initial_cost"].sum()),
+        "cap_outlets": capital_units,
+        "idle_cap": machines_idle,
+        "idle_cap_rp": machines_idle_rp,
         "sharing_period": d["sharing_period"],
         "sharing_age": d["sharing_age"],
-        "no_investor": int(len(cap[cap["investor"] == ""])),
+        "no_investor": int((pb["mitra"].fillna("") == "").sum()) if (pb is not None and not pb.empty) else 0,
+        "hpp_filled": hpp_filled,
+        "no_beli": no_beli,
+        "moved": moved,
     }
 
     return {
@@ -305,14 +311,17 @@ def build(month: str) -> dict:
         "outlets": int(len(live)),
         "partner_pct": (tot_partner / tot_rev * 100) if tot_rev else 0.0,
         "dif_pct": (tot_dif / tot_rev * 100) if tot_rev else 0.0,
-        "capital": float(cap["initial_cost"].sum()),
-        "capital_outlets": int(len(cap)),
-        "capital_back": float(cap["cum_partner"].sum()),
-        "capital_progress": (float(cap["cum_partner"].sum()) / float(cap["initial_cost"].sum()) * 100)
-        if float(cap["initial_cost"].sum()) else 0.0,
-        "capital_done": int((cap["progress"] >= 100).sum()),
-        "capital_remain": float(cap["remain"].sum()),
-        "partners": grp,
+        "capital": capital,
+        "capital_outlets": capital_units,
+        "capital_back": capital_back,
+        "capital_progress": (capital_back / capital * 100) if capital else 0.0,
+        "capital_done": capital_done,
+        "capital_remain": capital_remain,
+        "hpp_filled": hpp_filled,
+        "hpp_total": hpp_total,
+        "margin_total": margin_total,
+        "margin_rows": margin_rows,
+        "partners": partners,
         "payback": payback_rows,
         "trend": trend,
         "margins": margins,
@@ -345,6 +354,7 @@ def _css() -> str:
   .km-bar { display: block; height: 6px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; width: 100%; min-width: 52px; }
   .km-bar > i { display: block; height: 6px; border-radius: 999px; }
   .km-note { font-size: 10.5px; color: @MUT@; line-height: 1.55; }
+  .km-meta { font-size: 9.5px; color: @MUT@; }
   .modebar { display: none !important; }
   @media (max-width: 900px) {
     .km-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -366,25 +376,28 @@ def kpis_html(m: dict) -> str:
 
     net = m["tot_dif"] - m["rent_now"]
     net_pct = (net / m["tot_rev"] * 100) if m["tot_rev"] else 0.0
+    tone_back = C_MINT if m["capital_progress"] >= 100 else C_AMBER
     return (
         '<div class="km-kpis">'
         + card("Omzet kemitraan", rp_short(m["tot_rev"]), f'{m["outlets"]} outlet bertransaksi')
-        + card("Hak mitra", rp_short(m["tot_partner"]), pct(m["partner_pct"]) + "% dari omzet", C_VIOLET)
+        + card("Bagian Kemitraan", rp_short(m["tot_partner"]),
+               pct(m["partner_pct"]) + "% dari omzet · pemilik mesin", C_VIOLET)
         + card("Bagian Difotoin", rp_short(m["tot_dif"]),
-               "setelah sewa " + rp_short(net) + " (" + pct(net_pct) + "%)", C_MINT)
-        + card("Modal mitra terpasang", rp_short(m["capital"]),
-               f'{m["capital_outlets"]} outlet bermodal', C_BLUE)
-        + card("Sudah kembali", pct(m["capital_progress"]) + "%",
-               f'{m["capital_done"]} dari {m["capital_outlets"]} outlet sudah 100%', C_AMBER)
-        + card("Belum kembali", rp_short(m["capital_remain"]),
-               f'{m["capital_outlets"] - m["capital_done"]} outlet masih kurang', C_RED)
+               "net " + rp_short(net) + " (" + pct(net_pct) + "%) setelah sewa", C_MINT)
+        + card("Broker / tempat", rp_short(m["tot_broker"]),
+               "sewa " + rp_short(m["rent_now"]) + " · sharing/ minimum", C_AMBER)
+        + card("Modal mitra (mesin)", rp_short(m["capital"]),
+               f'{m["capital_outlets"]} unit · HPP terisi {m["hpp_filled"]}', C_BLUE)
+        + card("Balik modal", pct(m["capital_progress"]) + "%",
+               f'{m["capital_done"]}/{m["capital_outlets"]} unit 100% · sisa {rp_short(m["capital_remain"])}',
+               tone_back)
         + "</div>"
     )
 
 
 def partners_html(m: dict) -> str:
     head = (
-        "<tr><th>Mitra</th><th class=\"num\">Outlet</th><th class=\"num\">Modal</th>"
+        "<tr><th>Mitra</th><th class=\"num\">Unit</th><th class=\"num\">Harga jual</th>"
         "<th class=\"num\">Kembali</th><th class=\"num\">Payout bulan ini</th>"
         "<th style=\"width:130px\">Progres balik modal</th><th class=\"num km-hide-sm\">%</th></tr>"
     )
@@ -395,24 +408,26 @@ def partners_html(m: dict) -> str:
         w = min(100.0, max(2.0, prog))
         body.append(
             "<tr>"
-            f"<td><b>{html.escape(str(r['mitra']))}</b></td>"
-            f"<td class=\"num\">{int(r['outlet'])}</td>"
-            f"<td class=\"num\">{rp_short(r['modal'])}</td>"
+            f"<td><b>{html.escape(str(r['mitra_name']))}</b></td>"
+            f"<td class=\"num\">{int(r['unit'])}</td>"
+            f"<td class=\"num\">{rp_short(r['jual'])}</td>"
             f"<td class=\"num\">{rp_short(r['kembali'])}</td>"
-            f"<td class=\"num\">{rp_short(r['payout_oct'])}</td>"
+            f"<td class=\"num\">{rp_short(r['payout_now'])}</td>"
             f"<td><span class=\"km-bar\"><i style=\"width:{w:.0f}%;background:{tone}\"></i></span></td>"
             f"<td class=\"num km-hide-sm\" style=\"color:{tone};font-weight:700\">{pct(prog)}%</td>"
             "</tr>"
         )
+    if not body:
+        body.append('<tr><td colspan="7" style="color:' + C_MUT + '">Belum ada unit mesin. Isi di Setting Unit Mesin.</td></tr>')
     return '<div style="overflow:auto"><table class="km-table">' + head + "".join(body) + "</table></div>"
 
 
 def payback_html(m: dict) -> str:
     head = (
-        "<tr><th>Outlet</th><th class=\"km-hide-sm\">Mitra</th><th class=\"num\">Modal</th>"
-        "<th class=\"num\">Kembali</th><th class=\"num\">Sisa</th>"
-        "<th class=\"num km-hide-sm\">Payout/bln</th><th class=\"num\">%</th>"
-        "<th class=\"num km-hide-sm\">Sisa bln</th><th>Status</th></tr>"
+        "<tr><th>Mesin</th><th class=\"km-hide-sm\">Mitra</th><th>Outlet</th>"
+        "<th class=\"num\">Harga jual</th><th class=\"num\">Kembali</th><th class=\"num\">Sisa</th>"
+        "<th class=\"num\">%</th><th class=\"num km-hide-sm\">Sisa bln</th>"
+        "<th class=\"num km-hide-sm\">Pindah</th><th>Status</th></tr>"
     )
     body = []
     for _, r in m["payback"].iterrows():
@@ -423,21 +438,56 @@ def payback_html(m: dict) -> str:
             mi_txt = ">60"
         else:
             mi_txt = f"{float(mi):.0f}"
-        a3 = float(r["avg3"] or 0)
-        a3_txt = rp_short(a3) if a3 > 0 else "—"
         body.append(
             "<tr>"
-            f"<td><b>{html.escape(str(r['outlet']))}</b></td>"
-            f"<td class=\"km-hide-sm\" style=\"color:{C_MUT}\">{html.escape(str(r['investor'] or '—'))}</td>"
-            f"<td class=\"num\">{rp_short(r['initial_cost'])}</td>"
-            f"<td class=\"num\">{rp_short(r['cum_partner'])}</td>"
+            f"<td><b>{html.escape(str(r['label']))}</b><div class=\"km-meta\">{html.escape(str(r['id']))}</div></td>"
+            f"<td class=\"km-hide-sm\" style=\"color:{C_MUT}\">{html.escape(str(r['mitra'] or '—'))}</td>"
+            f"<td>{html.escape(str(r['outlet']))}</td>"
+            f"<td class=\"num\">{rp_short(r['harga_jual'])}</td>"
+            f"<td class=\"num\">{rp_short(r['kembali'])}</td>"
             f"<td class=\"num\" style=\"color:{C_MUT}\">{rp_short(r['remain'])}</td>"
-            f"<td class=\"num km-hide-sm\" style=\"color:{C_MUT}\">{a3_txt}</td>"
             f"<td class=\"num\" style=\"color:{r['tone']};font-weight:700\">{pct(r['progress'])}%</td>"
             f"<td class=\"num km-hide-sm\" style=\"color:{C_MUT}\">{mi_txt}</td>"
+            f"<td class=\"num km-hide-sm\" style=\"color:{C_MUT}\">{int(r['pindah'])}×</td>"
             f"<td><span class=\"km-chip\" style=\"background:{r['tone']}22;color:{r['tone']}\">{r['status']}</span></td>"
             "</tr>"
         )
+    if not body:
+        body.append('<tr><td colspan="10" style="color:' + C_MUT + '">Belum ada unit mesin.</td></tr>')
+    return '<div style="overflow:auto"><table class="km-table">' + head + "".join(body) + "</table></div>"
+
+
+def machines_html(m: dict) -> str:
+    rows = m.get("margin_rows")
+    if rows is None or len(rows) == 0:
+        return ('<div class="km-note">Modal/HPP mesin belum diisi. Isi di '
+                '<a href="/kemitraan-setting" style="color:#5b8cff;text-decoration:none">Setting Unit Mesin</a> '
+                'supaya margin penjualan mesin bisa dihitung.</div>')
+    head = (
+        "<tr><th>Mesin</th><th class=\"km-hide-sm\">Mitra</th><th class=\"num\">Harga jual ke mitra</th>"
+        "<th class=\"num\">Modal / HPP</th><th class=\"num\">Margin</th>"
+        "<th class=\"num\">Margin %</th></tr>"
+    )
+    body = []
+    for _, r in rows.sort_values("margin", ascending=False).iterrows():
+        mp = float(r["margin_pct"] or 0)
+        tone = C_MINT if mp >= 0 else C_RED
+        body.append(
+            "<tr>"
+            f"<td><b>{html.escape(str(r['label']))}</b></td>"
+            f"<td class=\"km-hide-sm\" style=\"color:{C_MUT}\">{html.escape(str(r['mitra'] or '—'))}</td>"
+            f"<td class=\"num\">{rp_short(r['harga_jual'])}</td>"
+            f"<td class=\"num\">{rp_short(r['modal'])}</td>"
+            f"<td class=\"num\" style=\"color:{tone};font-weight:700\">{rp_short(r['margin'])}</td>"
+            f"<td class=\"num\" style=\"color:{tone}\">{pct(mp)}%</td>"
+            "</tr>"
+        )
+    body.append(
+        "<tr><td><b>Total</b></td><td class=\"km-hide-sm\"></td>"
+        f"<td class=\"num\">{rp_short(rows['harga_jual'].sum())}</td>"
+        f"<td class=\"num\">{rp_short(rows['modal'].sum())}</td>"
+        f"<td class=\"num\">{rp_short(rows['margin'].sum())}</td><td></td></tr>"
+    )
     return '<div style="overflow:auto"><table class="km-table">' + head + "".join(body) + "</table></div>"
 
 
@@ -506,14 +556,14 @@ def create_page(container: ui.column):
                 ui.html(kpis_html(m), sanitize=False).classes("w-full")
 
                 ui.html('<div class="km-sec">Pembagian omzet kemitraan · 13 bulan</div>'
-                        '<div class="km-sub">Rp aktual: hak mitra, broker, dan yang tinggal di Difotoin.</div>',
+                        '<div class="km-sub">Dalam Rp juta — aktual: bagian kemitraan, broker (tempat), dan Difotoin.</div>',
                         sanitize=False).classes("w-full")
                 tr = m["trend"]
                 fig = go.Figure()
                 fig.add_bar(x=[lbl_month(p) for p in tr.index], y=tr["partner_amount"] / 1e6,
-                            name="Hak mitra", marker_color=C_VIOLET)
+                            name="Kemitraan (mesin)", marker_color=C_VIOLET)
                 fig.add_bar(x=[lbl_month(p) for p in tr.index], y=tr["broker_amount"] / 1e6,
-                            name="Broker", marker_color=C_AMBER)
+                            name="Broker (tempat)", marker_color=C_AMBER)
                 fig.add_bar(x=[lbl_month(p) for p in tr.index], y=tr["difotoin_amount"] / 1e6,
                             name="Difotoin", marker_color=C_MINT)
                 fig.update_layout(
@@ -521,23 +571,30 @@ def create_page(container: ui.column):
                     margin=dict(l=6, r=6, t=6, b=6),
                     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(size=10)),
-                    yaxis=dict(title="Rp juta", gridcolor="#24242f", zeroline=False),
+                    yaxis=dict(title=None, gridcolor="#24242f", zeroline=False, tickfont=dict(size=10)),
                     xaxis=dict(gridcolor="rgba(0,0,0,0)"),
                 )
                 ui.plotly(fig).classes("w-full h-[280px]")
 
-                ui.html('<div class="km-sec">Mitra & modalnya</div>'
-                        '<div class="km-sub">Hanya outlet yang punya nilai modal mitra (initial cost).</div>',
+                ui.html('<div class="km-sec">Mitra & mesinnya</div>'
+                        '<div class="km-sub">Modal dihitung dari harga jual mesin ke mitra, bukan dari outlet.</div>',
                         sanitize=False).classes("w-full")
                 ui.html(partners_html(m), sanitize=False).classes("w-full")
 
-                ui.html('<div class="km-sec">Balik modal per outlet</div>'
+                ui.html('<div class="km-sec">Balik modal per mesin</div>'
                         '<div class="km-sub">Diurut dari yang paling jauh dari balik modal. '
-                        'Kumulatif sejak Jul 2025.</div>', sanitize=False).classes("w-full")
+                        'Kalau mesin pindah, payout dari lokasi lama dan baru tetap dijumlahkan '
+                        'ke mesin yang sama. Kumulatif sejak Jul 2025.</div>',
+                        sanitize=False).classes("w-full")
                 ui.html(payback_html(m), sanitize=False).classes("w-full")
 
+                ui.html('<div class="km-sec">Margin penjualan mesin</div>'
+                        '<div class="km-sub">Harga jual ke mitra dibanding modal/HPP Difotoin per unit.</div>',
+                        sanitize=False).classes("w-full")
+                ui.html(machines_html(m), sanitize=False).classes("w-full")
+
                 ui.html(f'<div class="km-sec">Margin per outlet · {lbl_month(m["month"])}</div>'
-                        '<div class="km-sub">15 outlet omzet terbesar. Mitra ≥60% diberi warna merah: '
+                        '<div class="km-sub">15 outlet omzet terbesar. Kemitraan ≥60% diberi warna merah: '
                         'di situ Difotoin bekerja paling mahal.</div>', sanitize=False).classes("w-full")
                 ui.html(margins_html(m), sanitize=False).classes("w-full")
 
@@ -548,8 +605,13 @@ def create_page(container: ui.column):
                     f'• {h["no_contract"]} outlet bertransaksi tanpa baris kontrak di master '
                     f'(omzet {rp_short(h["no_contract_rev"])} bulan ini) — bagi hasilnya jalan, '
                     'tapi syaratnya tidak tercatat.<br>'
-                    f'• {h["cap_outlets"]} outlet punya modal mitra; {h["idle_cap"]} di antaranya '
-                    f'tidak menghasilkan payout 3 bulan terakhir (modal {rp_short(h["idle_cap_rp"])}).<br>'
+                    f'• {h["cap_outlets"]} unit mesin mitra; {h["idle_cap"]} di antaranya tidak '
+                    f'menghasilkan payout 3 bulan terakhir (harga jual {rp_short(h["idle_cap_rp"])}).<br>'
+                    f'• HPP terisi {h["hpp_filled"]}/{h["cap_outlets"]} unit, tgl beli kosong '
+                    f'{h["no_beli"]} unit — margin penjualan mesin baru bisa dihitung kalau HPP diisi '
+                    'di Setting Unit Mesin.<br>'
+                    f'• {h["moved"]} unit pernah pindah lokasi; payout-nya tetap dihitung ke mesin '
+                    'yang sama.<br>'
                     f'• Master kontrak terakhir {h["sharing_period"]} '
                     f'({h["sharing_age"] if h["sharing_age"] is not None else "?"} hari lalu); '
                     'halaman ini memakai kontrak live dari API outlet, master hanya untuk nama mitra.'
@@ -563,9 +625,11 @@ def create_page(container: ui.column):
                         sanitize=False).classes("w-full")
 
                 ui.html('<div class="km-note" style="margin-top:8px">'
-                        'Setelan kontrak & tabel mentah: <a href="/kemitraan-classic" '
-                        'style="color:#5b8cff;text-decoration:none">/kemitraan-classic</a> '
-                        '(admin/manager)</div>', sanitize=False).classes("w-full")
+                        '⚙️ <a href="/kemitraan-setting" style="color:#5b8cff;text-decoration:none">'
+                        'Setting Unit Mesin</a> — modal, HPP, tanggal beli, pindah lokasi · '
+                        'tabel kontrak lama: <a href="/kemitraan-classic" '
+                        'style="color:#5b8cff;text-decoration:none">/kemitraan-classic</a></div>',
+                        sanitize=False).classes("w-full")
 
         sel.on("change", lambda e: render())
         render()
