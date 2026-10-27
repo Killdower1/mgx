@@ -112,6 +112,7 @@ def create_page(container):
         if any(portfolio.key(o['name']) == portfolio.key(name) for o in owner['outlets']):
             ui.notify('Sudah ada di daftar mitra', type='warning'); return
         owner['outlets'].append({'name': name, 'state': 'candidate'})
+        doc['unassigned_outlets'] = [x for x in doc.get('unassigned_outlets', []) if portfolio.key(x.get('name')) != portfolio.key(name)]
         persist(doc, 'Outlet masuk usulan; konfirmasi untuk menghitung hasilnya')
 
     def outlet_actions(pid, outlet, status_label, actions):
@@ -194,6 +195,9 @@ def create_page(container):
                 outlet['state']; name = outlet['outlet']
                 with ui.row().classes('w-full items-center gap-2 flex-wrap py-1').style('border-bottom:1px solid #30303a'):
                     ui.label(name).classes('w-52 text-sm font-medium')
+                    source = next((o for o in owner['outlets'] if portfolio.key(o['name']) == portfolio.key(name)), {})
+                    if source.get('source'):
+                        ui.label('API · ' + source.get('discovered_at', '')).classes('text-xs text-amber-400')
                     ui.label(f"{outlet['first']}—{outlet['last']}").classes('w-32 text-xs text-gray-400')
                     ui.label(rp(outlet['observed'])).classes('w-28 text-xs')
                     status_label = ui.label().classes('w-20 text-xs')
@@ -204,6 +208,17 @@ def create_page(container):
                 picker = ui.select(outlet_names, with_input=True, label='Cari outlet lain').props('dense outlined dark').classes('w-64')
                 ui.button('+ Tambah usulan', on_click=lambda p=owner['id'], c=picker: add_outlet(p,c)).props('dense outline')
 
+    def assign_suggestion(name, selector):
+        pid = selector.value
+        if not pid:
+            ui.notify('Pilih mitra dulu', type='warning'); return
+        doc = portfolio.load()
+        try:
+            portfolio.assign_unassigned(doc, name, pid)
+        except ValueError as exc:
+            ui.notify(str(exc), type='warning'); return
+        persist(doc, 'Masuk usulan mitra; belum dihitung sampai dikonfirmasi')
+
     def refresh():
         doc = portfolio.load()
         summaries = {s['id']: s for s in portfolio.reconcile(doc, rs, month)}
@@ -213,6 +228,19 @@ def create_page(container):
                 ui.label(f"{len(doc['partners'])} mitra · {sum(len(p.get('investments', [])) for p in doc['partners'])} catatan modal").classes('text-sm')
                 ui.button('+ Mitra', on_click=add_owner).props('dense unelevated color=primary')
         with body:
+            unassigned = doc.get('unassigned_outlets', [])
+            if unassigned:
+                with ui.expansion(f'{len(unassigned)} usulan API belum diketahui mitranya', value=True).classes('w-full').style('background:#22202a;border:1px solid #6b541e;border-radius:12px'):
+                    ui.label('API outlet saat ini tidak mengirim nama investor. Pilih mitra secara manual; belum masuk hitungan sampai dikonfirmasi.').classes('text-xs text-amber-400')
+                    options = {p['id']: p['name'] for p in doc['partners']}
+                    for item in unassigned:
+                        with ui.row().classes('items-center gap-2 flex-wrap w-full'):
+                            ui.label(item['name']).classes('w-56 text-sm')
+                            ui.label(item.get('discovered_at', '') + ' · API outlet').classes('text-xs text-gray-400')
+                            if item.get('investor_hint'):
+                                ui.label('Nama belum cocok: ' + item['investor_hint']).classes('text-xs text-amber-400')
+                            picker = ui.select(options, label='Pilih mitra').props('dense outlined dark').classes('w-44')
+                            ui.button('Jadikan usulan', on_click=lambda n=item['name'], c=picker: assign_suggestion(n, c)).props('dense outline')
             for owner in doc['partners']:
                 owner_card(owner, summaries[owner['id']])
     refresh()
