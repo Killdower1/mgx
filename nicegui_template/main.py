@@ -30,6 +30,7 @@ from pages.ai_decision import create_page as create_ai_decision_page
 from pages.ai_decision_v2 import create_page as create_ai_decision_v2_page
 from pages.upload import create_page as create_upload_page
 from pages.kemitraan import create_page as create_kemitraan_page
+from pages.kemitraan_v2 import create_page as create_kemitraan_v2_page
 from pages.admin import create_page as create_admin_page
 from pages.crud import create_page as create_crud_page
 from pages.master_data import create_page as create_master_data_page
@@ -427,6 +428,20 @@ def kemitraan():
     ui.dark_mode().enable()
     ui.add_head_html(PAGE_STYLES)
     build_nav("/kemitraan")
+    container = ui.column().classes("w-full p-6")
+    create_kemitraan_v2_page(container)
+
+
+@ui.page("/kemitraan-classic")
+def kemitraan_classic():
+    """Halaman Kemitraan lama: setelan kontrak & tabel mentah. Fallback admin."""
+    if _auth_guard():
+        return
+    if get_current_role() not in ("admin", "manager"):
+        return RedirectResponse(url="/")
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kemitraan-classic")
     container = ui.column().classes("w-full p-6")
     create_kemitraan_page(container)
 
