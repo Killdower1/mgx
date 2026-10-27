@@ -20,6 +20,8 @@ def create_page(container):
     months = sorted({str(r['periode']) for r in rs})
     outlet_names = sorted({r['outlet_name'] for r in rs if r.get('outlet_name')})
     month = months[-1]
+    # Keep accordion instances alive while outlet statuses change in place.
+    views = {}
     with container:
         ui.label('⚙️ Modal & Outlet Mitra').classes('text-xl font-bold')
         ui.label('Isi modal yang benar-benar dibeli mitra. Cocokkan seluruh lokasi lama dan baru ke mitra; tidak perlu menebak identitas mesin.').classes('text-xs text-gray-400')
@@ -98,7 +100,9 @@ def create_page(container):
             owner['outlets'].append({'name': name, 'state': state})
         else:
             target['state'] = state
-        persist(doc, f'{name}: {state}')
+        portfolio.save(doc)
+        update_outlet_views()
+        ui.notify(f'{name}: {state}', type='positive')
 
     def add_outlet(pid, picker):
         name = (picker.value or '').strip()
@@ -110,16 +114,60 @@ def create_page(container):
         owner['outlets'].append({'name': name, 'state': 'candidate'})
         persist(doc, 'Outlet masuk usulan; konfirmasi untuk menghitung hasilnya')
 
+    def outlet_actions(pid, outlet, status_label, actions):
+        """Replace only the controls of this row, never its parent expansion."""
+        state, name = outlet['state'], outlet['outlet']
+        status_label.text = 'KONFLIK' if outlet['conflict'] else state.upper()
+        actions.clear()
+        with actions:
+            if state != 'confirmed':
+                ui.button('Milik mitra', on_click=lambda p=pid, n=name: set_outlet(p, n, 'confirmed')).props('dense outline color=positive size=sm')
+            if state != 'excluded':
+                ui.button('Bukan milik mitra', on_click=lambda p=pid, n=name: set_outlet(p, n, 'excluded')).props('dense flat color=grey size=sm')
+
+    def update_outlet_views():
+        """Refresh labels and button states without clearing the page or losing scroll."""
+        doc = portfolio.load()
+        summaries = {s['id']: s for s in portfolio.reconcile(doc, rs, month)}
+        for owner in doc['partners']:
+            view = views.get(owner['id'])
+            if view is None:
+                continue
+            summary = summaries[owner['id']]
+            confirmed = sum(o['state'] == 'confirmed' for o in summary['outlets'])
+            view['expansion'].text = (
+                f"{owner['name']} · modal {rp(summary['capital'])} · "
+                f"{confirmed}/{len(summary['outlets'])} outlet dikonfirmasi"
+            )
+            view['returned'].text = 'Hasil kemitraan tercatat: ' + rp(summary['returned'])
+            view['progress'].text = 'Progres: ' + (
+                f"{summary['progress']:.1f}%" if summary['progress'] is not None else 'modal belum diisi'
+            )
+            view['pending'].text = (
+                'Potensi hasil dari outlet usulan: ' + rp(summary['pending']) +
+                ' (belum masuk balik modal).' if summary['pending'] else ''
+            )
+            view['conflicts'].text = (
+                f"{summary['conflicts']} outlet terkonfirmasi ke >1 mitra: hasilnya DITAHAN sampai konflik selesai."
+                if summary['conflicts'] else ''
+            )
+            for outlet in summary['outlets']:
+                row = view['rows'].get(portfolio.key(outlet['outlet']))
+                if row is not None:
+                    outlet_actions(owner['id'], outlet, row[0], row[1])
+
     def owner_card(owner, summary):
         n_confirmed = sum(o['state'] == 'confirmed' for o in summary['outlets'])
         title = f"{owner['name']} · modal {rp(summary['capital'])} · {n_confirmed}/{len(summary['outlets'])} outlet dikonfirmasi"
-        with ui.expansion(title, value=portfolio.key(owner['name']) == 'widi official').classes('w-full').style('background:#1a1a24;border:1px solid #333;border-radius:12px'):
+        with ui.expansion(title, value=portfolio.key(owner['name']) == 'widi official').classes('w-full').style('background:#1a1a24;border:1px solid #333;border-radius:12px') as expansion:
+            view = {'expansion': expansion, 'rows': {}}
+            views[owner['id']] = view
             ui.label('Alias: ' + ', '.join(owner.get('aliases', []))).classes('text-xs text-gray-400')
             ui.button('Edit nama / alias', on_click=lambda p=owner['id']: edit_owner(p)).props('dense flat')
             with ui.row().classes('w-full gap-3 flex-wrap'):
                 ui.label('Modal: ' + rp(summary['capital'])).classes('font-bold')
-                ui.label('Hasil kemitraan tercatat: ' + rp(summary['returned'])).classes('font-bold')
-                ui.label('Progres: ' + (f"{summary['progress']:.1f}%" if summary['progress'] is not None else 'modal belum diisi')).classes('font-bold')
+                view['returned'] = ui.label('Hasil kemitraan tercatat: ' + rp(summary['returned'])).classes('font-bold')
+                view['progress'] = ui.label('Progres: ' + (f"{summary['progress']:.1f}%" if summary['progress'] is not None else 'modal belum diisi')).classes('font-bold')
             ui.label('Hanya outlet terkonfirmasi dihitung. Angka hasil ≠ bukti uang sudah ditransfer.').classes('text-xs text-gray-400')
             ui.separator()
             with ui.row().classes('items-center'):
@@ -134,21 +182,24 @@ def create_page(container):
             ui.separator()
             ui.label('Adu lokasi dengan data transaksi').classes('font-bold')
             ui.label('Tanggal pertama/terakhir = transaksi teramati, BUKAN tanggal perpindahan mesin.').classes('text-xs text-gray-400')
-            if summary['conflicts']:
-                ui.label(f"{summary['conflicts']} outlet terkonfirmasi ke >1 mitra: hasilnya DITAHAN sampai konflik selesai.").classes('text-xs text-red-400')
-            if summary['pending']:
-                ui.label('Potensi hasil dari outlet usulan: ' + rp(summary['pending']) + ' (belum masuk balik modal).').classes('text-xs text-amber-400')
+            view['conflicts'] = ui.label(
+                f"{summary['conflicts']} outlet terkonfirmasi ke >1 mitra: hasilnya DITAHAN sampai konflik selesai."
+                if summary['conflicts'] else ''
+            ).classes('text-xs text-red-400')
+            view['pending'] = ui.label(
+                'Potensi hasil dari outlet usulan: ' + rp(summary['pending']) + ' (belum masuk balik modal).'
+                if summary['pending'] else ''
+            ).classes('text-xs text-amber-400')
             for outlet in summary['outlets']:
-                state = outlet['state']; name = outlet['outlet']
+                outlet['state']; name = outlet['outlet']
                 with ui.row().classes('w-full items-center gap-2 flex-wrap py-1').style('border-bottom:1px solid #30303a'):
                     ui.label(name).classes('w-52 text-sm font-medium')
                     ui.label(f"{outlet['first']}—{outlet['last']}").classes('w-32 text-xs text-gray-400')
                     ui.label(rp(outlet['observed'])).classes('w-28 text-xs')
-                    ui.label(('KONFLIK' if outlet['conflict'] else state.upper())).classes('w-20 text-xs')
-                    if state != 'confirmed':
-                        ui.button('Milik mitra', on_click=lambda p=owner['id'], n=name: set_outlet(p,n,'confirmed')).props('dense outline color=positive size=sm')
-                    if state != 'excluded':
-                        ui.button('Bukan milik mitra', on_click=lambda p=owner['id'], n=name: set_outlet(p,n,'excluded')).props('dense flat color=grey size=sm')
+                    status_label = ui.label().classes('w-20 text-xs')
+                    actions = ui.row().classes('items-center gap-2')
+                    view['rows'][portfolio.key(name)] = (status_label, actions)
+                    outlet_actions(owner['id'], outlet, status_label, actions)
             with ui.row().classes('items-center gap-2 mt-2 flex-wrap'):
                 picker = ui.select(outlet_names, with_input=True, label='Cari outlet lain').props('dense outlined dark').classes('w-64')
                 ui.button('+ Tambah usulan', on_click=lambda p=owner['id'], c=picker: add_outlet(p,c)).props('dense outline')
