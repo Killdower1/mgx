@@ -31,6 +31,7 @@ from pages.ai_decision_v2 import create_page as create_ai_decision_v2_page
 from pages.upload import create_page as create_upload_page
 from pages.kemitraan import create_page as create_kemitraan_page
 from pages.kemitraan_v2 import create_page as create_kemitraan_v2_page
+from pages.kemitraan_layout_portfolio import create_page as create_kemitraan_layout_portfolio_page
 from pages.kemitraan_portfolio_page import create_page as create_kemitraan_portfolio_page
 from pages.kemitraan_portfolio_setting import create_page as create_kemitraan_portfolio_setting_page
 from pages.kemitraan_setting import create_page as create_kemitraan_setting_page
@@ -437,7 +438,18 @@ def kemitraan():
 
 @ui.page("/kemitraan-mesin-lama")
 def kemitraan_mesin_lama():
-    """Read-only rollback view of the previous unit-oriented dashboard."""
+    """Familiar Kemitraan layout backed by the confirmed portfolio ledger."""
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/kemitraan")
+    create_kemitraan_layout_portfolio_page(ui.column().classes("w-full p-6"))
+
+
+@ui.page("/kemitraan-mesin-arsip")
+def kemitraan_mesin_arsip():
+    """Read-only legacy machine economics; never use as the new investment ledger."""
     if _auth_guard():
         return
     ui.dark_mode().enable()
