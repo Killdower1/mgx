@@ -17,7 +17,8 @@ from services.dashboard_adapter import get_adapter
 from services import auth_service
 from pages.dashboard import create_page, set_filters
 from pages.control_tower import create_page as create_control_tower_page
-from pages.lead_kemitraan import create_page as create_lk_page
+from pages.lead_kemitraan import create_page as create_lk_classic_page
+from pages.lead_kemitraan_control import create_page as create_lk_page
 from pages.lead_partnership import create_page as create_lp_page, create_monthly_page as create_lp_monthly_page
 from pages.ranking import create_page as create_ranking_page
 from pages.ranking_v2 import create_page as create_ranking_v2_page
@@ -337,6 +338,16 @@ def lead_kemitraan():
     build_nav("/lead-kemitraan")
     container = ui.column().classes("w-full p-6")
     create_lk_page(container)
+
+
+@ui.page("/lead-kemitraan-klasik")
+def lead_kemitraan_klasik():
+    if _auth_guard():
+        return
+    ui.dark_mode().enable()
+    ui.add_head_html(PAGE_STYLES)
+    build_nav("/lead-kemitraan")
+    create_lk_classic_page(ui.column().classes("w-full p-6"))
 
 
 @ui.page("/trend")
