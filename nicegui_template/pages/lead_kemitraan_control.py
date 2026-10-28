@@ -74,14 +74,14 @@ def prepare(df, today):
             'Hasil terakhir': text(r.get('hasil_follow_up_terakhir')) or 'Belum tercatat',
             'Langkah berikutnya': text(r.get('next_step')) or 'Belum tercatat',
             'Follow-up berikut': display_day(due), 'Tanggal berikut': due.isoformat() if due else '',
-            'Diubah di ERP': display_day(mod), 'Diubah lengkap': mod[:16] if mod else '',
+            'Diubah di ERP': display_day(mod), 'Diubah lengkap': mod[:16] if mod else '', 'Dibuat': text(r.get('creation'))[:10],
             'WA': text(r.get('nomor_whatsapp')), 'Email': text(r.get('email')),
             'Rapat': text(r.get('ringkasan_meeting')),
             'DP': text(r.get('kesiapan_dp')), 'PKS': text(r.get('pks')),
             'Unit final': text(r.get('jumlah_unit_final')),
             'Catatan': text(r.get('description')),
         })
-    rows.sort(key=lambda r: (r['Urutan'], r['Tanggal berikut'] or '9999', -(r['Usia kontak'] or 0), r['Nama'].lower()))
+    rows.sort(key=lambda r: (r['Urutan'], r['Tanggal berikut'] or '9999', -(r['Usia kontak'] or 0), -(day(r['Dibuat']).toordinal() if day(r['Dibuat']) else 0), r['Nama'].lower()))
     return rows
 
 
@@ -104,6 +104,7 @@ def create_page(container):
     rows = prepare(df, datetime.now(JKT).date()) if not df.empty else []
     palette = 'background:#1e1e2e;border:1px solid #313244;border-radius:14px;'
     with container:
+        ui.add_head_html('<style>.lk-desktop{display:none!important}@media(min-width:768px){.lk-desktop{display:flex!important}.lk-mobile{display:none!important}}</style>')
         with ui.row().classes('w-full items-start justify-between gap-3'):
             with ui.column().classes('gap-0'):
                 ui.label('Pipeline Kemitraan').classes('text-2xl font-bold text-white')
@@ -117,15 +118,15 @@ def create_page(container):
             ui.label('Belum ada lead dalam akses Anda.').classes('text-gray-400')
             return
         counts = {k: sum(r['Kondisi'] == k for r in rows) for k in ('Terlambat', 'Hari ini', 'Belum tercatat', 'Belum dijadwalkan', 'Terjadwal')}
-        counts['Deal terverifikasi'] = sum(r['Tahap'].lower() in ('dp paid', 'installation', 'active partner', 'live') for r in rows)
+        counts['Tahap deal tercatat'] = sum(r['Tahap'].lower() in ('dp paid', 'installation', 'active partner', 'live') for r in rows)
         with ui.row().classes('w-full gap-3 flex-wrap'):
-            cards = [('Terlambat', '#f38ba8'), ('Hari ini', '#f9e2af'), ('Belum tercatat', '#fab387'), ('Belum dijadwalkan', '#89b4fa'), ('Terjadwal', '#a6e3a1'), ('Deal terverifikasi', '#cba6f7')]
+            cards = [('Terlambat', '#f38ba8'), ('Hari ini', '#f9e2af'), ('Belum tercatat', '#fab387'), ('Belum dijadwalkan', '#89b4fa'), ('Terjadwal', '#a6e3a1'), ('Tahap deal tercatat', '#cba6f7')]
             for title, color in cards:
                 with ui.card().classes('min-w-[148px] flex-1 cursor-pointer h-[112px]').style(palette) as card:
                     ui.label(title).classes('text-xs text-gray-300')
                     ui.label(str(counts[title])).style(f'font-size:2rem;font-weight:700;color:{color}')
                 card.on('click', lambda _, value=title: set_focus(value))
-        ui.label('“Belum tercatat” = tanggal kontak kosong, bukan bukti belum dihubungi. Deal hanya dihitung bila tahap ERP menyatakan DP Paid / Installation / Active Partner / Live.').classes('text-xs text-amber-200')
+        ui.label('“Belum tercatat” = tanggal kontak kosong, bukan bukti belum dihubungi. Tahap deal hanya berdasarkan status di CRM; pembayaran/PKS belum terverifikasi.').classes('text-xs text-amber-200')
         with ui.row().classes('w-full items-end gap-3 flex-wrap'):
             focus = ui.select(['Semua', *[c[0] for c in cards]], value='Semua', label='Fokus').props('dense outlined dark').classes('min-w-[160px]')
             status = ui.select(['Semua tahap', *sorted({r['Tahap'] for r in rows})], value='Semua tahap', label='Tahap').props('dense outlined dark').classes('min-w-[160px]')
@@ -151,28 +152,51 @@ def create_page(container):
                     ui.button('Tutup', on_click=dialog.close).props('flat')
             dialog.open()
 
+        mobile_limit = 20
+
         def render_table():
+            nonlocal mobile_limit
             table_box.clear()
-            selected = [r for r in rows if (focus.value == 'Semua' or (r['Tahap'].lower() in ('dp paid','installation','active partner','live') if focus.value == 'Deal terverifikasi' else r['Kondisi'] == focus.value)) and (status.value == 'Semua tahap' or r['Tahap'] == status.value)]
+            selected = [r for r in rows if (focus.value == 'Semua' or (r['Tahap'].lower() in ('dp paid','installation','active partner','live') if focus.value == 'Tahap deal tercatat' else r['Kondisi'] == focus.value)) and (status.value == 'Semua tahap' or r['Tahap'] == status.value)]
             q = (search.value or '').strip().lower()
             if q:
                 selected = [r for r in selected if q in ' '.join((r['Nama'], r['Kota'], r['PIC'], r['ID'])).lower()]
             with table_box:
-                ui.label(f'{len(selected)} lead • klik nama untuk riwayat dan tautan ERP').classes('text-sm text-gray-300')
-                columns = [
-                    ('Nama', 170), ('Kota', 125), ('Tahap', 110), ('PIC', 150), ('Unit', 75),
-                    ('Kondisi', 155), ('Kontak terakhir', 135), ('Hasil terakhir', 230),
-                    ('Langkah berikutnya', 230), ('Follow-up berikut', 135), ('Diubah di ERP', 135),
-                ]
-                grid = ui.aggrid({
-                    'columnDefs': [{'headerName': title, 'field': title, 'minWidth': width, 'sortable': True,
-                                    'filter': True, 'floatingFilter': True, **({'pinned': 'left', 'cellStyle': {'color': '#89b4fa', 'cursor': 'pointer', 'textDecoration': 'underline'}} if title == 'Nama' else {})} for title, width in columns],
-                    'rowData': selected, 'pagination': True, 'paginationPageSize': 25,
-                    'paginationPageSizeSelector': [10, 25, 50], 'domLayout': 'autoHeight',
-                    'defaultColDef': {'resizable': True, 'sortable': True, 'filter': True},
-                    'rowHeight': 48, 'enableCellTextSelection': True,
-                }, theme='balham').classes('w-full').style('min-height:300px')
-                grid.on('cellClicked', lambda e: detail(e.args['data']) if e.args.get('colId') == 'Nama' and e.args.get('data') else None)
+                ui.label(f'{len(selected)} lead • klik nama untuk detail dan tautan ERP').classes('text-sm text-gray-300')
+                with ui.column().classes('lk-mobile w-full gap-2'):
+                    for record in selected[:mobile_limit]:
+                        with ui.card().classes('w-full cursor-pointer').style('background:#1e1e2e;border:1px solid #313244;border-radius:12px;padding:12px;') as lead_card:
+                            with ui.row().classes('w-full justify-between items-start gap-1'):
+                                ui.label(record['Nama']).classes('font-bold text-blue-300 max-w-[65%] break-words')
+                                ui.label(record['Kondisi']).classes('text-xs text-amber-300')
+                            ui.label(f"{record['Kota']} • {record['Tahap']} • PIC: {record['PIC']}").classes('text-xs text-gray-300')
+                            ui.label(f"Kontak: {record['Kontak terakhir']}  ·  Berikut: {record['Follow-up berikut']}").classes('text-xs text-white')
+                            ui.label(f"Hasil: {record['Hasil terakhir']}").classes('text-xs text-gray-300 break-words')
+                            ui.label(f"Langkah: {record['Langkah berikutnya']}").classes('text-xs text-gray-300 break-words')
+                            ui.label(f"Record diubah: {record['Diubah di ERP']}").classes('text-xs text-gray-500')
+                        lead_card.on('click', lambda _, row=record: detail(row))
+                    if len(selected) > mobile_limit:
+                        def load_more():
+                            nonlocal mobile_limit
+                            mobile_limit += 20
+                            render_table()
+                        ui.button(f'Tampilkan 20 lagi ({len(selected)-mobile_limit} tersisa)', on_click=load_more).props('outline color=blue').classes('w-full')
+                with ui.column().classes('lk-desktop w-full'):
+
+                    columns = [
+                        ('Nama', 170), ('Kota', 125), ('Tahap', 110), ('PIC', 150), ('Unit', 75),
+                        ('Kondisi', 155), ('Kontak terakhir', 135), ('Hasil terakhir', 230),
+                        ('Langkah berikutnya', 230), ('Follow-up berikut', 135), ('Diubah di ERP', 135),
+                    ]
+                    grid = ui.aggrid({
+                        'columnDefs': [{'headerName': title, 'field': title, 'minWidth': width, 'sortable': True,
+                                        'filter': True, 'floatingFilter': True, **({'pinned': 'left', 'cellStyle': {'color': '#89b4fa', 'cursor': 'pointer', 'textDecoration': 'underline'}} if title == 'Nama' else {})} for title, width in columns],
+                        'rowData': selected, 'pagination': True, 'paginationPageSize': 25,
+                        'paginationPageSizeSelector': [10, 25, 50], 'domLayout': 'autoHeight',
+                        'defaultColDef': {'resizable': True, 'sortable': True, 'filter': True},
+                        'rowHeight': 48, 'enableCellTextSelection': True,
+                    }, theme='balham').classes('w-full').style('min-height:300px')
+                    grid.on('cellClicked', lambda e: detail(e.args['data']) if e.args.get('colId') == 'Nama' and e.args.get('data') else None)
         for widget in (focus, status, search):
             widget.on('change', lambda _: render_table())
         render_table()
