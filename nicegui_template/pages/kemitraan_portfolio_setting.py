@@ -23,9 +23,11 @@ def create_page(container):
     # Keep accordion instances alive while outlet statuses change in place.
     views = {}
     with container:
-        ui.label('⚙️ Modal & Outlet Mitra').classes('text-xl font-bold')
-        ui.label('Isi modal yang benar-benar dibeli mitra. Cocokkan seluruh lokasi lama dan baru ke mitra; tidak perlu menebak identitas mesin.').classes('text-xs text-gray-400')
+        ui.label('⚙️ Mesin Fisik Mitra & Arsip Outlet').classes('text-xl font-bold')
+        ui.label('Bagian modal/outlet lama di bawah adalah ARSIP; tidak masuk perhitungan mesin fisik. Pengaturan machine ID dan harga aktual berada di bagian akhir halaman.').classes('text-xs text-amber-400')
+        ui.label('Bagian arsip ini menyimpan data lama; investasi per mesin fisik diisi pada panel identitas mesin di atas.').classes('text-xs text-gray-400')
         ui.label('Data outlet dari model mesin lama hanya USULAN. Harga lama tidak disalin sebagai modal. Arsip lama tetap disimpan.').classes('text-xs text-amber-400')
+        machine_panel = ui.column().classes('w-full mt-3')
         header = ui.column().classes('w-full')
         body = ui.column().classes('w-full')
 
@@ -244,3 +246,90 @@ def create_page(container):
             for owner in doc['partners']:
                 owner_card(owner, summaries[owner['id']])
     refresh()
+
+    # Physical machine registry is independent from legacy outlet candidates and investments.
+    def machine_settings():
+        from services import kemitraan_machine as ledger
+        machine_panel.clear()
+        doc = portfolio.load()
+        cache, stale = ledger.read_cache()
+        latest = {}
+        for period in (cache or {}).get('periods', {}).values():
+            for row in period['rows']:
+                mid = row['machine_id']
+                if mid and (mid not in latest or latest[mid]['day'] < row['day']):
+                    latest[mid] = row
+        known = sorted(latest)
+        sharing_dir = ROOT / 'streamlit_template/data/sharing_outlets'
+        sharing_files = sorted(sharing_dir.glob('????-??.json'))
+        hints = {}
+        if sharing_files:
+            for item in json.loads(sharing_files[-1].read_text(encoding='utf-8')):
+                investor = str(item.get('investor_name') or '').strip()
+                if investor and investor != '-':
+                    hints[portfolio.key(item.get('outlet_name'))] = investor
+        # Location-derived hint is only a proposal, never ownership confirmation.
+        labels = {mid: latest[mid]['outlet'] + ' · ' + (hints.get(portfolio.key(latest[mid]['outlet'])) or 'mitra belum diketahui') + ' (usulan lokasi) · ' + mid[:8] for mid in known}
+        owned = {str(m.get('machine_id') or '').strip() for p in doc['partners'] for m in p.get('machines', [])}
+        with machine_panel:
+            ui.label('Identitas mesin fisik & harga pembelian aktual').classes('text-lg font-bold')
+            ui.label('Machine ID harus dikonfirmasi manual. Outlet/franchise dan harga arsip bukan bukti kepemilikan atau modal.').classes('text-xs text-amber-400')
+            if stale:
+                ui.label('Cache mesin belum tersedia/berubah: ' + ', '.join(stale[:10])).classes('text-xs text-amber-400')
+            async def rebuild():
+                import asyncio
+                try:
+                    await asyncio.to_thread(ledger.build_cache)
+                except Exception as exc:
+                    ui.notify('Rebuild gagal: '+str(exc), type='negative'); return
+                ui.notify('Cache mesin dibuat', type='positive'); machine_settings()
+            ui.button('Rebuild cache mesin dari RAW (streaming)', on_click=rebuild).props('outline')
+            ui.label(f'{len(known)} ID teramati · {len(set(known)-owned)} belum ditetapkan · {len(owned)} ditetapkan').classes('text-sm')
+            options = {p['id']:p['name'] for p in doc['partners']}
+            owner_pick = ui.select(options, label='Mitra terkonfirmasi').props('dense outlined dark').classes('w-60')
+            id_pick = ui.select({mid: labels[mid] for mid in known if mid not in owned}, with_input=True,
+                                label='Mesin · lokasi kini · usulan nama mitra').props('dense outlined dark').classes('w-96')
+            amount = ui.number('Harga pembelian aktual (Rp)', min=0, format='%.0f').classes('w-56')
+            bought = ui.input('Tanggal pembelian YYYY-MM-DD').classes('w-56')
+            def confirm():
+                mid = str(id_pick.value or '').strip()
+                if not owner_pick.value or not mid:
+                    ui.notify('Pilih mitra dan machine ID', type='warning'); return
+                if amount.value is not None or bought.value:
+                    try: portfolio.validate_investment(amount.value, bought.value)
+                    except ValueError as exc:
+                        ui.notify(str(exc), type='warning'); return
+                doc = portfolio.load()
+                if any(mid == str(m.get('machine_id') or '').strip() for p in doc['partners'] for m in p.get('machines', [])):
+                    ui.notify('Machine ID sudah ditetapkan; edit catatan yang ada', type='warning'); return
+                owner = next(p for p in doc['partners'] if p['id'] == owner_pick.value)
+                owner.setdefault('machines', []).append({'machine_id':mid,'amount':float(amount.value or 0),'date':bought.value or ''})
+                portfolio.save(doc);ui.notify('Mesin dikonfirmasi manual',type='positive');machine_settings()
+            ui.button('Konfirmasi mesin & simpan', on_click=confirm).props('color=positive')
+            for owner in doc['partners']:
+                for m in owner.get('machines', []):
+                    mid=m.get('machine_id','')
+                    with ui.row().classes('items-center gap-2 flex-wrap w-full'):
+                        ui.label(owner['name']+' · '+mid).classes('text-xs break-all')
+                        ui.label((m.get('date') or 'belum ditanggal')+' · '+rp(m.get('amount'))).classes('text-xs')
+                        def edit(pid=owner['id'], machine_id=mid):
+                            latest=portfolio.load()
+                            target=next(x for p in latest['partners'] if p['id']==pid for x in p.get('machines',[]) if x['machine_id']==machine_id)
+                            with ui.dialog() as dlg, ui.card():
+                                ui.label('Edit harga/tanggal mesin '+machine_id).classes('text-sm')
+                                cost=ui.number('Harga aktual Rp',value=target.get('amount'),min=1,format='%.0f')
+                                dt=ui.input('Tanggal beli YYYY-MM-DD',value=target.get('date') or '')
+                                def save_edit():
+                                    try:portfolio.validate_investment(cost.value,dt.value)
+                                    except ValueError as exc:
+                                        ui.notify(str(exc),type='warning');return
+                                    target.update(amount=float(cost.value),date=dt.value)
+                                    portfolio.save(latest);dlg.close();machine_settings()
+                                def release():
+                                    next(p for p in latest['partners'] if p['id']==pid)['machines'].remove(target)
+                                    portfolio.save(latest);dlg.close();machine_settings()
+                                ui.button('Simpan',on_click=save_edit)
+                                ui.button('Lepas penetapan mesin',on_click=release).props('outline color=red')
+                            dlg.open()
+                        ui.button('Edit / lepas',on_click=edit).props('dense flat')
+    machine_settings()
