@@ -50,4 +50,17 @@ with tempfile.TemporaryDirectory() as tmp:
     else:raise AssertionError('truncated raw accepted')
     assert k.read_cache(raw,cache)[0]==data
     assert k.read_cache(raw,cache)[1]==['2026-11']
-print('synthetic: multiple machines/outlet, moving machine, untagged, paid/done filtering, price/date, conflict, RS mismatch, atomic failure, freshness OK')
+with tempfile.TemporaryDirectory() as tmp:
+    root = Path(tmp)
+    raw = root/'raw'
+    raw.mkdir()
+    rows = [tx('2026-11-%02d' % day, 'M1', 1, 'A') for day in range(1, 21)]
+    (raw/'2026-11.json').write_text(json.dumps(rows))
+    data = k.build_cache(raw, root/'out.json')
+    doc = {'partners':[{'id':'P1','name':'One','machines':[{'machine_id':'M1','amount':20000,'date':'2026-11-01'}]}]}
+    result = k.reconcile(doc,data,'2026-11')['owners'][0]['machines'][0]
+    assert result['window_days']==20 and result['run_rate']==1200 and result['poor_sales']
+    # An early partial month must not be classified as weak sales.
+    early = k.reconcile(doc,data,'2026-10')['owners'][0]['machines'][0]
+    assert early['window_days']==0 and not early['poor_sales']
+print('synthetic: move, multiple machines/outlet, untagged, paid/done, price/date, conflict, RS mismatch, atomic failure, freshness, 30-day normalized pace OK')

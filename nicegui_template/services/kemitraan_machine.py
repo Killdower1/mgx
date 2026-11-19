@@ -7,6 +7,7 @@ import os
 import re
 import tempfile
 from collections import defaultdict
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -165,6 +166,9 @@ def reconcile(doc, cache, month, rs_rows=()):
     for period, data in periods.items():
         for row in data['rows']:
             if row['machine_id']: indexed[row['machine_id']].append(row)
+    all_tagged_days = [row['day'] for rows in indexed.values() for row in rows]
+    asof = max(all_tagged_days, default=None)
+    first_tagged = min(all_tagged_days, default=None)
     owners = []
     assigned = set()
     for owner in doc.get('partners', []):
@@ -182,7 +186,15 @@ def reconcile(doc, cache, month, rs_rows=()):
             entitlement = round(sum(r['entitlement'] for r in eligible),2)
             monthly = defaultdict(float)
             for r in eligible: monthly[r['day'][:7]] += r['entitlement']
-            run_rate = sum(monthly.get(p,0) for p in sorted(periods)[-3:]) / min(3,len(periods)) if periods else 0
+            # Normalize the observed last 90 calendar days to 30 days. Include idle
+            # days but never treat pre-rollout days as zero. Wait for a 14-day sample.
+            run_rate = 0.0
+            window_days = 0
+            if valid and asof and first_tagged:
+                start = max(first_tagged, bought, (date.fromisoformat(asof) - timedelta(days=89)).isoformat())
+                window_days = max(0, (date.fromisoformat(asof) - date.fromisoformat(start)).days + 1)
+                if window_days >= 14:
+                    run_rate = sum(r['entitlement'] for r in eligible if r['day'] >= start) * 30 / window_days
             trail = defaultdict(lambda: {'first':'', 'last':'', 'gross':0., 'entitlement':0., 'transactions':0})
             for r in rows:
                 key = (r['placement_id'], r['outlet'])
@@ -192,9 +204,9 @@ def reconcile(doc, cache, month, rs_rows=()):
                 'entitlement':entitlement, 'gross':round(sum(r['gross'] for r in eligible),2),
                 'remaining':max(amount-entitlement,0) if valid else None,
                 'progress':entitlement/amount*100 if valid else None,
-                'run_rate':round(run_rate,2),
-                'months_to_payback':max(amount-entitlement,0)/run_rate if valid and run_rate>0 else None,
-                'poor_sales':bool(valid and run_rate < amount/12),
+                'run_rate':round(run_rate,2), 'window_days':window_days,
+                'months_to_payback':max(amount-entitlement,0)/run_rate if valid and window_days>=14 and run_rate>0 else None,
+                'poor_sales':bool(valid and rows and window_days>=14 and run_rate < amount/12),
                 'conflict':conflict, 'unpriced':not bool(amount and bought),
                 'monthly':dict(monthly),
                 'trail':[dict(placement_id=k[0],outlet=k[1],**v) for k,v in sorted(trail.items(), key=lambda x:x[1]['first'])]})
