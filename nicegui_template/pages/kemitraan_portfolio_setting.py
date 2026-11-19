@@ -24,12 +24,12 @@ def create_page(container):
     views = {}
     with container:
         ui.label('⚙️ Mesin Fisik Mitra & Arsip Outlet').classes('text-xl font-bold')
-        ui.label('Bagian modal/outlet lama di bawah adalah ARSIP; tidak masuk perhitungan mesin fisik. Pengaturan machine ID dan harga aktual berada di bagian akhir halaman.').classes('text-xs text-amber-400')
-        ui.label('Bagian arsip ini menyimpan data lama; investasi per mesin fisik diisi pada panel identitas mesin di atas.').classes('text-xs text-gray-400')
-        ui.label('Data outlet dari model mesin lama hanya USULAN. Harga lama tidak disalin sebagai modal. Arsip lama tetap disimpan.').classes('text-xs text-amber-400')
+        ui.label('Pilih mesin dan mitranya di panel atas, lalu isi harga pembelian aktual. Data outlet/modal lama tersimpan di arsip terpisah dan tidak masuk hitungan mesin.').classes('text-xs text-amber-400')
         machine_panel = ui.column().classes('w-full mt-3')
-        header = ui.column().classes('w-full')
-        body = ui.column().classes('w-full')
+        with ui.expansion('Arsip pengaturan modal & outlet lama (tidak dihitung pada mesin)', value=False).classes('w-full mt-5'):
+            ui.label('Harga dan lokasi model lama hanya referensi; perubahan di sini tidak mengisi modal mesin fisik.').classes('text-xs text-amber-400')
+            header = ui.column().classes('w-full')
+            body = ui.column().classes('w-full')
 
     def persist(doc, message):
         portfolio.save(doc)
