@@ -47,7 +47,7 @@ def create_page(container):
             ui.label(f"Modal mesin terkonfirmasi {rp(capital)} · hak mitra {rp(earned)} · progres {earned/capital*100:.1f}%" if capital else 'Belum ada harga mesin terkonfirmasi; progres belum dapat dihitung.').classes('font-bold')
             ui.label('Sisa modal '+rp(max(capital-earned,0)) if capital else 'Modal belum dicatat per mesin').classes('text-sm')
             ui.label(f"{len(machines)} mesin mitra dikonfirmasi · {len(priced)} bermodal dan bertanggal · {sum(m['progress'] >= 100 for m in priced)} balik modal · {sum(m['poor_sales'] for m in priced)} penjualan rendah").classes('text-sm')
-            ui.label('Indikator rendah: hak mitra rata-rata 3 bulan < modal/12 per bulan; bulan berjalan parsial, jadi hanya sinyal awal.').classes('text-xs text-gray-400')
+            ui.label('Indikator rendah: hak mitra 90 hari terakhir dinormalkan ke 30 hari, dibanding modal/12 per bulan. Butuh ≥14 hari data sejak ID pertama muncul; ini sinyal, bukan janji balik modal.').classes('text-xs text-gray-400')
             ui.label(f"Cakupan RAW: {', '.join(view['covered_months'])}. Transaksi tanpa machine ID (terutama sebelum 2026-10-29) tidak dialokasikan ke mesin/mitra. Bulan tanpa RAW tidak dihitung.").classes('text-xs text-gray-400')
             if view['reconciliation_differences']:
                 ui.label(f"⚠ {len(view['reconciliation_differences'])} outlet-bulan berbeda dari rs_outlet; angka perlu diaudit sebelum dipakai sebagai keputusan.").classes('text-amber-400')
@@ -63,10 +63,11 @@ def create_page(container):
                             ui.label(m['machine_id']).classes('text-sm font-bold break-all')
                             if m['conflict']: ui.label('Konflik: ID ini dimiliki >1 mitra; hasil ditahan.').classes('text-red-400')
                             if m['unpriced']: ui.label('Harga/tanggal belum lengkap; dipisah dari progres modal.').classes('text-amber-400')
+                            if not m['trail']: ui.label('Belum ada transaksi bertag ID mesin ini; status penjualan belum bisa dinilai.').classes('text-amber-400')
                             ui.label(f"Beli {m['date'] or '—'} · modal {rp(m['amount'])} · bruto teratribusi {rp(m['gross'])} · hak mitra {rp(m['entitlement'])}").classes('text-sm')
                             if m['progress'] is not None:
                                 ui.linear_progress(min(1,m['progress']/100)).props('color=positive')
-                                ui.label(f"Progres {m['progress']:.1f}% · sisa {rp(m['remaining'])} · run-rate 3 bulan {rp(m['run_rate'])}/bulan · estimasi sisa {m['months_to_payback']:.1f} bulan" if m['months_to_payback'] is not None else f"Progres {m['progress']:.1f}% · sisa {rp(m['remaining'])} · run-rate belum cukup untuk estimasi").classes('text-xs')
+                                ui.label(f"Progres {m['progress']:.1f}% · sisa {rp(m['remaining'])} · pace {rp(m['run_rate'])}/30 hari (sampel {m['window_days']} hari) · estimasi sisa {m['months_to_payback']:.1f} bulan" if m['months_to_payback'] is not None else f"Progres {m['progress']:.1f}% · sisa {rp(m['remaining'])} · {'sampel terlalu pendek' if m['window_days'] < 14 else 'belum ada hasil untuk estimasi'}").classes('text-xs')
                                 if m['poor_sales']: ui.label('Penjualan rendah: run-rate di bawah modal/12 per bulan (indikator, bukan janji balik modal).').classes('text-xs text-amber-400')
                             with ui.expansion('Jejak outlet/placement & hasil bulanan'):
                                 for t in m['trail']:
